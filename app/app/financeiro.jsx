@@ -2610,7 +2610,7 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
         )}
         {dados && (
           <button onClick={() => setModal({ tipo: "ia" })} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}>
-            <Sparkles size={15} style={{ color: C.accent }} /> Analisar com IA
+            <Sparkles size={15} style={{ color: C.accent }} /> Análise profunda
           </button>
         )}
         {dados && (
@@ -3070,9 +3070,11 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
     setAba(!j.sugestoes.length && j.incongruencias.length ? "inc" : "sug");
     setModo("res");
   };
-  const rodar = (refazerPesquisa = false) => {
-    setD(null); setErro(""); setMsg(""); setModo("rodando");
-    api("/api/fin/ia", "POST", { usuarioId: user.id, competencia: comp, refazerPesquisa })
+  const [comIA, setComIA] = useState(false);
+  // v944 — rodar() = análise profunda (contas a pagar/receber + histórico, sem custo); rodar({ ia: true }) = com IA
+  const rodar = ({ ia = false, refazerPesquisa = false } = {}) => {
+    setD(null); setErro(""); setMsg(""); setModo("rodando"); setComIA(ia);
+    api("/api/fin/ia", "POST", { usuarioId: user.id, competencia: comp, ia, refazerPesquisa })
       .then(mostrar).catch((e) => { setErro(e.message); setModo("lista"); });
   };
   const abrir = (id) => {
@@ -3091,6 +3093,8 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
   };
   useEffect(() => { listar().then((l) => { if (!Array.isArray(l) || !l.length) rodar(); }).catch(() => rodar()); }, []);
   const muda = (g, k, v) => setSug((l) => l.map((s) => (s.g === g ? { ...s, [k]: v } : s)));
+  // v944 — recusar a sugestão do contas a pagar/receber: passa a valer a do histórico
+  const recusar = (g) => setSug((l) => l.map((s) => (s.g === g && s.alternativa ? { ...s, ...s.alternativa, alternativa: null, tituloId: null, recusada: s.motivo, marcado: false, salvarTermo: false } : s)));
   const marcados = sug.filter((s) => s.marcado && s.contaId);
   const [ordS, setOrdS] = useState({ k: null, dir: 1 });
   const PESO = { ALTA: 3, MEDIA: 2, BAIXA: 1 };
@@ -3138,11 +3142,11 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
     </button>
   );
   return (
-    <Modal titulo={`Análise com IA · ${nomeComp(comp)}`} icone={Sparkles} onClose={() => onClose(mudou)} largura={1100}>
+    <Modal titulo={`Análise profunda · ${nomeComp(comp)}`} icone={Sparkles} onClose={() => onClose(mudou)} largura={1100}>
       {(modo === "rodando" || modo === "abrindo" || modo === "inicio") && (
         <div className="flex flex-col items-center gap-2 py-12 text-sm" style={{ color: C.sub }}>
           <Loader2 size={24} className="animate-spin" style={{ color: C.accent }} />
-          {modo === "rodando" ? "Comparando com o histórico, consultando a IA e pesquisando na internet o que não tem histórico… (pode levar alguns minutos)" : "Carregando…"}
+          {modo === "rodando" ? (comIA ? "Comparando com o histórico, consultando a IA e pesquisando na internet o que não tem histórico… (pode levar alguns minutos)" : "Cruzando com o contas a pagar/receber do mês e com o histórico de identificações…") : "Carregando…"}
         </div>
       )}
       {erro && <div className="p-3 rounded text-sm mb-3" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
@@ -3150,16 +3154,21 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
         <div>
           <div className="flex items-center justify-between mb-3">
             <div className="text-sm" style={{ color: C.sub }}>{lista.length ? "Análises salvas deste mês. Abra uma anterior (sem custo) ou faça uma nova." : "Nenhuma análise salva neste mês."}</div>
-            <button onClick={() => rodar()} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent }}>
-              <Sparkles size={15} /> Nova análise
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => rodar()} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent }}>
+                <Sparkles size={15} /> Nova análise profunda
+              </button>
+              <button onClick={() => rodar({ ia: true })} title="Use só se a análise profunda não resolver (tem custo)" className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.navy}`, color: C.navy }}>
+                <Wand2 size={15} /> Analisar com IA
+              </button>
+            </div>
           </div>
           {lista.map((a, i) => (
             <div key={a.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg mb-2" style={{ border: `1px solid ${C.line}`, background: i === 0 ? C.panel2 : C.panel }}>
               <Sparkles size={16} style={{ color: a.ia ? C.accent : C.sub }} />
               <div className="flex-1 text-sm">
                 <div className="font-semibold">{dataHora(a.createdAt)}{i === 0 && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>mais recente</span>}</div>
-                <div className="text-xs" style={{ color: C.sub }}>{a.usuarioNome || "—"} · {a.nSugestoes} sugestão(ões) · {a.nIncong} incongruência(s) · {a.ia ? "com IA" : "só histórico"}</div>
+                <div className="text-xs" style={{ color: C.sub }}>{a.usuarioNome || "—"} · {a.nSugestoes} sugestão(ões) · {a.nIncong} incongruência(s) · {a.ia ? "com IA" : "análise profunda"}</div>
               </div>
               <button onClick={() => abrir(a.id)} className="px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>Abrir</button>
               <button onClick={() => excluir(a.id)} title="Apagar" style={{ color: C.sub }}><Trash2 size={15} /></button>
@@ -3175,15 +3184,17 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
               {d.salva && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: C.blueSoft, color: C.blue }}>salva{d.resolvidas ? ` · ${d.resolvidas} já resolvida(s)` : ""}</span>}
             </div>
             <button onClick={listar} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.line}`, color: C.text }}>Análises anteriores</button>
-            <button onClick={() => rodar()} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.accent }}><Sparkles size={13} /> Nova análise</button>
+            <button onClick={() => rodar()} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.accent }}><Sparkles size={13} /> Nova análise profunda</button>
+            <button onClick={() => rodar({ ia: true })} title="Use só se a análise profunda não resolver (tem custo)" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${C.navy}`, color: C.navy }}><Wand2 size={13} /> Analisar com IA</button>
           </div>
           <div className="text-xs mb-3 flex flex-wrap gap-3" style={{ color: C.sub }}>
             <span>Base: <b>{d.historico.toLocaleString("pt-BR")}</b> identificações de outros meses</span>
-            <span style={{ color: d.ia ? C.green : C.yellow }}>{d.ia ? "IA ativa" : "Só histórico (sem IA)"}</span>
+            <span style={{ color: d.ia ? C.green : C.blue }}>{d.ia ? "Com IA" : "Análise profunda (sem IA)"}</span>
+            {d.porTitulo > 0 && <span style={{ color: C.green }}>{d.porTitulo} casado(s) com o contas a pagar/receber</span>}
             {d.descartadas > 0 && <span>{d.descartadas} alerta(s) descartado(s) pela IA como corretos</span>}
             {d.pagFatura > 0 && <span style={{ color: C.blue }}>{d.pagFatura} pagamento(s) de fatura desconsiderado(s) — batem com a fatura</span>}
             {d.pesquisados > 0 && <span>🔎 {d.pesquisados} sem histórico, pesquisados na internet</span>}
-            {d.pesquisados > 0 && d.ia && <button onClick={() => rodar(true)} className="underline" style={{ color: C.blue }}>Refazer pesquisas</button>}
+            {d.pesquisados > 0 && d.ia && <button onClick={() => rodar({ ia: true, refazerPesquisa: true })} className="underline" style={{ color: C.blue }}>Refazer pesquisas</button>}
           </div>
           {d.aviso && <div className="p-2 rounded mb-3 text-xs" style={{ background: C.yellowSoft, color: C.yellow }}>{d.aviso}</div>}
           {msg && <div className="p-2 rounded mb-3 text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{msg}</div>}
@@ -3225,6 +3236,8 @@ function AnaliseIAModal({ user, comp, contas, todas, onClose }) {
                         <td className="px-2 py-1.5" style={{ color: C.sub, maxWidth: 260 }}>
                           {s.achado && <div className="font-semibold mb-0.5" style={{ color: C.navy }}>🔎 {s.achado}</div>}
                           {s.motivo}
+                          {s.alternativa && <div><button onClick={() => recusar(s.g)} className="mt-1 px-2 py-0.5 rounded text-[10px] font-semibold" style={{ border: `1px solid ${C.line}`, color: C.red }}>Recusar · usar o histórico</button></div>}
+                          {s.recusada && <div className="text-[10px] mt-0.5" style={{ color: C.sub, textDecoration: "line-through" }} title={s.recusada}>Contas a pagar/receber recusado</div>}
                         </td>
                         <td className="px-2 py-1.5" style={{ minWidth: 160 }}>
                           <label className="flex items-center gap-1">

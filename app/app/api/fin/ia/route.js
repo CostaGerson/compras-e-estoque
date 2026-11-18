@@ -3,7 +3,7 @@ export const maxDuration = 300;
 import { prisma } from "@/lib/prisma";
 import { usuarioMaster, negado, competenciaValida, garantirContas, sugerirTermo, descartarPagamentosFatura } from "@/lib/fin";
 import { carregarPrestadores, prestadorDoHistorico, descPrestador, contaDoPrestador } from "@/lib/finPrestadorNome";
-import { indiceHistorico, candidatos, topConta, chaveHist, iaDisponivel, perguntarIA, acharCnpj, consultarCnpj } from "@/lib/finIA";
+import { indiceHistorico, candidatos, topConta, chaveHist, tokens, iaDisponivel, perguntarIA, acharCnpj, consultarCnpj } from "@/lib/finIA";
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const LOTE = 50;
@@ -37,7 +37,47 @@ Contas 1xxxxxx = receitas, 2xxxxxx = despesas, 3000000 = conciliação entre con
 Para cada item decida: "TROCAR" (a conta atual está errada; diga a conta certa do plano) ou "OK" (é um caso legítimo, ex.: estorno, compra pontual diferente). Seja criterioso: só TROCAR com evidência.
 Responda SOMENTE um JSON (lista): [{"i": <número do item>, "acao": "TROCAR"|"OK", "contaCodigo": "2112100" | null, "motivo": "frase curta em português"}]`;
 
-// POST { usuarioId, competencia } → { sugestoes:[], incongruencias:[], ia, aviso }
+// v944 — prioridade e confiança da análise:
+//  1º CONTAS A PAGAR/RECEBER: título pago/recebido no mês, valor igual ou até 5% de diferença e ao menos uma palavra em comum
+//     entre o histórico do extrato e o título (ou o fornecedor/cliente) → conta do rateio do título.
+//     Confiança ALTA com diferença até 1% e um único título candidato; MEDIA nos demais casos.
+//  2º histórico de identificações (mesmo histórico → ALTA quando ≥80% das vezes na mesma conta; parecido → MEDIA/BAIXA)
+//  3º cadastro de freelancer/terceirizado
+//  A IA só entra quando pedida (botão "Analisar com IA" dentro da análise profunda) e não mexe no que veio do contas a pagar.
+const TOL = 0.05;
+function casarTitulos(lancs, titulos) {
+  const usados = new Set(), res = new Map();
+  const tt = titulos.map((t) => ({ t, v: Math.abs(Number(t.valorPago ?? t.valor)), tok: new Set([...tokens(t.titulo), ...tokens(t.parceiro)]) }));
+  // maiores primeiro: menos chance de um valor pequeno "roubar" o título
+  for (const l of [...lancs].sort((a, b) => Math.abs(Number(b.valor)) - Math.abs(Number(a.valor)))) {
+    const v = Math.abs(Number(l.valor)), tipo = Number(l.valor) < 0 ? "PAGAR" : "RECEBER";
+    const lt = tokens(`${l.historico} ${l.identificacao || ""}`);
+    const cands = [];
+    for (const x of tt) {
+      if (usados.has(x.t.id) || x.t.tipo !== tipo || !x.v) continue;
+      if (x.t.lancamentoId && x.t.lancamentoId !== l.id) continue;
+      const dif = Math.abs(v - x.v) / x.v;
+      if (dif > TOL) continue;
+      const comuns = lt.filter((w) => x.tok.has(w));
+      if (!comuns.length) continue;
+      cands.push({ x, dif, comuns });
+    }
+    if (!cands.length) continue;
+    cands.sort((a, b) => b.comuns.length - a.comuns.length || a.dif - b.dif);
+    const m = cands[0];
+    usados.add(m.x.t.id);
+    res.set(l.id, { titulo: m.x.t, dif: m.dif, comuns: m.comuns, varios: cands.length > 1 });
+  }
+  return res;
+}
+const contaDoRateio = (t) => {
+  const r = Array.isArray(t.rateio) ? t.rateio.filter((x) => x && x.contaId) : [];
+  if (!r.length) return null;
+  r.sort((a, b) => Number(b.pct || 0) - Number(a.pct || 0));
+  return { contaId: Number(r[0].contaId), rateado: r.length > 1 };
+};
+
+// POST { usuarioId, competencia, ia? } → { sugestoes:[], incongruencias:[], ia, aviso }
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const u = await usuarioMaster(b.usuarioId);
@@ -47,12 +87,16 @@ export async function POST(req) {
   await garantirContas();
   const pagFatura = await descartarPagamentosFatura(comp);
 
-  const [contas, ls, regras, idx, prestadores] = await Promise.all([
+  const usarIA = !!b.ia;   // v944 — análise profunda (sem IA) é o padrão; a IA só quando pedida
+  const [ano, mes] = comp.split("-").map(Number);
+  const [contas, ls, regras, idx, prestadores, titulosPagos] = await Promise.all([
     prisma.finConta.findMany({ orderBy: { codigo: "asc" } }),
     prisma.finLancamento.findMany({ where: { competencia: comp, desmembrado: false, substituido: false } }),
     prisma.finRegra.findMany({ select: { id: true, termo: true } }),
     indiceHistorico(comp),
     carregarPrestadores(),   // v798
+    prisma.finTitulo.findMany({ where: { status: "PAGO", dataPagamento: { gte: new Date(Date.UTC(ano, mes - 1, 1)), lt: new Date(Date.UTC(ano, mes, 1)) } },
+      select: { id: true, tipo: true, titulo: true, parceiro: true, valor: true, valorPago: true, dataPagamento: true, rateio: true, lancamentoId: true } }),   // v944
   ]);
   if (!idx.total) return Response.json({ error: "Ainda não há histórico de identificações. Importe o histórico primeiro." }, { status: 400 });
   const cId = Object.fromEntries(contas.map((c) => [c.id, c]));
@@ -62,8 +106,39 @@ export async function POST(req) {
   const regraTermo = Object.fromEntries(regras.map((r) => [r.id, r.termo]));
 
   // ---------- 1. A IDENTIFICAR: agrupa por histórico parecido + sinal ----------
+  // v944 — 1º contas a pagar/receber: cada lançamento casado vira uma sugestão própria
+  const aIdent = ls.filter((x) => !x.contaId);
+  const casados = casarTitulos(aIdent, titulosPagos);
+  const sugTitulos = [];
+  const altHistorico = (l) => {
+    const cand = candidatos(idx, l);
+    const top = cand.exata ? topConta(cand.exata.contas) : null;
+    const base = top || (cand.parecidos[0] ? topConta(cand.parecidos[0].c.contas) : null);
+    if (base && cId[base.contaId]) return { contaId: base.contaId, confianca: top && top.share >= 0.8 && top.tot >= 2 ? "ALTA" : top ? "MEDIA" : "BAIXA",
+      motivo: `${top ? "Mesmo histórico" : "Histórico parecido"}: ${base.n} de ${base.tot} vezes em ${nomeC(base.contaId)}`, termo: sugerirTermo(l.historico), fonte: "HISTÓRICO" };
+    const prest = prestadorDoHistorico(prestadores, `${l.historico} ${l.identificacao || ""}`, l.documento);
+    const cp = prest && Number(l.valor) < 0 ? contaDoPrestador(prest, contas) : null;
+    if (cp) return { contaId: cp.id, confianca: prest.score >= 0.8 ? "ALTA" : "MEDIA", motivo: `Nome do cadastro: ${descPrestador(prest)} → ${nomeC(cp.id)}`, termo: prest.nome.toUpperCase(), fonte: "HISTÓRICO" };
+    return { contaId: null, confianca: null, motivo: "Sem histórico parecido.", termo: null, fonte: null };
+  };
+  for (const l of aIdent) {
+    const m = casados.get(l.id);
+    if (!m) continue;
+    const cr = contaDoRateio(m.titulo);
+    if (!cr || !cId[cr.contaId]) { casados.delete(l.id); continue; }
+    const v = Number(l.valor), t = m.titulo;
+    const dp = t.dataPagamento ? t.dataPagamento.toISOString().slice(0, 10).split("-").reverse().join("/") : "";
+    sugTitulos.push({
+      g: `T${t.id}`, ids: [l.id], historico: l.historico, banco: l.banco, sinal: v > 0 ? "C" : "D", total: r2(v), qtd: 1,
+      contaId: cr.contaId, confianca: m.dif <= 0.01 && !m.varios ? "ALTA" : "MEDIA",
+      motivo: `Conta a ${t.tipo === "PAGAR" ? "pagar" : "receber"} "${t.titulo}" (${t.parceiro}) ${t.tipo === "PAGAR" ? "paga" : "recebida"} em ${dp} · R$ ${Number(t.valorPago ?? t.valor).toFixed(2).replace(".", ",")}` +
+        `${m.dif > 0.0001 ? ` (diferença ${(m.dif * 100).toFixed(1).replace(".", ",")}%)` : ""} · em comum: ${m.comuns.join(", ")}${cr.rateado ? " · título rateado: usei a conta de maior %" : ""}${m.varios ? " · havia mais de um título possível" : ""}`,
+      termo: null, prestador: null, fonte: "CONTAS A PAGAR/RECEBER", achado: null, semHist: false, tituloId: t.id,
+      alternativa: altHistorico(l),   // v944 — se a sugestão do título for recusada, vale a do histórico
+    });
+  }
   const gMap = new Map();
-  for (const l of ls.filter((x) => !x.contaId)) {
+  for (const l of aIdent.filter((x) => !casados.has(x.id))) {
     const v = Number(l.valor);
     const k = `${v > 0 ? "C" : "D"}|${l.banco}|${chaveHist(l.historico)}`;
     let g = gMap.get(k);
@@ -128,7 +203,7 @@ export async function POST(req) {
   // ---------- 3. IA ----------
   let ia = false, aviso = "";
   const respSug = {}, respInc = {};
-  if (iaDisponivel() && (grupos.length || susp.length)) {
+  if (usarIA && iaDisponivel() && (grupos.length || susp.length)) {
     const fmtContas = (c) => Object.entries(c).sort((a, b) => b[1] - a[1]).map(([id, n]) => `${nomeC(id)} ×${n}`).join("; ");
     const txtG = (g) => `#${g.g} | ${g.sinal} | ${g.banco} | ${g.historico} | ${g.ids.length} lanç. | R$ ${g.total.toFixed(2)}\n` +
       (g.prest ? `   CADASTRO: ${descPrestador(g.prest)} (nome bate ${Math.round(g.prest.score * 100)}%)${g.sistema?.contaId ? " · conta provável " + nomeC(g.sistema.contaId) : ""}\n` : "") +
@@ -179,7 +254,7 @@ export async function POST(req) {
     const falhas = res.filter((r) => r.status === "rejected");
     ia = falhas.length < res.length;
     if (falhas.length) aviso = `IA: ${falhas[0].reason?.message || "falha"}${ia ? " (parte da análise ficou só com o histórico)" : " — usei só o histórico."}`;
-  } else if (!iaDisponivel()) aviso = "Chave da IA não configurada na VPS — sugestões feitas só com o histórico.";
+  } else if (usarIA && !iaDisponivel()) aviso = "Chave da IA não configurada na VPS — sugestões feitas só com o histórico.";
 
   const sugestoes = grupos.map((g) => {
     const r = respSug[g.g];
@@ -194,7 +269,10 @@ export async function POST(req) {
       fonte: r ? (r.salva ? "PESQUISA SALVA" : r.web ? "INTERNET" : "IA") : g.sistema ? "HISTÓRICO" : null,
       achado: r?.achado || null, semHist: !!g.semHist,
     };
-  }).sort((a, b) => (b.contaId ? 1 : 0) - (a.contaId ? 1 : 0) || Math.abs(b.total) - Math.abs(a.total));
+  });
+  // v944 — contas a pagar/receber primeiro; depois as com conta; maior valor primeiro
+  sugestoes.unshift(...sugTitulos);
+  sugestoes.sort((a, b) => (b.tituloId ? 1 : 0) - (a.tituloId ? 1 : 0) || (b.contaId ? 1 : 0) - (a.contaId ? 1 : 0) || Math.abs(b.total) - Math.abs(a.total));
 
   const incongruencias = susp.map((s) => {
     const r = respInc[s.i];
@@ -207,7 +285,7 @@ export async function POST(req) {
     };
   }).filter(Boolean);
 
-  const resultado = { ia, aviso, pagFatura, pesquisados: semHist.length, historico: idx.total, sugestoes, incongruencias, descartadas: susp.length - incongruencias.length };
+  const resultado = { ia, aviso, pagFatura, porTitulo: sugTitulos.length, pesquisados: usarIA ? semHist.length : 0, historico: idx.total, sugestoes, incongruencias, descartadas: susp.length - incongruencias.length };
   const salva = await prisma.finAnaliseIA.create({
     data: { competencia: comp, usuarioNome: [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase(), ia, nSugestoes: sugestoes.length, nIncong: incongruencias.length, resultado },
   });

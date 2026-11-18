@@ -23,7 +23,7 @@ import { ComprasPedidos, Levantamento, Atendidos, Avulsas, FASES_COMPRAS, PicCom
 import ProducaoGestao from "./producaoGestao";   // v420   // v404 · v415 fases
 import { Layers, Loader2 } from "lucide-react";
 import { ClipboardCheck, Receipt, ListChecks, Route as IcoRota } from "lucide-react";
-import { FolderUp } from "lucide-react";
+import { FolderUp, ArrowLeft as IcoVoltar } from "lucide-react";
 import { Contact as IcoRH } from "lucide-react";
 import { KeyRound, ShieldCheck, Lightbulb, ArrowRight, UserRound, Lock } from "lucide-react";
 import Desenvolvimento, { SugestaoBotao } from "./desenvolvimento";
@@ -242,6 +242,8 @@ export default function Home() {
   const [user, setUser] = useState(null);
   const [carregouSessao, setCarregouSessao] = useState(false);
   const [view, setView] = useState("gestao");
+  const viewAnt = useRef(null); const viewAtual = useRef("gestao");   // v944 — tela anterior (Voltar da Agenda, Notificações, Mensagens e Tarefas)
+  useEffect(() => { if (viewAtual.current !== view) { viewAnt.current = viewAtual.current; viewAtual.current = view; } }, [view]);
   const [pedidoAgenda, setPedidoAgenda] = useState(null);   // v592 — botões Agenda / Mês do topo no celular
   const [modoAgenda, setModoAgenda] = useState("semana");
   const [finInicial, setFinInicial] = useState(null);   // v219: Gestão → Matriz de custos direto
@@ -447,6 +449,11 @@ export default function Home() {
 
         <div className={`ce-conteudo flex-1 overflow-auto ${mobile ? "px-2 py-2" : gaveta ? "px-3 py-3" : "px-5 py-3"}`}>
           <div key={`${view}-${resetTick}`} className="anim-entrar">
+          {/* v944 — Voltar em todas as telas (como o do Financeiro): sobe um nível no menu; fora do menu volta para a tela anterior */}
+          {(() => {
+            const pai = caminho.length > 1 ? caminho[caminho.length - 2].key : !caminho.length && ["notificacoes", "mensagens", "agenda", "tarefas"].includes(view) && view !== inicio ? (viewAnt.current && viewAnt.current !== view ? viewAnt.current : inicio) : null;
+            return pai && <button onClick={() => irInicio(pai)} className="flex items-center gap-1 mb-2 px-2 py-0.5 rounded text-[13px]" style={{ color: C.accent }}><IcoVoltar size={14} /> Voltar</button>;
+          })()}
           {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} user={user} />}
           {view === "compras" && (pode("pic") || pode("comprasPedidos")) && <PainelCompras ir={ir} />}   {/* v486 */}
           {view === "sistemas" && pode("gestao") && <Sistemas user={user} onVoltar={() => setView("gestao")} />}
