@@ -1,10 +1,10 @@
 // PREVISÃO das contas de facção, vinda do Cronograma PCP (/api/ext/faccao/previsao).
 // Regras do Gerson (18/11/2026):
-//  - uma conta "PREVISÃO" por semana nos TERCEIRIZADOS DA SEMANA: o que tem previsão de entrega na semana
+//  - uma conta "PREVISÃO · <FACÇÃO>" por facção e por semana nos TERCEIRIZADOS DA SEMANA (pedido do Gerson, v938): o que tem previsão de entrega na semana
 //    (segunda a domingo) é pago na sexta dessa mesma semana; previsão que já passou cai na semana atual;
 //  - o valor é o total previsto para fechar naquela semana (OS na rua + programação de costura);
 //  - atualiza todo dia (aqui: de hora em hora, das 6h às 22h), porque as datas da programação mudam;
-//  - nunca duplica: a previsão de cada semana é UM item (prestador PREVISÃO). A cada leitura a semana é
+//  - nunca duplica: a previsão de cada facção na semana é UM item (prestador PREVISÃO, descricao "PREVISAO PCP|FACÇÃO"). A cada leitura a semana é
 //    regravada; item a mais é apagado; semana que ficou sem previsão perde o item. Item pago nunca é mexido.
 import { prisma } from "@/lib/prisma";
 import { getPcp } from "@/lib/cronograma";
@@ -13,7 +13,8 @@ import { contaDoSetor, garantirContasPrestadores } from "@/lib/prestadores";
 import { tipoDePeca } from "@/lib/faccaoPcp";
 
 const NOME = "PREVISÃO";
-const MARCA = "PREVISAO PCP";   // descricao do item: é por ela (e pelo prestador PREVISÃO) que a previsão é achada
+const MARCA = "PREVISAO PCP";   // descricao do item = MARCA|FACÇÃO: é por ela (e pelo prestador PREVISÃO) que a previsão é achada
+const chaveDe = (fac) => `${MARCA}|${fac}`.slice(0, 190);
 const LOCK = 937112;           // trava do Postgres: duas leituras ao mesmo tempo não lançam em dobro
 const sa = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -32,15 +33,15 @@ async function prestadorPrevisao() {
     observacao: "Cadastro automático: previsão das facções vinda do PCP. Não usar em pagamento real.", ativo: false, criadoPorNome: "PCP (automático)" } });
 }
 
-// itens do PCP → semanas { sexta: { linhas, sem preço, resumo por facção } }
+// itens do PCP → { "sexta|FACÇÃO": { sexta, faccao, linhas, sem preço } }
 export function montarSemanas(itens, hoje = hojeSP()) {
   const sem = {};
   for (const x of itens || []) {
     const data = String(x.previsao || "").slice(0, 10) >= hoje ? String(x.previsao).slice(0, 10) : hoje;
     const sexta = sextaDaSemanaSD(data);
-    const s = (sem[sexta] ||= { sexta, linhas: [], semPreco: [], fac: {}, ultima: data });
+    const fac = String(x.faccao || "").trim().replace(/\s+/g, " ").toUpperCase() || "FACÇÃO A DEFINIR";
+    const s = (sem[`${sexta}|${fac}`] ||= { sexta, faccao: fac, linhas: [], semPreco: [], fac: {}, ultima: data });
     if (data > s.ultima) s.ultima = data;
-    const fac = String(x.faccao || "").trim().toUpperCase() || "FACÇÃO A DEFINIR";
     const qtd = Number(x.quantidade) || 0, unit = r2(x.valorUnitario);
     const ref = `${x.itemCode || x.pedido || "S/ Nº"} ${String(x.produto || "").toUpperCase()}`.trim();
     if (!(qtd > 0 && unit > 0)) { s.semPreco.push(`${fac}: ${ref} (${qtd} PÇ)`); continue; }
@@ -74,7 +75,7 @@ export async function sincronizarPrevisao({ quem = "PCP (automático)" } = {}) {
     const prest = await prestadorPrevisao();
     // cascas (títulos) das semanas com previsão — idempotente (chaveImport única)
     const titulos = {};
-    for (const s of Object.keys(sem)) if (sem[s].valor > 0) titulos[s] = await tituloDaData("TERCEIRIZADO", s, false);
+    for (const s of Object.values(sem)) if (s.valor > 0 && !titulos[s.sexta]) titulos[s.sexta] = await tituloDaData("TERCEIRIZADO", s.sexta, false);
     const cods = [...new Set(Object.values(sem).flatMap((s) => s.linhas.map((l) => contaDoSetor("FACCAO", l.tipo))).filter(Boolean))];
     const contas = Object.fromEntries((await prisma.finConta.findMany({ where: { codigo: { in: cods } }, select: { id: true, codigo: true } })).map((c) => [c.codigo, c.id]));
     const quando = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date());
@@ -82,32 +83,32 @@ export async function sincronizarPrevisao({ quem = "PCP (automático)" } = {}) {
 
     await prisma.$transaction(async (tx) => {
       await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(${LOCK})::text AS ok`);
-      const existentes = await tx.finSemanaItem.findMany({ where: { OR: [{ prestadorId: prest.id }, { descricao: MARCA }] }, orderBy: { id: "asc" } });
-      const porTitulo = {};
-      for (const it of existentes) (porTitulo[it.tituloId] ||= []).push(it);
+      const existentes = await tx.finSemanaItem.findMany({ where: { OR: [{ prestadorId: prest.id }, { descricao: { startsWith: MARCA } }] }, orderBy: { id: "asc" } });
+      const porChave = {};
+      for (const it of existentes) (porChave[`${it.tituloId}|${it.descricao}`] ||= []).push(it);
       const usados = new Set();
       for (const s of Object.values(sem)) {
         if (!(s.valor > 0)) continue;
         const t = titulos[s.sexta];
-        const doTitulo = porTitulo[t.id] || [];
-        if (doTitulo.some((x) => x.pago || x.lancamentoId)) { res.semanas.push({ sexta: s.sexta, valor: s.valor, aviso: "previsão já paga nesta semana: não mexi" }); doTitulo.forEach((x) => usados.add(x.id)); continue; }
+        const doTitulo = porChave[`${t.id}|${chaveDe(s.faccao)}`] || [];
+        if (doTitulo.some((x) => x.pago || x.lancamentoId)) { res.semanas.push({ sexta: s.sexta, faccao: s.faccao, valor: s.valor, aviso: "previsão já paga: não mexi" }); doTitulo.forEach((x) => usados.add(x.id)); continue; }
         const linhas = s.linhas.map((l) => ({ ...l, contaId: contas[contaDoSetor("FACCAO", l.tipo)] || null }));
-        const resumo = Object.entries(s.fac).sort((a, b) => b[1].total - a[1].total).map(([f, v]) => `${f} — R$ ${brl(v.total)} ${v.refs.join(" · ")}`).join(" · ");
+        const resumo = Object.values(s.fac).map((v) => v.refs.join(" · ")).join(" · ");
         const observacao = [`PREVISÃO AUTOMÁTICA DO PCP · ATUALIZADA EM ${quando}`, resumo,
           s.semPreco.length ? `SEM PREÇO NO PCP (FORA DA SOMA): ${s.semPreco.join(" · ")}` : null].filter(Boolean).join(" · ").toUpperCase().slice(0, 1000);
         const data = {
-          grupo: "FACCAO", prestadorId: prest.id, nome: NOME, chavePix: prest.chavePix || "-", setor: s.setor,
+          grupo: "FACCAO", prestadorId: prest.id, nome: `${NOME} · ${s.faccao}`.slice(0, 190), chavePix: prest.chavePix || "-", setor: s.setor,
           contaId: contas[contaDoSetor("FACCAO", s.setor)] || linhas.find((l) => l.contaId)?.contaId,
           linhas, valor: s.valor, dataRecebimento: dUTC(s.sexta), prazoDias: 0, vencimentoNegociado: dUTC(s.sexta),
-          descricao: MARCA, observacao, excepcional: false,
+          descricao: chaveDe(s.faccao), observacao, excepcional: false,
         };
-        if (!data.contaId) { res.semanas.push({ sexta: s.sexta, valor: s.valor, aviso: "conta-caixa de facção não encontrada" }); continue; }
+        if (!data.contaId) { res.semanas.push({ sexta: s.sexta, faccao: s.faccao, valor: s.valor, aviso: "conta-caixa de facção não encontrada" }); continue; }
         const [fica, ...sobra] = doTitulo;
         if (fica) { await tx.finSemanaItem.update({ where: { id: fica.id }, data }); usados.add(fica.id); res.atualizadas++; }
         else { await tx.finSemanaItem.create({ data: { ...data, tituloId: t.id, criadoPorNome: quem } }); res.criadas++; }
         for (const x of sobra) { await tx.finSemanaItem.delete({ where: { id: x.id } }); usados.add(x.id); res.apagadas++; }   // duplicada: sai
         mexidos.add(t.id);
-        res.semanas.push({ sexta: s.sexta, valor: s.valor, linhas: linhas.length, semPreco: s.semPreco.length });
+        res.semanas.push({ sexta: s.sexta, faccao: s.faccao, valor: s.valor, linhas: linhas.length, semPreco: s.semPreco.length });
       }
       // semana que não tem mais previsão (ou que já passou): a previsão não paga sai
       for (const it of existentes) {
@@ -128,7 +129,7 @@ export function agendarPrevisaoFaccao() {
     const h = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "America/Sao_Paulo", hour: "2-digit", hour12: false }).format(new Date())) % 24;
     if (h < 6 || h > 22) return;
     const r = await sincronizarPrevisao().catch((e) => ({ ok: false, erro: e.message }));
-    console.log(`[previsão facção] ${r.ok ? `${r.criadas} criada(s) · ${r.atualizadas} atualizada(s) · ${r.apagadas} apagada(s) · ${r.semanas.map((s) => `${s.sexta} R$ ${brl(s.valor)}`).join(" | ")}` : r.erro}`);
+    console.log(`[previsão facção] ${r.ok ? `${r.criadas} criada(s) · ${r.atualizadas} atualizada(s) · ${r.apagadas} apagada(s) · ${r.semanas.map((s) => `${s.sexta} ${s.faccao} R$ ${brl(s.valor)}`).join(" | ")}` : r.erro}`);
   };
   setInterval(() => tick().catch(() => null), 60 * 60 * 1000);
   setTimeout(() => tick().catch(() => null), 2 * 60 * 1000);
