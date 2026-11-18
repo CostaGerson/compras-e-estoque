@@ -94,8 +94,11 @@ function previstasDoAcerto(contas, hoje = hojeSP()) {
     if (!linhas.length) continue;
     const fac = facNome(c.prestador?.nome || c.faccao);
     const chave = `${MARCA} · ACERTO ${c.lancamento}`;
-    const sexta = c.sexta && c.sexta >= hoje ? c.sexta : sextaDaSemanaSD(hoje);
-    out[chave] = { chave, faccao: fac, os: Number(c.os) || 0, entrega: c.recebimento || hoje, sexta, semPreco: [],
+    // facção paga 1× por mês: vale a data marcada no PCP (como a conta real vai cair), não a sexta
+    const mensal = Number(c.prestador?.pagamentoDiaMes) || 0;
+    const alvo = mensal && c.vencimento ? String(c.vencimento).slice(0, 10) : c.sexta;
+    const sexta = alvo && alvo >= hoje ? alvo : sextaDaSemanaSD(hoje);
+    out[chave] = { chave, faccao: fac, os: Number(c.os) || 0, entrega: c.recebimento || hoje, sexta, mensal: mensal && alvo >= hoje ? mensal : 0, semPreco: [],
       linhas: linhas.map((l) => ({ ...l, item: l.desconto ? l.item : `${l.qtd} ${fac} · ${l.itemCode || l.pedido} ${l.item || ""} · OS ${c.os}`.slice(0, 200) })),
       refs: [], texto: `OS ${c.os} ACERTADA NO PCP (ACERTO ${c.lancamento}) · FALTA LANÇAR NA CONFERÊNCIA DE FACÇÕES · VENC. ${c.vencimento ? dBR(c.vencimento) : "-"}` };
   }

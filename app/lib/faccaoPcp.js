@@ -137,7 +137,7 @@ export async function conferirFaccoes({ desde } = {}) {
       formatoAntigo: !!L && ls.length === 1 && Number(ls[0].qtd) === 1 && !ls[0].itemCode && (m.nItens > 1 || m.qtdAprovada > 1),
       descartada: !!D, descartadaPor: D?.descartadoPorNome || null, descartadaEm: D?.descartadoEm || null, motivoDescarte: D?.motivo || null,
       estornos: (hist[k] || []).filter((x) => x.status === "ESTORNADA").map((x) => ({ por: x.estornadoPorNome, em: x.estornadoEm, motivo: x.motivo, valor: r2(x.valor) })),
-      prestador: p ? { id: p.id, nome: p.nome, pix: !!p.chavePix, ativo: p.ativo } : null, grupo: m.grupo, setor: m.setor, conta: m.setor ? contaDoSetor(m.grupo, m.setor) : null,
+      prestador: p ? { id: p.id, nome: p.nome, pix: !!p.chavePix, ativo: p.ativo, pagamentoDiaMes: p.pagamentoDiaMes || null } : null, grupo: m.grupo, setor: m.setor, conta: m.setor ? contaDoSetor(m.grupo, m.setor) : null,
       sexta: m.sexta, recebimento: m.recebimento, prazoDias: m.prazoDias, linhas: m.linhas, nItens: m.nItens, pedidos: m.pedidos, semTipo: m.semTipo,
       qtdEnviadaTotal: m.qtdEnviada, qtdAprovadaTotal: m.qtdAprovada, avisos: m.avisos, bate: m.bate });
   }
@@ -157,8 +157,12 @@ const descricaoDe = (c) => `OS ${chaveConta(c)} PCP · ${c.servico || "FACÇÃO"
 async function gravarItem(m, p, { quem, c }) {
   const conta = await prisma.finConta.findUnique({ where: { codigo: contaDoSetor(m.grupo, m.setor) } });
   if (!conta) return { erro: "Conta-caixa do tipo de peça / serviço não encontrada." };
-  const casca = await tituloDaData("TERCEIRIZADO", m.sexta || new Date().toISOString().slice(0, 10), false);
+  // facção paga 1× por mês (cadastro): a conta cai na data do vencimento marcada no PCP, não na sexta
+  const mensal = Number(p.pagamentoDiaMes) >= 1 && m.vencimento;
+  const casca = mensal ? await tituloDaData("TERCEIRIZADO", m.vencimento, true)
+    : await tituloDaData("TERCEIRIZADO", m.sexta || new Date().toISOString().slice(0, 10), false);
   const item = await prisma.finSemanaItem.create({ data: {
+    ...(mensal ? { excepcional: true, justificativa: `PAGAMENTO MENSAL NO DIA ${p.pagamentoDiaMes} (CADASTRO DA FACÇÃO)` } : {}),
     tituloId: casca.id, grupo: m.grupo, prestadorId: p.id, nome: p.nome.toUpperCase(), chavePix: p.chavePix || "", setor: m.setor, contaId: conta.id,
     linhas: await linhasComConta(m), valor: m.valor,
     dataRecebimento: m.recebimento ? dUTC(m.recebimento) : null, prazoDias: m.prazoDias, vencimentoNegociado: m.vencimento ? dUTC(m.vencimento) : null,
