@@ -87,7 +87,7 @@ export async function nfDoEmail(b) {
       ...(problemas.length ? ["CONFERIR NO MOVIMENTO FISCAL (ADM › Movimento fiscal → importar os arquivos anexos):", ...problemas.map((x) => `• ${x}`), ""] : []),
       ...(lancadas.length ? ["LANÇADAS AUTOMATICAMENTE (confira as contas):", ...lancadas.map((x) => `• ${x}`), ""] : []),
       ...(outrasR.length ? ["OUTRAS:", ...outrasR.map((x) => `• ${x}`)] : [])].join("\n").trim();
-    const r = await criar({ titulo: `${problemas.length ? "CONFERIR NF" : "NF LANÇADA"} · e-mail: ${assunto}`.slice(0, 200), descricao, setor: setorTarefaDe(brenda), responsavelId: brenda.id, prazo: hojeSP(), tipo: "PADRAO" }, quem);
+    const r = await criar({ titulo: `${problemas.length ? "CONFERIR NF" : lancadas.length ? "NF LANÇADA" : "NF JÁ NO SISTEMA"} · e-mail: ${assunto}`.slice(0, 200), descricao, setor: setorTarefaDe(brenda), responsavelId: brenda.id, prazo: hojeSP(), tipo: "PADRAO" }, quem);
     if (!r.error) {
       tarefaId = r.tarefa.id;
       for (const a of brutos) await prisma.tarefaArquivo.create({ data: { tarefaId, nome: a.nome, mime: a.mime, tamanho: Math.floor(a.b64.length * 3 / 4), conteudo: a.b64, criadoPorNome: "E-MAIL" } }).catch(() => null);
