@@ -1,0 +1,1906 @@
+{
+ "flag": "SEED|CARTELA|CEDRO VIP 2026|2026-11-18",
+ "fornecedor": {
+  "nome": "CEDRO TÊXTIL",
+  "nomeFantasia": "CEDRO WORKWEAR",
+  "obs": "CADASTRADO PELA CARTELA VIP DIGITAL 2026 (18/11/2026)",
+  "busca": "CEDRO"
+ },
+ "tiposNovos": [
+  {
+   "categoria": "TECIDO",
+   "nome": "BRIM FR ANTICHAMA"
+  }
+ ],
+ "artigos": [
+  {
+   "categoria": "TECIDO",
+   "ref": "81816",
+   "nome": "81816 TOPÁZIO FR - METAIS LÍQUIDOS",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "50% LENZING FR 30% LÃ 20% POLIAMIDA",
+   "gramatura": 330,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA FR · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "5112",
+     "GRUPO G5 · PANTONE 19-4044 TP"
+    ],
+    [
+     "5500",
+     "GRUPO G5 · PANTONE 19-4010"
+    ],
+    [
+     "8700",
+     "GRUPO G4 · PANTONE 17-1506"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "97616",
+   "nome": "97616 QUARTZO FR",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "48% MODACRÍLICA 37% ALGODÃO 15% ARAMIDA",
+   "gramatura": 225,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA FR · ARMAÇÃO SARJA 2X1 S",
+   "cores": [
+    [
+     "2600",
+     "GRUPO G5 · PANTONE 18-1445"
+    ],
+    [
+     "3353",
+     "ALTA VISIBILIDADE (NBR 15292)"
+    ],
+    [
+     "5112",
+     "GRUPO G5 · PANTONE 19-4044 TP"
+    ],
+    [
+     "5500",
+     "GRUPO G5 · PANTONE 19-4010"
+    ],
+    [
+     "8700",
+     "GRUPO G4 · PANTONE 17-1506"
+    ],
+    [
+     "8900",
+     "GRUPO G4 · PANTONE 15-1215"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "90218",
+   "nome": "90218 CEDROTECH FR",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 290,
+   "largura": 1.65,
+   "unidade": "M",
+   "especificacao": "LINHA FR · ARMAÇÃO SARJA 3X1 RIP STOP",
+   "cores": [
+    [
+     "0902",
+     "GRUPO G2 · PANTONE 11-4800"
+    ],
+    [
+     "1052",
+     "GRUPO G3 · PANTONE 19-1663"
+    ],
+    [
+     "2063",
+     "GRUPO G2 · PANTONE 16-1362"
+    ],
+    [
+     "3146",
+     "GRUPO G4 · PANTONE 13-0858"
+    ],
+    [
+     "4620",
+     "GRUPO G4 · PANTONE 17-5126 TC"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "5494",
+     "GRUPO G3 · PANTONE 16-4020"
+    ],
+    [
+     "7158",
+     "GRUPO G2 · PANTONE 17-0808"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8048",
+     "GRUPO G1 · PANTONE 17-1506"
+    ],
+    [
+     "8059",
+     "GRUPO G1 · PANTONE 15-1215"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "02216",
+   "nome": "02216 JÚPITER FR",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "88% ALGODÃO 12% POLIAMIDA",
+   "gramatura": 260,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA FR · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "0902",
+     "GRUPO G2 · PANTONE 11-4800"
+    ],
+    [
+     "1052",
+     "GRUPO G3 · PANTONE 19-1663"
+    ],
+    [
+     "2063",
+     "GRUPO G2 · PANTONE 16-1362"
+    ],
+    [
+     "4620",
+     "GRUPO G4 · PANTONE 17-5126 TC"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "5494",
+     "GRUPO G3 · PANTONE 16-4020"
+    ],
+    [
+     "7158",
+     "GRUPO G2 · PANTONE 17-0808"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8048",
+     "GRUPO G1 · PANTONE 17-1506"
+    ],
+    [
+     "8059",
+     "GRUPO G1 · PANTONE 15-1215"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "57161",
+   "nome": "57161 MERCÚRIO FR - METAIS LÍQUIDOS",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 430,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA FR · ARMAÇÃO CETIM",
+   "cores": [
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "87514",
+   "nome": "87514 AMETISTA FR",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "65% LENZING FR 33% ARAMIDA 2% CARBONO",
+   "gramatura": 195,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA FR · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "2600",
+     "GRUPO G5 · PANTONE 18-1445"
+    ],
+    [
+     "3353",
+     "ALTA VISIBILIDADE (NBR 15292)"
+    ],
+    [
+     "5112",
+     "GRUPO G5 · PANTONE 19-4044 TP"
+    ],
+    [
+     "5500",
+     "GRUPO G5 · PANTONE 19-4010"
+    ],
+    [
+     "5594",
+     "GRUPO G5 · PANTONE 16-4020"
+    ],
+    [
+     "8700",
+     "GRUPO G4 · PANTONE 17-1506"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "22816",
+   "nome": "22816 SATURNO FR",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 260,
+   "largura": 1.65,
+   "unidade": "M",
+   "especificacao": "LINHA FR · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "1052",
+     "GRUPO G3 · PANTONE 19-1663"
+    ],
+    [
+     "2063",
+     "GRUPO G2 · PANTONE 16-1362"
+    ],
+    [
+     "4620",
+     "GRUPO G4 · PANTONE 17-5126 TC"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "5494",
+     "GRUPO G3 · PANTONE 16-4020"
+    ],
+    [
+     "7158",
+     "GRUPO G2 · PANTONE 17-0808"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8048",
+     "GRUPO G1 · PANTONE 17-1506"
+    ],
+    [
+     "8059",
+     "GRUPO G1 · PANTONE 15-1215"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "89716",
+   "nome": "89716 VÊNUS FR",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "88% ALGODÃO 12% POLIAMIDA",
+   "gramatura": 230,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA FR · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "1052",
+     "GRUPO G3 · PANTONE 19-1663"
+    ],
+    [
+     "2063",
+     "GRUPO G2 · PANTONE 16-1362"
+    ],
+    [
+     "4620",
+     "GRUPO G4 · PANTONE 17-5126 TC"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "5494",
+     "GRUPO G3 · PANTONE 16-4020"
+    ],
+    [
+     "7158",
+     "GRUPO G2 · PANTONE 17-0808"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8048",
+     "GRUPO G1 · PANTONE 17-1506"
+    ],
+    [
+     "8059",
+     "GRUPO G1 · PANTONE 15-1215"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "15160",
+   "nome": "15160 CRONOS FR 11 OZ",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "88% ALGODÃO 12% POLIAMIDA",
+   "gramatura": 370,
+   "largura": 1.65,
+   "unidade": "M",
+   "especificacao": "LINHA FR · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "ÍNDIGO DESBOTÁVEL",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "11158",
+   "nome": "11158 WORKDENIN PROF 5 OZ",
+   "interno": "JEANS ALGODAO",
+   "composicao": "60% ALGODÃO 40% POLIÉSTER",
+   "gramatura": 155,
+   "largura": 1.65,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "ÍNDIGO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "74516",
+   "nome": "74516 CEDROWORK BLUE",
+   "interno": "JEANS ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 335,
+   "largura": 1.71,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "ÍNDIGO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "11156",
+   "nome": "11156 CEDROMIX 5 OZ II",
+   "interno": "BRIM MISTO ALGODAO E POLIESTER",
+   "composicao": "60% ALGODÃO 40% POLIÉSTER",
+   "gramatura": 155,
+   "largura": 1.65,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "1108",
+     "GRUPO G1 · PANTONE 18-1764"
+    ],
+    [
+     "1169",
+     "GRUPO G2 · PANTONE 18-1616"
+    ],
+    [
+     "2134",
+     "GRUPO G1 · PANTONE 16-1357"
+    ],
+    [
+     "3156",
+     "GRUPO G1 · PANTONE 12-0727"
+    ],
+    [
+     "4359",
+     "GRUPO G1 · PANTONE 16-5633"
+    ],
+    [
+     "5148",
+     "GRUPO G4 · PANTONE 19-3919 TPX"
+    ],
+    [
+     "5410",
+     "GRUPO G1 · PANTONE 15-4020"
+    ],
+    [
+     "5411",
+     "GRUPO G1 · PANTONE 17-3934"
+    ],
+    [
+     "5412",
+     "GRUPO G1 · PANTONE 19-4053"
+    ],
+    [
+     "5437",
+     "GRUPO G1 · PANTONE 16-4127"
+    ],
+    [
+     "7371",
+     "GRUPO G1 · PANTONE 15-1308"
+    ],
+    [
+     "7373",
+     "GRUPO G1 · PANTONE 17-1118"
+    ],
+    [
+     "8128",
+     "GRUPO G1 · PANTONE 15-0000"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "95616",
+   "nome": "95616 CEDROMIX 8 OZ II",
+   "interno": "BRIM MISTO ALGODAO E POLIESTER",
+   "composicao": "60% ALGODÃO 40% POLIÉSTER",
+   "gramatura": 250,
+   "largura": 1.65,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "5412",
+     "GRUPO G1 · PANTONE 19-4053"
+    ],
+    [
+     "5648",
+     "GRUPO G2 · PANTONE 19-3919 TPX"
+    ],
+    [
+     "8128",
+     "GRUPO G1 · PANTONE 15-0000"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "10818",
+   "nome": "10818 CEDROVIP MIX",
+   "interno": "CAMISARIA CEDROVIP",
+   "composicao": "65% ALGODÃO 35% POLIÉSTER",
+   "gramatura": 125,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO TELA 1X1",
+   "cores": [
+    [
+     "4559",
+     "GRUPO G2 · PANTONE 17-5633"
+    ],
+    [
+     "5511",
+     "GRUPO G1 · PANTONE 17-3934"
+    ],
+    [
+     "5541",
+     "GRUPO G2 · PANTONE 19-4014"
+    ],
+    [
+     "8528",
+     "GRUPO G1 · PANTONE 15-0000"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "10516",
+   "nome": "10516 CEDROFIL",
+   "interno": "CAMISARIA CEDROFIL",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 115,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO TELA 1X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "1104",
+     "GRUPO G3 · PANTONE 19-1763"
+    ],
+    [
+     "4783",
+     "GRUPO G3 · PANTONE 19-0415"
+    ],
+    [
+     "5228",
+     "GRUPO G3 · PANTONE 19-4010"
+    ],
+    [
+     "5302",
+     "GRUPO G2 · PANTONE 16-4021"
+    ],
+    [
+     "5322",
+     "GRUPO G1 · PANTONE 14-4214"
+    ],
+    [
+     "5413",
+     "GRUPO G1 · PANTONE 14-4313"
+    ],
+    [
+     "5414",
+     "GRUPO G4 · PANTONE 19-3955"
+    ],
+    [
+     "7366",
+     "GRUPO G1 · PANTONE 17-1226"
+    ],
+    [
+     "7375",
+     "GRUPO G1 · PANTONE 15-1116"
+    ],
+    [
+     "8161",
+     "GRUPO G1 · PANTONE 15-4305"
+    ],
+    [
+     "8162",
+     "GRUPO G2 · PANTONE 18-4105"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "10506",
+   "nome": "10506 CEDROVIP SUPER",
+   "interno": "CAMISARIA CEDROVIP",
+   "composicao": "65% ALGODÃO 35% POLIÉSTER",
+   "gramatura": 125,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO TELA 1X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "1104",
+     "GRUPO G3 · PANTONE 19-1763"
+    ],
+    [
+     "2238",
+     "GRUPO G3 · PANTONE 17-1563"
+    ],
+    [
+     "4380",
+     "GRUPO G1 · PANTONE 12-5505"
+    ],
+    [
+     "4736",
+     "GRUPO G2 · PANTONE 19-5914 TP"
+    ],
+    [
+     "4783",
+     "GRUPO G3 · PANTONE 19-0415"
+    ],
+    [
+     "5228",
+     "GRUPO G3 · PANTONE 19-4010"
+    ],
+    [
+     "5302",
+     "GRUPO G2 · PANTONE 16-4021"
+    ],
+    [
+     "5322",
+     "GRUPO G1 · PANTONE 14-4214"
+    ],
+    [
+     "5414",
+     "GRUPO G4 · PANTONE 19-3955"
+    ],
+    [
+     "7375",
+     "GRUPO G1 · PANTONE 15-1116"
+    ],
+    [
+     "8053",
+     "GRUPO G2 · PANTONE 19-4220"
+    ],
+    [
+     "8161",
+     "GRUPO G1 · PANTONE 15-4305"
+    ],
+    [
+     "8162",
+     "GRUPO G2 · PANTONE 18-4105"
+    ],
+    [
+     "8386",
+     "GRUPO G2 · PANTONE 16-3802"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "95515",
+   "nome": "95515 CEDROFIL FLEX",
+   "interno": "CAMISARIA CEDROFIL",
+   "composicao": "51% ALGODÃO 36% POLIÉSTER 13% ELASTOMULTIÉSTER",
+   "gramatura": 150,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "1104",
+     "GRUPO G3 · PANTONE 19-1763"
+    ],
+    [
+     "4783",
+     "GRUPO G3 · PANTONE 19-0415"
+    ],
+    [
+     "5228",
+     "GRUPO G3 · PANTONE 19-4010"
+    ],
+    [
+     "5302",
+     "GRUPO G2 · PANTONE 16-4021"
+    ],
+    [
+     "5414",
+     "GRUPO G4 · PANTONE 19-3955"
+    ],
+    [
+     "7375",
+     "GRUPO G1 · PANTONE 15-1116"
+    ],
+    [
+     "8053",
+     "GRUPO G2 · PANTONE 19-4220"
+    ],
+    [
+     "8162",
+     "GRUPO G2 · PANTONE 18-4105"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "68565",
+   "nome": "68565 KIRAZ BLUE",
+   "interno": "JEANS COM ELASTANO",
+   "composicao": "83% ALGODÃO 15% POLIÉSTER 2% ELASTANO",
+   "gramatura": 258,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 3X1 Z",
+   "cores": [
+    [
+     "BLUE",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "68571",
+   "nome": "68571 KIRAZ DARK",
+   "interno": "JEANS COM ELASTANO",
+   "composicao": "83% ALGODÃO 15% POLIÉSTER 2% ELASTANO",
+   "gramatura": 258,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 3X1 Z",
+   "cores": [
+    [
+     "DARK",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "95470",
+   "nome": "95470 NEW WORKFLEX",
+   "interno": "BRIM COM ELASTANO",
+   "composicao": "98% ALGODÃO 2% ELASTANO",
+   "gramatura": 289,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 3X1 S",
+   "cores": [
+    [
+     "0015",
+     "GRUPO G2 · PANTONE 19-4205"
+    ],
+    [
+     "5343",
+     "GRUPO G2 · PANTONE 19-4010 TP"
+    ],
+    [
+     "8131",
+     "GRUPO G2 · PANTONE 19-3908 TP"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "99516",
+   "nome": "99516 POLYFLEX PROF",
+   "interno": "BRIM MISTO ALGODAO E POLIESTER",
+   "composicao": "51% ALGODÃO 40% POLIÉSTER 9% ELASTOMULTIÉSTER",
+   "gramatura": 230,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "7304",
+     "GRUPO G3 · PANTONE 17-1022"
+    ],
+    [
+     "7306",
+     "GRUPO G1 · PANTONE 14-6305"
+    ],
+    [
+     "8113",
+     "GRUPO G3 · PANTONE 19-3905"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "08816",
+   "nome": "08816 POLYCOTTON LEVE II",
+   "interno": "BRIM POLIESTER",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 190,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "2063",
+     "GRUPO G3 · PANTONE 16-1362"
+    ],
+    [
+     "4311",
+     "GRUPO G3 · PANTONE 19-5511"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5099",
+     "GRUPO G2 · PANTONE 17-4037"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "5229",
+     "GRUPO G4 · PANTONE 19-3933"
+    ],
+    [
+     "7306",
+     "GRUPO G1 · PANTONE 14-6305"
+    ],
+    [
+     "8112",
+     "GRUPO G3 · PANTONE 19-3905 TP"
+    ],
+    [
+     "8113",
+     "GRUPO G3 · PANTONE 19-3905"
+    ],
+    [
+     "8510",
+     "GRUPO G3 · PANTONE 19-4014"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "12011",
+   "nome": "12011 POLYCOTTON MAIS",
+   "interno": "BRIM POLIESTER",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 221,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "4311",
+     "GRUPO G3 · PANTONE 19-5511"
+    ],
+    [
+     "4450",
+     "GRUPO G4 · PANTONE 18-6024"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5099",
+     "GRUPO G2 · PANTONE 17-4037"
+    ],
+    [
+     "5195",
+     "GRUPO G4 · PANTONE 19-4023"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "5229",
+     "GRUPO G4 · PANTONE 19-3933"
+    ],
+    [
+     "7304",
+     "GRUPO G3 · PANTONE 17-1022"
+    ],
+    [
+     "7307",
+     "GRUPO G3 · PANTONE 19-1218"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8111",
+     "GRUPO G3 · PANTONE 17-4408"
+    ],
+    [
+     "8112",
+     "GRUPO G3 · PANTONE 19-3905 TP"
+    ],
+    [
+     "8113",
+     "GRUPO G3 · PANTONE 19-3905"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "POLYCEDROLEVE SUPER II",
+   "interno": "BRIM MISTO ALGODAO E POLIESTER",
+   "composicao": "67% ALGODÃO 33% POLIÉSTER",
+   "gramatura": 190,
+   "largura": 1.68,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "1052",
+     "GRUPO G3 · PANTONE 19-1663"
+    ],
+    [
+     "2063",
+     "GRUPO G3 · PANTONE 16-1362"
+    ],
+    [
+     "3137",
+     "GRUPO G4 · Alta Visibilidade*"
+    ],
+    [
+     "4167",
+     "GRUPO G4 · PANTONE 18-5642"
+    ],
+    [
+     "4617",
+     "GRUPO G3 · PANTONE 19-5920"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5136",
+     "GRUPO G4 · PANTONE 19-3864"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "5494",
+     "GRUPO G2 · PANTONE 16-4020"
+    ],
+    [
+     "7158",
+     "GRUPO G3 · PANTONE 17-0808"
+    ],
+    [
+     "7304",
+     "GRUPO G3 · PANTONE 17-1022"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8048",
+     "GRUPO G1 · PANTONE 17-1506"
+    ],
+    [
+     "8053",
+     "GRUPO G2 · PANTONE 19-4220"
+    ],
+    [
+     "8059",
+     "GRUPO G1 · PANTONE 15-1215"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "98716",
+   "nome": "98716 POLYCEDROBRIM SUPER II",
+   "interno": "BRIM MISTO ALGODAO E POLIESTER",
+   "composicao": "67% ALGODÃO 33% POLIÉSTER",
+   "gramatura": 230,
+   "largura": 1.68,
+   "unidade": "M",
+   "especificacao": "LINHA VISUAL WORK · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "1052",
+     "GRUPO G3 · PANTONE 19-1663"
+    ],
+    [
+     "2063",
+     "GRUPO G3 · PANTONE 16-1362"
+    ],
+    [
+     "3137",
+     "GRUPO G4 · Alta Visibilidade*"
+    ],
+    [
+     "4167",
+     "GRUPO G4 · PANTONE 18-5642"
+    ],
+    [
+     "4617",
+     "GRUPO G3 · PANTONE 19-5920"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5136",
+     "GRUPO G4 · PANTONE 19-3864"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "5618",
+     "GRUPO G5 · PANTONE 19-4028"
+    ],
+    [
+     "5494",
+     "GRUPO G2 · PANTONE 16-4020"
+    ],
+    [
+     "7158",
+     "GRUPO G3 · PANTONE 17-0808"
+    ],
+    [
+     "7304",
+     "GRUPO G3 · PANTONE 17-1022"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8048",
+     "GRUPO G1 · PANTONE 17-1506"
+    ],
+    [
+     "8053",
+     "GRUPO G2 · PANTONE 19-4220"
+    ],
+    [
+     "8059",
+     "GRUPO G1 · PANTONE 15-1215"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "15016",
+   "nome": "15016 POLYCOTTONCEDRO SUPER II",
+   "interno": "BRIM POLIESTER",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 221,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA SECURITY WORK · ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "280D",
+     "GRUPO G3 · EX A"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "90116",
+   "nome": "90116 CEDROCOMFORT RIP STOP II",
+   "interno": "RIPSTOP",
+   "composicao": "67% ALGODÃO 33% POLIÉSTER",
+   "gramatura": 235,
+   "largura": 1.68,
+   "unidade": "M",
+   "especificacao": "LINHA SECURITY WORK · ARMAÇÃO TELA 1X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "2063",
+     "GRUPO G3 · PANTONE 16-1362"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5195",
+     "GRUPO G4 · PANTONE 19-4023"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "7304",
+     "GRUPO G3 · PANTONE 17-1022"
+    ],
+    [
+     "8113",
+     "GRUPO G3 · PANTONE 19-3905"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "85116",
+   "nome": "85116 CEDRO RIP STOP SUPER",
+   "interno": "RIPSTOP",
+   "composicao": "70% POLIÉSTER 30% ALGODÃO",
+   "gramatura": 210,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA SECURITY WORK · ARMAÇÃO TELA 1X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "1202",
+     "GRUPO G3 · PANTONE 19-1663"
+    ],
+    [
+     "4416",
+     "GRUPO G3 · PANTONE 18-0521 TPX"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5195",
+     "GRUPO G4 · PANTONE 19-4023"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "7304",
+     "GRUPO G3 · PANTONE 17-1022"
+    ],
+    [
+     "8113",
+     "GRUPO G3 · PANTONE 19-3905"
+    ],
+    [
+     "8278",
+     "GRUPO G3 · PANTONE 18-0513"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "94150",
+   "nome": "94150 FLEX RIP STOP MAIS",
+   "interno": "RIPSTOP FLEX",
+   "composicao": "48% ALGODÃO 40% POLIÉSTER 12% ELASTOMULTIÉSTER",
+   "gramatura": 235,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA SECURITY WORK · ARMAÇÃO SARJA 3X1 RIP STOP",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "2303",
+     "GRUPO G5 · PANTONE 16-1459 TPX"
+    ],
+    [
+     "3138",
+     "GRUPO G4 · PANTONE 809C"
+    ],
+    [
+     "4416",
+     "GRUPO G3 · PANTONE 18-0521 TPX"
+    ],
+    [
+     "5195",
+     "GRUPO G4 · PANTONE 19-4023"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "7304",
+     "GRUPO G3 · PANTONE 17-1022"
+    ],
+    [
+     "8113",
+     "GRUPO G3 · PANTONE 19-3905"
+    ],
+    [
+     "8278",
+     "GRUPO G3 · PANTONE 18-0513"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "VERSÁTIL WORK II",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 240,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA CLASSIC WORK · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "2263",
+     "GRUPO G2 · PANTONE 17-1464 TPX"
+    ],
+    [
+     "4267",
+     "GRUPO G2 · PANTONE 18-5633 TPX"
+    ],
+    [
+     "4360",
+     "GRUPO G2 · PANTONE 19-5513"
+    ],
+    [
+     "5099",
+     "GRUPO G2 · PANTONE 17-4037"
+    ],
+    [
+     "5228",
+     "GRUPO G2 · PANTONE 19-4010"
+    ],
+    [
+     "5298",
+     "GRUPO G2 · PANTONE 19-4056 TPX"
+    ],
+    [
+     "7158",
+     "GRUPO G2 · PANTONE 17-0808"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8048",
+     "GRUPO G1 · PANTONE 17-1506"
+    ],
+    [
+     "8053",
+     "GRUPO G2 · PANTONE 19-4220"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "VERSÁTIL WORK LEVE",
+   "interno": "BRIM LEVE ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 180,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA CLASSIC WORK · ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "2263",
+     "GRUPO G2 · PANTONE 17-1464 TPX"
+    ],
+    [
+     "4267",
+     "GRUPO G2 · PANTONE 18-5633 TPX"
+    ],
+    [
+     "4360",
+     "GRUPO G2 · PANTONE 19-5513"
+    ],
+    [
+     "5099",
+     "GRUPO G2 · PANTONE 17-4037"
+    ],
+    [
+     "5228",
+     "GRUPO G2 · PANTONE 19-4010"
+    ],
+    [
+     "5298",
+     "GRUPO G2 · PANTONE 19-4056 TPX"
+    ],
+    [
+     "7158",
+     "GRUPO G2 · PANTONE 17-0808"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8048",
+     "GRUPO G1 · PANTONE 17-1506"
+    ],
+    [
+     "8053",
+     "GRUPO G2 · PANTONE 19-4220"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "80416",
+   "nome": "80416 CEDROBRIM DRILL II",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 266,
+   "largura": 1.68,
+   "unidade": "M",
+   "especificacao": "LINHA CLASSIC WORK · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "1052",
+     "GRUPO G3 · PANTONE 19-1663"
+    ],
+    [
+     "2063",
+     "GRUPO G3 · PANTONE 16-1362"
+    ],
+    [
+     "4167",
+     "GRUPO G4 · PANTONE 18-5642"
+    ],
+    [
+     "4198",
+     "GRUPO G2 · PANTONE 16-5515"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5099",
+     "GRUPO G2 · PANTONE 17-4037"
+    ],
+    [
+     "5136",
+     "GRUPO G4 · PANTONE 19-3864"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "7158",
+     "GRUPO G3 · PANTONE 17-0808"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8048",
+     "GRUPO G1 · PANTONE 17-1506"
+    ],
+    [
+     "8053",
+     "GRUPO G2 · PANTONE 19-4220"
+    ],
+    [
+     "8059",
+     "GRUPO G1 · PANTONE 15-1215"
+    ],
+    [
+     "8647",
+     "GRUPO G2 · PANTONE 17-1500"
+    ],
+    [
+     "5398",
+     "GRUPO G3 · PANTONE 19-3938"
+    ],
+    [
+     "5298",
+     "GRUPO G2 · PANTONE 19-4056 TPX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "08116",
+   "nome": "08116 CEDROLEVE DRILL II",
+   "interno": "BRIM LEVE ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 220,
+   "largura": 1.68,
+   "unidade": "M",
+   "especificacao": "LINHA CLASSIC WORK · ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "1052",
+     "GRUPO G3 · PANTONE 19-1663"
+    ],
+    [
+     "2063",
+     "GRUPO G3 · PANTONE 16-1362"
+    ],
+    [
+     "4167",
+     "GRUPO G4 · PANTONE 18-5642"
+    ],
+    [
+     "4198",
+     "GRUPO G2 · PANTONE 16-5515"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5099",
+     "GRUPO G2 · PANTONE 17-4037"
+    ],
+    [
+     "5136",
+     "GRUPO G4 · PANTONE 19-3864"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "7158",
+     "GRUPO G3 · PANTONE 17-0808"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8048",
+     "GRUPO G1 · PANTONE 17-1506"
+    ],
+    [
+     "8053",
+     "GRUPO G2 · PANTONE 19-4220"
+    ],
+    [
+     "8059",
+     "GRUPO G1 · PANTONE 15-1215"
+    ],
+    [
+     "8647",
+     "GRUPO G2 · PANTONE 17-1500"
+    ],
+    [
+     "5398",
+     "GRUPO G3 · PANTONE 19-3938"
+    ],
+    [
+     "5298",
+     "GRUPO G2 · PANTONE 19-4056 TPX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": null,
+   "nome": "CEDROPAC LEVE II",
+   "interno": "BRIM LEVE ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 190,
+   "largura": 1.68,
+   "unidade": "M",
+   "especificacao": "LINHA CLASSIC WORK · ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "1052",
+     "GRUPO G3 · PANTONE 19-1663"
+    ],
+    [
+     "2063",
+     "GRUPO G3 · PANTONE 16-1362"
+    ],
+    [
+     "2263",
+     "GRUPO G2 · PANTONE 17-1464 TPX"
+    ],
+    [
+     "3073",
+     "GRUPO G4 · PANTONE 15-1062"
+    ],
+    [
+     "3135",
+     "GRUPO G3 · PANTONE 13-0858"
+    ],
+    [
+     "4167",
+     "GRUPO G4 · PANTONE 18-5642"
+    ],
+    [
+     "4198",
+     "GRUPO G2 · PANTONE 16-5515"
+    ],
+    [
+     "4267",
+     "GRUPO G3 · PANTONE 18-5633 TPX"
+    ],
+    [
+     "4360",
+     "GRUPO G3 · PANTONE 19-5513"
+    ],
+    [
+     "4613",
+     "GRUPO G1 · PANTONE 16-5810"
+    ],
+    [
+     "5097",
+     "GRUPO G4 · PANTONE 19-3940"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5099",
+     "GRUPO G2 · PANTONE 17-4037"
+    ],
+    [
+     "5136",
+     "GRUPO G4 · PANTONE 19-3864"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "7157",
+     "GRUPO G4 · PANTONE 19-1116"
+    ],
+    [
+     "7158",
+     "GRUPO G3 · PANTONE 17-0808"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8048",
+     "GRUPO G1 · PANTONE 17-1506"
+    ],
+    [
+     "8053",
+     "GRUPO G2 · PANTONE 19-4220"
+    ],
+    [
+     "8059",
+     "GRUPO G1 · PANTONE 15-1215"
+    ],
+    [
+     "8647",
+     "GRUPO G2 · PANTONE 17-1500"
+    ],
+    [
+     "5398",
+     "GRUPO G3 · PANTONE 19-3938"
+    ],
+    [
+     "5298",
+     "GRUPO G2 · PANTONE 19-4056 TPX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "03017",
+   "nome": "03017 CEDROLEVE SUPER II",
+   "interno": "BRIM LEVE ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 192,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA CLASSIC WORK · ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "2063",
+     "GRUPO G3 · PANTONE 16-1362"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8053",
+     "GRUPO G2 · PANTONE 19-4220"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "86316",
+   "nome": "86316 CEDROPAC II",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 250,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA CLASSIC WORK · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "1052",
+     "GRUPO G3 · PANTONE 19-1663"
+    ],
+    [
+     "2063",
+     "GRUPO G3 · PANTONE 16-1362"
+    ],
+    [
+     "2263",
+     "GRUPO G2 · PANTONE 17-1464 TPX"
+    ],
+    [
+     "3073",
+     "GRUPO G4 · PANTONE 15-1062"
+    ],
+    [
+     "3135",
+     "GRUPO G3 · PANTONE 13-0858"
+    ],
+    [
+     "4167",
+     "GRUPO G4 · PANTONE 18-5642"
+    ],
+    [
+     "4198",
+     "GRUPO G2 · PANTONE 16-5515"
+    ],
+    [
+     "4267",
+     "GRUPO G3 · PANTONE 18-5633 TPX"
+    ],
+    [
+     "4360",
+     "GRUPO G3 · PANTONE 19-5513"
+    ],
+    [
+     "4613",
+     "GRUPO G1 · PANTONE 16-5810"
+    ],
+    [
+     "5097",
+     "GRUPO G4 · PANTONE 19-3940"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5099",
+     "GRUPO G2 · PANTONE 17-4037"
+    ],
+    [
+     "5136",
+     "GRUPO G4 · PANTONE 19-3864"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "7157",
+     "GRUPO G4 · PANTONE 19-1116"
+    ],
+    [
+     "7158",
+     "GRUPO G3 · PANTONE 17-0808"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8048",
+     "GRUPO G1 · PANTONE 17-1506"
+    ],
+    [
+     "8053",
+     "GRUPO G2 · PANTONE 19-4220"
+    ],
+    [
+     "8059",
+     "GRUPO G1 · PANTONE 15-1215"
+    ],
+    [
+     "8647",
+     "GRUPO G2 · PANTONE 17-1500"
+    ],
+    [
+     "5398",
+     "GRUPO G3 · PANTONE 19-3938"
+    ],
+    [
+     "5298",
+     "GRUPO G2 · PANTONE 19-4056 TPX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "91715",
+   "nome": "91715 CEDROBRIM SUPER II",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 262,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "LINHA CLASSIC WORK · ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "0001",
+     "GRUPO G2 · PANTONE 19-4005"
+    ],
+    [
+     "0002",
+     "GRUPO G0 · PANTONE 11-4202"
+    ],
+    [
+     "2063",
+     "GRUPO G3 · PANTONE 16-1362"
+    ],
+    [
+     "5098",
+     "GRUPO G4 · PANTONE 19-3952"
+    ],
+    [
+     "5228",
+     "GRUPO G4 · PANTONE 19-4010"
+    ],
+    [
+     "8047",
+     "GRUPO G2 · PANTONE 17-1502"
+    ],
+    [
+     "8053",
+     "GRUPO G2 · PANTONE 19-4220"
+    ]
+   ]
+  }
+ ]
+}
