@@ -1,0 +1,619 @@
+{
+ "flag": "SEED|CARTELA|DOPTEX ACTIVEWEAR|2026-11-18",
+ "fornecedor": {
+  "nome": "DOPTEX",
+  "nomeFantasia": "DOPTEX TECIDOS E MALHAS",
+  "obs": "CADASTRADO PELOS CATÁLOGOS DOPTEX (18/11/2026)"
+ },
+ "tiposNovos": [
+  {
+   "categoria": "TECIDO",
+   "nome": "POLIESTER ESPORTIVO"
+  }
+ ],
+ "artigos": [
+  {
+   "categoria": "TECIDO",
+   "ref": "120",
+   "nome": "120 DOPTEL PLUS",
+   "interno": "POLIESTER ESPORTIVO",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 119,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA ACTIVEWEAR (2º SEM/2026)",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-3115 AMARELO FLÚOR",
+     null
+    ],
+    [
+     "001-3116 GOLD",
+     null
+    ],
+    [
+     "001-1390 MALIBU",
+     null
+    ],
+    [
+     "001-1213 ROYAL",
+     null
+    ],
+    [
+     "001-1219 NIAGARA",
+     null
+    ],
+    [
+     "001-1214 DENIM",
+     null
+    ],
+    [
+     "001-1220 BIC",
+     null
+    ],
+    [
+     "001-4117 LARANJA FLÚOR",
+     null
+    ],
+    [
+     "001-4116 LARANJA",
+     null
+    ],
+    [
+     "001-4169 APRICOT",
+     null
+    ],
+    [
+     "001-1221 STELLAR",
+     null
+    ],
+    [
+     "001-1223 BLUE NIGHT",
+     null
+    ],
+    [
+     "001-2236 LEMONADE",
+     null
+    ],
+    [
+     "001-2133 ICE GREEN",
+     null
+    ],
+    [
+     "001-2235 GREENERY",
+     null
+    ],
+    [
+     "001-8113 AREIA",
+     null
+    ],
+    [
+     "001-8120 NOUGAT",
+     null
+    ],
+    [
+     "001-8121 CINDER",
+     null
+    ],
+    [
+     "001-1224 MEDIEVAL",
+     null
+    ],
+    [
+     "001-1222 MARINHO",
+     null
+    ],
+    [
+     "001-2123 GREEN PEPPER",
+     null
+    ],
+    [
+     "001-2120 GREEN JUNGLE",
+     null
+    ],
+    [
+     "001-2121 AMAZON",
+     null
+    ],
+    [
+     "001-6120 ICE CREAM",
+     null
+    ],
+    [
+     "001-6116 PINK",
+     null
+    ],
+    [
+     "001-8117 TRUFFA",
+     null
+    ],
+    [
+     "001-2113 EVERGREEN",
+     null
+    ],
+    [
+     "001-2122 DEEP LAKE",
+     null
+    ],
+    [
+     "001-9115 SILVER",
+     null
+    ],
+    [
+     "001-9111 NUVEM",
+     null
+    ],
+    [
+     "001-9116 STEEPLE",
+     null
+    ],
+    [
+     "001-5114 CHERRY",
+     null
+    ],
+    [
+     "001-5113 VERMELHO",
+     null
+    ],
+    [
+     "001-5115 WINE",
+     null
+    ],
+    [
+     "001-9119 SMOKED GREY",
+     null
+    ],
+    [
+     "001-2119 JASPER",
+     null
+    ],
+    [
+     "001-9118 STORM",
+     null
+    ],
+    [
+     "001-9120 INK",
+     null
+    ],
+    [
+     "001-21 PRETO",
+     null
+    ],
+    [
+     "001-1217 AZUL",
+     null
+    ],
+    [
+     "001-1391 CYAN",
+     null
+    ],
+    [
+     "001-1218 FRENCH BLUE",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "195",
+   "nome": "195 TOTAL FLEX",
+   "interno": "POLIESTER ESPORTIVO",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 89,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "LINHA ACTIVEWEAR (2º SEM/2026)",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "003-0002 BRANCO",
+     null
+    ],
+    [
+     "001-3279 MARFIM",
+     null
+    ],
+    [
+     "001-8113 AREIA",
+     null
+    ],
+    [
+     "001-9115 SILVER",
+     null
+    ],
+    [
+     "001-9116 STEEPLE",
+     null
+    ],
+    [
+     "001-1918 AZUL CÉU",
+     null
+    ],
+    [
+     "001-2690 VERDE BEBÊ",
+     null
+    ],
+    [
+     "001-6387 ROSA CLARO",
+     null
+    ],
+    [
+     "001-6385 ROSA CHICLETE",
+     null
+    ],
+    [
+     "001-6120 ICE CREAM",
+     null
+    ],
+    [
+     "001-6388 ROSE",
+     null
+    ],
+    [
+     "001-6116 PINK",
+     null
+    ],
+    [
+     "001-5113 VERMELHO",
+     null
+    ],
+    [
+     "001-2123 GREEN PEPPER",
+     null
+    ],
+    [
+     "001-1213 ROYAL",
+     null
+    ],
+    [
+     "001-8120 NOUGAT",
+     null
+    ],
+    [
+     "001-3116 GOLD",
+     null
+    ],
+    [
+     "001-3115 AMARELO FLÚOR",
+     null
+    ],
+    [
+     "001-4117 LARANJA FLÚOR",
+     null
+    ],
+    [
+     "001-8117 TRUFFA",
+     null
+    ],
+    [
+     "001-9120 INK",
+     null
+    ],
+    [
+     "001-1222 MARINHO",
+     null
+    ],
+    [
+     "001-21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "222.001",
+   "nome": "222.001 WAVE",
+   "interno": "POLIESTER ESPORTIVO",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 155,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA ACTIVEWEAR (2º SEM/2026)",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-3115 AMARELO FLÚOR",
+     null
+    ],
+    [
+     "001-4117 LARANJA FLÚOR",
+     null
+    ],
+    [
+     "001-5113 VERMELHO",
+     null
+    ],
+    [
+     "001-1220 BIC",
+     null
+    ],
+    [
+     "001-1222 MARINHO",
+     null
+    ],
+    [
+     "001-9120 INK",
+     null
+    ],
+    [
+     "001-21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "222.007",
+   "nome": "222.007 AUSTRÁLIA ESCOVADO",
+   "interno": "POLIESTER ESPORTIVO",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 155,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA ACTIVEWEAR (2º SEM/2026)",
+   "cores": [
+    [
+     "013-01 BRANCO",
+     null
+    ],
+    [
+     "007-9115 SILVER",
+     null
+    ],
+    [
+     "007-9116 STEEPLE",
+     null
+    ],
+    [
+     "007-3116 GOLD",
+     null
+    ],
+    [
+     "007-4116 LARANJA",
+     null
+    ],
+    [
+     "007-5113 VERMELHO",
+     null
+    ],
+    [
+     "007-9120 INK",
+     null
+    ],
+    [
+     "007-1213 ROYAL",
+     null
+    ],
+    [
+     "007-1220 BIC",
+     null
+    ],
+    [
+     "007-2123 GREEN PEPPER",
+     null
+    ],
+    [
+     "007-2120 GREEN JUNGLE",
+     null
+    ],
+    [
+     "007-1222 MARINHO",
+     null
+    ],
+    [
+     "007-21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "222.009",
+   "nome": "222.009 AUSTRÁLIA REPELENTE À ÁGUA",
+   "interno": "POLIESTER ESPORTIVO",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 155,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA ACTIVEWEAR (2º SEM/2026)",
+   "cores": [
+    [
+     "014-01 BRANCO",
+     null
+    ],
+    [
+     "009-9115 SILVER",
+     null
+    ],
+    [
+     "009-9116 STEEPLE",
+     null
+    ],
+    [
+     "009-8113 AREIA",
+     null
+    ],
+    [
+     "009-3116 GOLD",
+     null
+    ],
+    [
+     "009-4116 LARANJA",
+     null
+    ],
+    [
+     "009-1213 ROYAL",
+     null
+    ],
+    [
+     "009-1220 BIC",
+     null
+    ],
+    [
+     "009-5113 VERMELHO",
+     null
+    ],
+    [
+     "009-2123 GREEN PEPPER",
+     null
+    ],
+    [
+     "009-2120 GREEN JUNGLE",
+     null
+    ],
+    [
+     "009-9120 INK",
+     null
+    ],
+    [
+     "009-1222 MARINHO",
+     null
+    ],
+    [
+     "009-21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "350",
+   "nome": "350 SOFT PLUS",
+   "interno": "POLIESTER ESPORTIVO",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 110,
+   "largura": 1.58,
+   "unidade": "M",
+   "especificacao": "LINHA ACTIVEWEAR (2º SEM/2026)",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-8213 MARFIM",
+     null
+    ],
+    [
+     "001-4117 LARANJA FLÚOR",
+     null
+    ],
+    [
+     "001-9115 SILVER",
+     null
+    ],
+    [
+     "001-9120 INK",
+     null
+    ],
+    [
+     "001-6121 CANDY",
+     null
+    ],
+    [
+     "001-1213 ROYAL",
+     null
+    ],
+    [
+     "001-1220 BIC",
+     null
+    ],
+    [
+     "001-5113 VERMELHO",
+     null
+    ],
+    [
+     "001-2123 GREEN PEPPER",
+     null
+    ],
+    [
+     "001-1222 MARINHO",
+     null
+    ],
+    [
+     "001-1444 MOONLIGHT",
+     null
+    ],
+    [
+     "001-21 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "380",
+   "nome": "380 DOP TWILL",
+   "interno": "POLIESTER ESPORTIVO",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 165,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "LINHA ACTIVEWEAR (2º SEM/2026)",
+   "cores": [
+    [
+     "003-01 BRANCO",
+     null
+    ],
+    [
+     "001-6247 ROSA",
+     null
+    ],
+    [
+     "001-6246 PINK",
+     null
+    ],
+    [
+     "001-7126 LILÁS",
+     null
+    ],
+    [
+     "001-2280 VERDE ACQUA",
+     null
+    ],
+    [
+     "001-2281 VERDE",
+     null
+    ],
+    [
+     "001-1478 AZUL",
+     null
+    ],
+    [
+     "001-1479 AZUL ROYAL",
+     null
+    ],
+    [
+     "001-1480 AZUL BIC",
+     null
+    ],
+    [
+     "001-9247 CINZA NUVEM",
+     null
+    ],
+    [
+     "001-1482 MARINHO",
+     null
+    ],
+    [
+     "001-1481 NOITE",
+     null
+    ],
+    [
+     "001-21 PRETO",
+     null
+    ]
+   ]
+  }
+ ]
+}

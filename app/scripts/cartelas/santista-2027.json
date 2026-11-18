@@ -1,0 +1,1823 @@
+{
+ "flag": "SEED|CARTELA|SANTISTA 2027|2026-11-18",
+ "fornecedor": {
+  "nome": "SANTISTA",
+  "nomeFantasia": "SANTISTA WORK SOLUTION",
+  "obs": "CADASTRADO PELO CATÁLOGO SANTISTA 2027 (18/11/2026)"
+ },
+ "tiposNovos": [
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA GRAFIL"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA GRAFIL PLUS"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "CAMISARIA SKY BLEND"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "BRIM FR ANTICHAMA"
+  },
+  {
+   "categoria": "TECIDO",
+   "nome": "TELA POLIESTER E ALGODAO"
+  }
+ ],
+ "artigos": [
+  {
+   "categoria": "TECIDO",
+   "ref": "048L",
+   "nome": "048L ÁRTICO",
+   "interno": "BRIM POLIESTER",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 245,
+   "largura": 1.69,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 E · LINHA CLASSIC",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0489",
+   "nome": "0489 SEMPRIGUAL CAMISARIA",
+   "interno": "CAMISARIA SEMPRIGUAL",
+   "composicao": "60% ALGODÃO 40% POLIÉSTER",
+   "gramatura": 157,
+   "largura": 1.64,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2/1 E · LINHA CAMISARIA",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "307",
+     "PANTONE 17-1635 TCX"
+    ],
+    [
+     "729",
+     "PANTONE 15-1308 TCX"
+    ],
+    [
+     "723",
+     "PANTONE 17-1319 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 16-0000 TCX"
+    ],
+    [
+     "616",
+     "PANTONE 18-5841 TCX"
+    ],
+    [
+     "V02",
+     "PANTONE 14-4121 TCX"
+    ],
+    [
+     "P50",
+     "PANTONE 18-4036 TCX"
+    ],
+    [
+     "P53",
+     "PANTONE 16-4031 TCX"
+    ],
+    [
+     "P54",
+     "PANTONE 18-3921 TCX"
+    ],
+    [
+     "F53",
+     "PANTONE 19-4025 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0489 679",
+   "nome": "0489 679 CAMISARIA DENIM 5OZ",
+   "interno": "JEANS ALGODAO",
+   "composicao": "60% ALGODÃO 40% POLIÉSTER",
+   "gramatura": 157,
+   "largura": 1.64,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2/1 E · LINHA DENIM WORK",
+   "cores": [
+    [
+     "ÍNDIGO (DENIM)",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "046Z",
+   "nome": "046Z CAVALIER",
+   "interno": "RIPSTOP FLEX",
+   "composicao": "47% ALGODÃO 46% POLIÉSTER 7% ELASTOMULTIÉSTER",
+   "gramatura": 205,
+   "largura": 1.47,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO RIP STOP DERIVADO DA SARJA 3/1 E · LINHA TACTICAL",
+   "cores": [
+    [
+     "H26",
+     "PANTONE 16-1363 TCX"
+    ],
+    [
+     "723",
+     "PANTONE 18-0617 TCX"
+    ],
+    [
+     "885",
+     "PANTONE 19-3398 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0424",
+   "nome": "0424 COMFORT RIP STOP",
+   "interno": "RIPSTOP",
+   "composicao": "67% ALGODÃO 33% POLIÉSTER",
+   "gramatura": 230,
+   "largura": 1.63,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO TELA RIP STOP · LINHA TACTICAL",
+   "cores": [
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "044B",
+   "nome": "044B CONCÓRDIA",
+   "interno": "BRIM POLIESTER",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 195,
+   "largura": 1.65,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2/1 E · LINHA CLASSIC",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "733",
+     "PANTONE 14-4501 TCX"
+    ],
+    [
+     "713",
+     null
+    ],
+    [
+     "800",
+     "PANTONE 18-4005 TCX"
+    ],
+    [
+     "802",
+     "PANTONE 19-3908 TCX"
+    ],
+    [
+     "50B",
+     "PANTONE 19-4058 TCX"
+    ],
+    [
+     "505",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "519",
+     "PANTONE 19-3921 TCX"
+    ],
+    [
+     "315",
+     "PANTONE 18-1663 TCX"
+    ],
+    [
+     "612",
+     "PANTONE 19-6026 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "5250",
+   "nome": "5250 CORINGA",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 235,
+   "largura": 1.73,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 E · LINHA CLASSIC",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "729",
+     "PANTONE 15-1305 TCX"
+    ],
+    [
+     "723",
+     "PANTONE 18-0617 TCX"
+    ],
+    [
+     "131",
+     "PANTONE 13-0746 TCX"
+    ],
+    [
+     "125",
+     "PANTONE 15-1058 TCX"
+    ],
+    [
+     "C29",
+     "PANTONE 17-1464 TCX"
+    ],
+    [
+     "307",
+     "PANTONE 19-1763 TCX"
+    ],
+    [
+     "610",
+     "PANTONE 18-5612 TCX"
+    ],
+    [
+     "616",
+     "PANTONE 17-5735 TCX"
+    ],
+    [
+     "61N",
+     "PANTONE 18-5841 TCX"
+    ],
+    [
+     "R61",
+     "PANTONE 19-5411 TCX"
+    ],
+    [
+     "609",
+     "PANTONE 19-5004 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 17-1502 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "868",
+     "PANTONE 17-1506 TCX"
+    ],
+    [
+     "H85",
+     "PANTONE 19-4220 TCX"
+    ],
+    [
+     "503",
+     "PANTONE 16-4031 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "R52",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "57E",
+     "PANTONE 19-4030 TCX"
+    ],
+    [
+     "517",
+     "PANTONE 19-3938 TCX"
+    ],
+    [
+     "W52",
+     "PANTONE 19-3934 TCX"
+    ],
+    [
+     "544",
+     "PANTONE 19-4025 TCX"
+    ],
+    [
+     "964",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4023 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "5190",
+   "nome": "5190 CORINGA LEVE",
+   "interno": "BRIM LEVE ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 180,
+   "largura": 1.75,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2/1 E · LINHA CLASSIC",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "729",
+     "PANTONE 15-1305 TCX"
+    ],
+    [
+     "723",
+     "PANTONE 18-0617 TCX"
+    ],
+    [
+     "131",
+     "PANTONE 13-0746 TCX"
+    ],
+    [
+     "125",
+     "PANTONE 15-1058 TCX"
+    ],
+    [
+     "C29",
+     "PANTONE 17-1464 TCX"
+    ],
+    [
+     "307",
+     "PANTONE 19-1763 TCX"
+    ],
+    [
+     "610",
+     "PANTONE 18-5612 TCX"
+    ],
+    [
+     "616",
+     "PANTONE 17-5735 TCX"
+    ],
+    [
+     "61N",
+     "PANTONE 18-5841 TCX"
+    ],
+    [
+     "R61",
+     "PANTONE 19-5411 TCX"
+    ],
+    [
+     "609",
+     "PANTONE 19-5004 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 17-1502 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "868",
+     "PANTONE 17-1506 TCX"
+    ],
+    [
+     "H85",
+     "PANTONE 19-4220 TCX"
+    ],
+    [
+     "503",
+     "PANTONE 16-4031 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "R52",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "57E",
+     "PANTONE 19-4030 TCX"
+    ],
+    [
+     "517",
+     "PANTONE 19-3938 TCX"
+    ],
+    [
+     "W52",
+     "PANTONE 19-3934 TCX"
+    ],
+    [
+     "544",
+     "PANTONE 19-4025 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "5325",
+   "nome": "5325 CORINGA MAX",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 250,
+   "largura": 1.72,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 E · LINHA CLASSIC",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "729",
+     "PANTONE 15-1305 TCX"
+    ],
+    [
+     "723",
+     "PANTONE 18-0617 TCX"
+    ],
+    [
+     "131",
+     "PANTONE 13-0746 TCX"
+    ],
+    [
+     "125",
+     "PANTONE 15-1058 TCX"
+    ],
+    [
+     "C29",
+     "PANTONE 17-1464 TCX"
+    ],
+    [
+     "307",
+     "PANTONE 19-1763 TCX"
+    ],
+    [
+     "610",
+     "PANTONE 18-5612 TCX"
+    ],
+    [
+     "616",
+     "PANTONE 17-5735 TCX"
+    ],
+    [
+     "61N",
+     "PANTONE 18-5841 TCX"
+    ],
+    [
+     "R61",
+     "PANTONE 19-5411 TCX"
+    ],
+    [
+     "609",
+     "PANTONE 19-5004 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 17-1502 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "868",
+     "PANTONE 17-1506 TCX"
+    ],
+    [
+     "H85",
+     "PANTONE 19-4220 TCX"
+    ],
+    [
+     "503",
+     "PANTONE 16-4031 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "R52",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "57E",
+     "PANTONE 19-4030 TCX"
+    ],
+    [
+     "517",
+     "PANTONE 19-3938 TCX"
+    ],
+    [
+     "544",
+     "PANTONE 19-4025 TCX"
+    ],
+    [
+     "964",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4023 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "128A",
+   "nome": "128A DENIM FR",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 440,
+   "largura": 1.68,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 D · LINHA FIRE PROTECTION",
+   "cores": [
+    [
+     "ÍNDIGO (DENIM)",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "5400",
+   "nome": "5400 DYNAMO FIRE",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 280,
+   "largura": 1.62,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 E · LINHA FIRE PROTECTION",
+   "cores": [
+    [
+     "723",
+     "PANTONE 17-1310 TCX"
+    ],
+    [
+     "C29",
+     "PANTONE 17-1464 TCX"
+    ],
+    [
+     "307",
+     "PANTONE 19-1763 TCX"
+    ],
+    [
+     "R68",
+     "PANTONE 19-4818 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 16-3802 TCX"
+    ],
+    [
+     "50F",
+     "PANTONE 19-3919 TCX"
+    ],
+    [
+     "518",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "A12",
+     "COR EXCLUSIVA"
+    ],
+    [
+     "57A",
+     "PANTONE 19-3925 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "5008",
+   "nome": "5008 DYNAMO MAX",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 310,
+   "largura": 1.61,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 E · LINHA FIRE PROTECTION",
+   "cores": [
+    [
+     "723",
+     "PANTONE 17-1310 TCX"
+    ],
+    [
+     "C29",
+     "PANTONE 17-1464 TCX"
+    ],
+    [
+     "307",
+     "PANTONE 19-1763 TCX"
+    ],
+    [
+     "R68",
+     "PANTONE 19-4818 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 16-3802 TCX"
+    ],
+    [
+     "50F",
+     "PANTONE 19-3919 TCX"
+    ],
+    [
+     "518",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "A12",
+     "COR EXCLUSIVA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "5200",
+   "nome": "5200 DYNAMO RIP STOP",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 325,
+   "largura": 1.61,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO RIP STOP DERIVADO DA SARJA 3/1 E · LINHA FIRE PROTECTION",
+   "cores": [
+    [
+     "723",
+     "PANTONE 17-1310 TCX"
+    ],
+    [
+     "C29",
+     "PANTONE 17-1464 TCX"
+    ],
+    [
+     "307",
+     "PANTONE 19-1763 TCX"
+    ],
+    [
+     "R68",
+     "PANTONE 19-4818 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 16-3802 TCX"
+    ],
+    [
+     "50F",
+     "PANTONE 19-3919 TCX"
+    ],
+    [
+     "518",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "A12",
+     "COR EXCLUSIVA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0230",
+   "nome": "0230 FLAMESTAR",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "48% MODACRÍLICA 37% VISCOSE FR 13% PARA-ARAMIDA 2% CARBONO",
+   "gramatura": 225,
+   "largura": 1.65,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2/1 D · LINHA FIRE PROTECTION",
+   "cores": [
+    [
+     "726",
+     "PANTONE 17-0909 TCX"
+    ],
+    [
+     "226",
+     "PANTONE 17-1432 TCX"
+    ],
+    [
+     "604",
+     "PANTONE 18-0426 TCX"
+    ],
+    [
+     "867",
+     "PANTONE 17-2601 TCX"
+    ],
+    [
+     "501",
+     "PANTONE 17-3923 TCX"
+    ],
+    [
+     "513",
+     "PANTONE 19-4030 TCX"
+    ],
+    [
+     "988",
+     "PANTONE 19-4013 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0405",
+   "nome": "0405 GRAFIL",
+   "interno": "CAMISARIA GRAFIL",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 112,
+   "largura": 1.62,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO TELA · LINHA CAMISARIA",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "804",
+     "PANTONE 18-3916 TCX"
+    ],
+    [
+     "800",
+     "PANTONE 18-4005 TCX"
+    ],
+    [
+     "315",
+     "PANTONE 18-1655 TCX"
+    ],
+    [
+     "707",
+     "PANTONE 16-1105 TCX"
+    ],
+    [
+     "704",
+     "PANTONE 17-1319 TCX"
+    ],
+    [
+     "576",
+     "PANTONE 15-4005 TCX"
+    ],
+    [
+     "500",
+     "PANTONE 17-3936 TCX"
+    ],
+    [
+     "505",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "519",
+     "PANTONE 19-3921 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0430",
+   "nome": "0430 GRAFIL",
+   "interno": "CAMISARIA GRAFIL",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 126,
+   "largura": 1.63,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO TELA · LINHA CAMISARIA",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "804",
+     "PANTONE 18-3916 TCX"
+    ],
+    [
+     "800",
+     "PANTONE 18-4005 TCX"
+    ],
+    [
+     "315",
+     "PANTONE 18-1655 TCX"
+    ],
+    [
+     "707",
+     "PANTONE 16-1105 TCX"
+    ],
+    [
+     "704",
+     "PANTONE 17-1319 TCX"
+    ],
+    [
+     "576",
+     "PANTONE 15-4005 TCX"
+    ],
+    [
+     "500",
+     "PANTONE 17-3936 TCX"
+    ],
+    [
+     "505",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "519",
+     "PANTONE 19-3921 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0472",
+   "nome": "0472 GRAFIL PLUS",
+   "interno": "CAMISARIA GRAFIL PLUS",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 165,
+   "largura": 1.54,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO TELA · LINHA CAMISARIA",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "C60",
+     "PANTONE 14-6007 TCX"
+    ],
+    [
+     "505",
+     "PANTONE 19-3864 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "5530",
+   "nome": "5530 METAL REPELLER",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 390,
+   "largura": 1.62,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 E · LINHA FIRE PROTECTION",
+   "cores": [
+    [
+     "723",
+     "PANTONE 17-1310 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "518",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4013 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "W86L",
+   "nome": "W86L NEW DENIM FIT",
+   "interno": "JEANS COM ELASTANO",
+   "composicao": "80% ALGODÃO 18% POLIÉSTER 2% ELASTANO",
+   "gramatura": 290,
+   "largura": 1.67,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 D · LINHA DENIM WORK",
+   "cores": [
+    [
+     "ÍNDIGO (DENIM)",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0487",
+   "nome": "0487 POLYBRIM",
+   "interno": "BRIM MISTO ALGODAO E POLIESTER",
+   "composicao": "67% ALGODÃO 33% POLIÉSTER",
+   "gramatura": 230,
+   "largura": 1.62,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 E · LINHA CLASSIC",
+   "cores": [
+    [
+     "L16",
+     null
+    ],
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "729",
+     "PANTONE 15-1305 TCX"
+    ],
+    [
+     "723",
+     "PANTONE 18-0617 TCX"
+    ],
+    [
+     "H26",
+     "PANTONE 16-1363 TCX"
+    ],
+    [
+     "610",
+     "PANTONE 18-5612 TCX"
+    ],
+    [
+     "616",
+     "PANTONE 18-5841 TCX"
+    ],
+    [
+     "609",
+     "PANTONE 19-5004 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 16-3802 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "503",
+     "PANTONE 16-4031 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "518",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "57E",
+     "PANTONE 19-4030 TCX"
+    ],
+    [
+     "517",
+     "PANTONE 19-3938 TCX"
+    ],
+    [
+     "W52",
+     "PANTONE 19-3934 TCX"
+    ],
+    [
+     "544",
+     "PANTONE 19-4025 TCX"
+    ],
+    [
+     "964",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4023 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0485",
+   "nome": "0485 POLYBRIM LIGHT",
+   "interno": "BRIM MISTO ALGODAO E POLIESTER",
+   "composicao": "67% ALGODÃO 33% POLIÉSTER",
+   "gramatura": 180,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2/1 E · LINHA CLASSIC",
+   "cores": [
+    [
+     "L16",
+     null
+    ],
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "729",
+     "PANTONE 15-1305 TCX"
+    ],
+    [
+     "723",
+     "PANTONE 18-0617 TCX"
+    ],
+    [
+     "H26",
+     "PANTONE 16-1363 TCX"
+    ],
+    [
+     "610",
+     "PANTONE 18-5612 TCX"
+    ],
+    [
+     "616",
+     "PANTONE 18-5841 TCX"
+    ],
+    [
+     "609",
+     "PANTONE 19-5004 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 16-3802 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "503",
+     "PANTONE 16-4031 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "518",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "57E",
+     "PANTONE 19-4030 TCX"
+    ],
+    [
+     "517",
+     "PANTONE 19-3938 TCX"
+    ],
+    [
+     "W52",
+     "PANTONE 19-3934 TCX"
+    ],
+    [
+     "544",
+     "PANTONE 19-4025 TCX"
+    ],
+    [
+     "964",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4023 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0406",
+   "nome": "0406 SITEL FILL",
+   "interno": "TELA POLIESTER E ALGODAO",
+   "composicao": "83% POLIÉSTER 17% ALGODÃO",
+   "gramatura": 160,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO TELA · LINHA CLASSIC",
+   "cores": [
+    [
+     "L16",
+     null
+    ],
+    [
+     "J29",
+     null
+    ],
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "505",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "519",
+     "PANTONE 19-3921 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0455",
+   "nome": "0455 SKY BLEND",
+   "interno": "CAMISARIA SKY BLEND",
+   "composicao": "70% ALGODÃO 30% POLIÉSTER",
+   "gramatura": 115,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO TELA · LINHA CAMISARIA",
+   "cores": [
+    [
+     "JUI",
+     "PANTONE 15-3915 TCX"
+    ],
+    [
+     "X69",
+     "PANTONE 16-5907 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "5005",
+   "nome": "5005 SOLASOL",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 260,
+   "largura": 1.7,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 E · LINHA CLASSIC",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "729",
+     "PANTONE 15-1305 TCX"
+    ],
+    [
+     "723",
+     "PANTONE 18-0617 TCX"
+    ],
+    [
+     "131",
+     "PANTONE 13-0746 TCX"
+    ],
+    [
+     "C29",
+     "PANTONE 17-1464 TCX"
+    ],
+    [
+     "307",
+     "PANTONE 19-1763 TCX"
+    ],
+    [
+     "321",
+     "PANTONE 19-1629 TCX"
+    ],
+    [
+     "610",
+     "PANTONE 18-5612 TCX"
+    ],
+    [
+     "629",
+     "PANTONE 14-5420 TCX"
+    ],
+    [
+     "616",
+     "PANTONE 17-5735 TCX"
+    ],
+    [
+     "61N",
+     "PANTONE 18-5841 TCX"
+    ],
+    [
+     "R61",
+     "PANTONE 19-5411 TCX"
+    ],
+    [
+     "609",
+     "PANTONE 19-5004 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 17-1502 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "868",
+     "PANTONE 17-1506 TCX"
+    ],
+    [
+     "H85",
+     "PANTONE 19-4220 TCX"
+    ],
+    [
+     "503",
+     "PANTONE 16-4031 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "518",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "57E",
+     "PANTONE 19-4030 TCX"
+    ],
+    [
+     "517",
+     "PANTONE 19-3938 TCX"
+    ],
+    [
+     "516",
+     "PANTONE 19-3839 TCX"
+    ],
+    [
+     "544",
+     "PANTONE 19-4025 TCX"
+    ],
+    [
+     "964",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4023 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "5140",
+   "nome": "5140 TAPÉ",
+   "interno": "BRIM LEVE ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 185,
+   "largura": 1.75,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2/1 E · LINHA CLASSIC",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "729",
+     "PANTONE 15-1305 TCX"
+    ],
+    [
+     "723",
+     "PANTONE 18-0617 TCX"
+    ],
+    [
+     "131",
+     "PANTONE 13-0746 TCX"
+    ],
+    [
+     "C29",
+     "PANTONE 17-1464 TCX"
+    ],
+    [
+     "307",
+     "PANTONE 19-1763 TCX"
+    ],
+    [
+     "321",
+     "PANTONE 19-1629 TCX"
+    ],
+    [
+     "610",
+     "PANTONE 18-5612 TCX"
+    ],
+    [
+     "616",
+     "PANTONE 17-5735 TCX"
+    ],
+    [
+     "61N",
+     "PANTONE 18-5841 TCX"
+    ],
+    [
+     "R61",
+     "PANTONE 19-5411 TCX"
+    ],
+    [
+     "609",
+     "PANTONE 19-5004 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 17-1502 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "868",
+     "PANTONE 17-1506 TCX"
+    ],
+    [
+     "H85",
+     "PANTONE 19-4220 TCX"
+    ],
+    [
+     "503",
+     "PANTONE 16-4031 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "518",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "57E",
+     "PANTONE 19-4030 TCX"
+    ],
+    [
+     "517",
+     "PANTONE 19-3938 TCX"
+    ],
+    [
+     "516",
+     "PANTONE 19-3839 TCX"
+    ],
+    [
+     "544",
+     "PANTONE 19-4025 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0480",
+   "nome": "0480 TECHNO RIP STOP",
+   "interno": "RIPSTOP",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 220,
+   "largura": 1.61,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO TELA RIP STOP · LINHA TACTICAL",
+   "cores": [
+    [
+     "L16",
+     null
+    ],
+    [
+     "J29",
+     null
+    ],
+    [
+     "723",
+     "PANTONE 18-0617 TCX"
+    ],
+    [
+     "F80",
+     "PANTONE 19-0513 TCX"
+    ],
+    [
+     "802",
+     "PANTONE 19-3908 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "F90",
+     "PANTONE 19-4109 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0443",
+   "nome": "0443 TERBRIM",
+   "interno": "BRIM POLIESTER",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 210,
+   "largura": 1.61,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2/1 E · LINHA CLASSIC",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "733",
+     "PANTONE 14-4501 TCX"
+    ],
+    [
+     "750",
+     "PANTONE 18-1028 TCX"
+    ],
+    [
+     "629",
+     "PANTONE 14-5420 TCX"
+    ],
+    [
+     "612",
+     "PANTONE 19-6026 TCX"
+    ],
+    [
+     "609",
+     "PANTONE 19-6110 TCX"
+    ],
+    [
+     "800",
+     "PANTONE 18-4005 TCX"
+    ],
+    [
+     "802",
+     "PANTONE 19-3908 TCX"
+    ],
+    [
+     "500",
+     "PANTONE 17-3936 TCX"
+    ],
+    [
+     "505",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "502",
+     "PANTONE 19-3920 TCX"
+    ],
+    [
+     "Y51",
+     "PANTONE 19-4025 TCX"
+    ],
+    [
+     "519",
+     "PANTONE 19-3921 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0550",
+   "nome": "0550 TITÂNIO FR",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "88% ALGODÃO 12% POLIAMIDA",
+   "gramatura": 245,
+   "largura": 1.61,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 E · LINHA FIRE PROTECTION",
+   "cores": [
+    [
+     "729",
+     "PANTONE 14-6305 TCX"
+    ],
+    [
+     "723",
+     "PANTONE 17-1310 TCX"
+    ],
+    [
+     "C29",
+     "PANTONE 17-1464 TCX"
+    ],
+    [
+     "307",
+     "PANTONE 19-1763 TCX"
+    ],
+    [
+     "R68",
+     "PANTONE 19-4818 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 16-3802 TCX"
+    ],
+    [
+     "503",
+     "PANTONE 17-4037 TCX"
+    ],
+    [
+     "518",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "A12",
+     "COR EXCLUSIVA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0535",
+   "nome": "0535 TITÂNIO LITE",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "88% ALGODÃO 12% POLIAMIDA",
+   "gramatura": 230,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 E · LINHA FIRE PROTECTION",
+   "cores": [
+    [
+     "729",
+     "PANTONE 14-6305 TCX"
+    ],
+    [
+     "723",
+     "PANTONE 17-1310 TCX"
+    ],
+    [
+     "C29",
+     "PANTONE 17-1464 TCX"
+    ],
+    [
+     "307",
+     "PANTONE 19-1763 TCX"
+    ],
+    [
+     "R68",
+     "PANTONE 19-4818 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 16-3802 TCX"
+    ],
+    [
+     "503",
+     "PANTONE 17-4037 TCX"
+    ],
+    [
+     "518",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "A12",
+     "COR EXCLUSIVA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0565",
+   "nome": "0565 TITÂNIO MAX",
+   "interno": "BRIM FR ANTICHAMA",
+   "composicao": "88% ALGODÃO 12% POLIAMIDA",
+   "gramatura": 265,
+   "largura": 1.62,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3/1 E · LINHA FIRE PROTECTION",
+   "cores": [
+    [
+     "729",
+     "PANTONE 14-6305 TCX"
+    ],
+    [
+     "723",
+     "PANTONE 17-1310 TCX"
+    ],
+    [
+     "C29",
+     "PANTONE 17-1464 TCX"
+    ],
+    [
+     "307",
+     "PANTONE 19-1763 TCX"
+    ],
+    [
+     "R68",
+     "PANTONE 19-4818 TCX"
+    ],
+    [
+     "815",
+     "PANTONE 18-0601 TCX"
+    ],
+    [
+     "816",
+     "PANTONE 16-3802 TCX"
+    ],
+    [
+     "503",
+     "PANTONE 17-4037 TCX"
+    ],
+    [
+     "518",
+     "PANTONE 19-3952 TCX"
+    ],
+    [
+     "504",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "A12",
+     "COR EXCLUSIVA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "0428",
+   "nome": "0428 TWILL SOFT",
+   "interno": "BRIM POLIESTER",
+   "composicao": "67% POLIÉSTER 33% ALGODÃO",
+   "gramatura": 185,
+   "largura": 1.61,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2/1 E · LINHA CLASSIC",
+   "cores": [
+    [
+     "002",
+     "PANTONE 11-0601 TCX"
+    ],
+    [
+     "733",
+     "PANTONE 14-4501 TCX"
+    ],
+    [
+     "612",
+     "PANTONE 19-6026 TCX"
+    ],
+    [
+     "609",
+     "PANTONE 19-6110 TCX"
+    ],
+    [
+     "808",
+     "PANTONE 18-3916 TCX"
+    ],
+    [
+     "800",
+     "PANTONE 18-4005 TCX"
+    ],
+    [
+     "802",
+     "PANTONE 19-3908 TCX"
+    ],
+    [
+     "500",
+     "PANTONE 17-3936 TCX"
+    ],
+    [
+     "505",
+     "PANTONE 19-3864 TCX"
+    ],
+    [
+     "502",
+     "PANTONE 19-3920 TCX"
+    ],
+    [
+     "519",
+     "PANTONE 19-3921 TCX"
+    ],
+    [
+     "A94",
+     "PANTONE 19-4013 TCX"
+    ],
+    [
+     "901",
+     "PANTONE 19-4006 TCX"
+    ]
+   ]
+  }
+ ]
+}
