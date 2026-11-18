@@ -1,0 +1,916 @@
+{
+ "flag": "SEED|CARTELA|SHOPPING TEXTIL|2026-11-18",
+ "fornecedor": {
+  "nome": "SHOPPING TÊXTIL",
+  "obs": "CADASTRADO PELA CARTELA DE CORES (FOTOS 18/11/2026)",
+  "busca": "SHOPPING"
+ },
+ "tiposNovos": [],
+ "artigos": [
+  {
+   "categoria": "MALHA",
+   "ref": "0001",
+   "nome": "0001 MALHA CLÁSSICA",
+   "interno": "PV",
+   "composicao": "67% POLIÉSTER 33% VISCOSE",
+   "gramatura": 160,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.6,
+   "unidade": "KG",
+   "especificacao": "ANTI-PILLING · PROTEÇÃO UV · ACABAMENTO DRY",
+   "cores": [
+    [
+     "0001 BRANCO",
+     "COR BRANCO"
+    ],
+    [
+     "0003 MESCLA MÉDIO",
+     "COR MESCLA"
+    ],
+    [
+     "0004 MESCLA ESCURO",
+     "COR FORTE"
+    ],
+    [
+     "0006 MESCLA AZUL",
+     "COR FORTE"
+    ],
+    [
+     "0007 MESCLA VERMELHO",
+     "COR FORTE"
+    ],
+    [
+     "0009 MESCLA CLARA",
+     "COR MESCLA"
+    ],
+    [
+     "1302 AMARELO OURO",
+     "COR FORTE"
+    ],
+    [
+     "1303 MANTEIGA",
+     "COR CLARA"
+    ],
+    [
+     "1304 AMARELO CANÁRIO",
+     "COR FORTE"
+    ],
+    [
+     "1320 MOSTARDA",
+     "COR FORTE"
+    ],
+    [
+     "2594 LARANJA",
+     "COR ESPECIAL"
+    ],
+    [
+     "3105 ROSA BEBÊ",
+     "COR CLARA"
+    ],
+    [
+     "3134 PINK",
+     "COR ESPECIAL"
+    ],
+    [
+     "3136 CHICLETE",
+     "COR FORTE"
+    ],
+    [
+     "3147 CORAL",
+     "COR FORTE"
+    ],
+    [
+     "3443 VINHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "3752 VERMELHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "3754 MUSTANG",
+     "COR ESPECIAL"
+    ],
+    [
+     "4469 ROXO",
+     "COR ESPECIAL"
+    ],
+    [
+     "4527 AÇAÍ",
+     "COR ESPECIAL"
+    ],
+    [
+     "4750 LILÁS",
+     "COR MÉDIA"
+    ],
+    [
+     "5139 AZULITO",
+     "COR MÉDIA"
+    ],
+    [
+     "5150 AZUL BEBÊ",
+     "COR CLARA"
+    ],
+    [
+     "5152 AZUL ROYAL",
+     "COR ESPECIAL"
+    ],
+    [
+     "5198 AZUL TURQUESA",
+     "COR EXTRA"
+    ],
+    [
+     "5276 AZUL CELESTE",
+     "COR MÉDIA"
+    ],
+    [
+     "5550 JADE",
+     "COR EXTRA"
+    ],
+    [
+     "5551 AZUL JEANS",
+     "COR FORTE"
+    ],
+    [
+     "5590 AZUL MARINHO",
+     "COR FORTE"
+    ],
+    [
+     "5595 AZUL NOITE",
+     "COR ESPECIAL"
+    ],
+    [
+     "5609 AZUL PETRÓLEO",
+     "COR ESPECIAL"
+    ],
+    [
+     "6200 VERDE ÁGUA",
+     "COR CLARA"
+    ],
+    [
+     "6207 VERDE LIMÃO",
+     "COR ESPECIAL"
+    ],
+    [
+     "6218 VERDE MUSGO",
+     "COR ESPECIAL"
+    ],
+    [
+     "6230 VERDE MAÇÃ",
+     "COR FORTE"
+    ],
+    [
+     "6244 VERDE PRIMAVERA",
+     "COR ESPECIAL"
+    ],
+    [
+     "6255 VERDE PISTACHE",
+     "COR FORTE"
+    ],
+    [
+     "6589 VERDE BANDEIRA",
+     "COR EXTRA"
+    ],
+    [
+     "6600 VERDE BRASIL",
+     "COR ESPECIAL"
+    ],
+    [
+     "7099 BEGE",
+     "COR MÉDIA"
+    ],
+    [
+     "7100 MARFIM",
+     "COR CLARA"
+    ],
+    [
+     "7258 CAQUI",
+     "COR MÉDIA"
+    ],
+    [
+     "7273 MARROM",
+     "COR FORTE"
+    ],
+    [
+     "7592 GRANITO",
+     "COR MÉDIA"
+    ],
+    [
+     "7595 BEGE VIC",
+     "COR MÉDIA"
+    ],
+    [
+     "7596 AREIA",
+     "COR MÉDIA"
+    ],
+    [
+     "8330 CINZA MÉDIO",
+     "COR FORTE"
+    ],
+    [
+     "8753 CINZA CLARO",
+     "COR MÉDIA"
+    ],
+    [
+     "8756 PRATA",
+     "COR MÉDIA"
+    ],
+    [
+     "8335 CHUMBO",
+     "COR FORTE"
+    ],
+    [
+     "9500 PRETO",
+     "COR FORTE"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "0003",
+   "nome": "0003 MALHA SUBLIMA",
+   "interno": "PP",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 160,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.6,
+   "unidade": "KG",
+   "especificacao": "ANTI-PILLING · PROTEÇÃO UV · ACABAMENTO DRY",
+   "cores": [
+    [
+     "0001 BRANCO",
+     "COR BRANCO"
+    ],
+    [
+     "0003 MESCLA MÉDIO",
+     "COR MESCLA"
+    ],
+    [
+     "1302 AMARELO OURO",
+     "COR FORTE"
+    ],
+    [
+     "1304 AMARELO CANÁRIO",
+     "COR FORTE"
+    ],
+    [
+     "2594 LARANJA",
+     "COR ESPECIAL"
+    ],
+    [
+     "3105 ROSA BEBÊ",
+     "COR CLARA"
+    ],
+    [
+     "3134 PINK",
+     "COR ESPECIAL"
+    ],
+    [
+     "3136 CHICLETE",
+     "COR FORTE"
+    ],
+    [
+     "3752 VERMELHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "4750 LILÁS",
+     "COR MÉDIA"
+    ],
+    [
+     "5139 AZULITO",
+     "COR MÉDIA"
+    ],
+    [
+     "5150 AZUL BEBÊ",
+     "COR CLARA"
+    ],
+    [
+     "5152 AZUL ROYAL",
+     "COR ESPECIAL"
+    ],
+    [
+     "5198 AZUL TURQUESA",
+     "COR EXTRA"
+    ],
+    [
+     "5550 JADE",
+     "COR EXTRA"
+    ],
+    [
+     "5590 AZUL MARINHO",
+     "COR FORTE"
+    ],
+    [
+     "6200 VERDE ÁGUA",
+     "COR CLARA"
+    ],
+    [
+     "6218 VERDE MUSGO",
+     "COR ESPECIAL"
+    ],
+    [
+     "6600 VERDE BRASIL",
+     "COR ESPECIAL"
+    ],
+    [
+     "7100 MARFIM",
+     "COR CLARA"
+    ],
+    [
+     "7596 AREIA",
+     "COR MÉDIA"
+    ],
+    [
+     "8330 CINZA MÉDIO",
+     "COR FORTE"
+    ],
+    [
+     "8753 CINZA CLARO",
+     "COR MÉDIA"
+    ],
+    [
+     "8756 PRATA",
+     "COR MÉDIA"
+    ],
+    [
+     "9500 PRETO",
+     "COR FORTE"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "0004",
+   "nome": "0004 HELANCA PRÁTIKA",
+   "interno": "HELANCA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 260,
+   "largura": 1.04,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 1.85,
+   "unidade": "KG",
+   "especificacao": "PROTEÇÃO UV · ACABAMENTO DRY",
+   "cores": [
+    [
+     "0001 BRANCO",
+     "COR BRANCO"
+    ],
+    [
+     "1302 AMARELO OURO",
+     "COR FORTE"
+    ],
+    [
+     "2594 LARANJA",
+     "COR ESPECIAL"
+    ],
+    [
+     "3443 VINHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "3752 VERMELHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "5139 AZULITO",
+     "COR MÉDIA"
+    ],
+    [
+     "5152 AZUL ROYAL",
+     "COR ESPECIAL"
+    ],
+    [
+     "5198 AZUL TURQUESA",
+     "COR EXTRA"
+    ],
+    [
+     "5590 AZUL MARINHO",
+     "COR FORTE"
+    ],
+    [
+     "6218 VERDE MUSGO",
+     "COR ESPECIAL"
+    ],
+    [
+     "6589 VERDE BANDEIRA",
+     "COR EXTRA"
+    ],
+    [
+     "8330 CINZA MÉDIO",
+     "COR FORTE"
+    ],
+    [
+     "8335 CHUMBO",
+     "COR ÚNICA"
+    ],
+    [
+     "9500 PRETO",
+     "COR FORTE"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "0071",
+   "nome": "0071 HELANCA SIBÉRIA",
+   "interno": "HELANCA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 280,
+   "largura": 1.8,
+   "tipoMalha": "RAMADA",
+   "rendimento": 2.0,
+   "unidade": "KG",
+   "especificacao": "PROTEÇÃO UV · ACABAMENTO DRY",
+   "cores": [
+    [
+     "0001 BRANCO",
+     "COR BRANCO"
+    ],
+    [
+     "5152 AZUL ROYAL",
+     "COR ESPECIAL"
+    ],
+    [
+     "5590 AZUL MARINHO",
+     "COR FORTE"
+    ],
+    [
+     "6218 VERDE MUSGO",
+     "COR ESPECIAL"
+    ],
+    [
+     "8335 CHUMBO",
+     "COR ÚNICA"
+    ],
+    [
+     "9500 PRETO",
+     "COR FORTE"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "0011",
+   "nome": "0011 HELANCA SLIM",
+   "interno": "HELANCA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 120,
+   "largura": 1.8,
+   "tipoMalha": "RAMADA",
+   "rendimento": 4.6,
+   "unidade": "KG",
+   "especificacao": "PROTEÇÃO UV · ACABAMENTO DRY",
+   "cores": [
+    [
+     "0001 BRANCO",
+     "COR BRANCO"
+    ],
+    [
+     "1302 AMARELO OURO",
+     "COR FORTE"
+    ],
+    [
+     "2594 LARANJA",
+     "COR ÚNICA"
+    ],
+    [
+     "3134 PINK",
+     "COR ESPECIAL"
+    ],
+    [
+     "3136 CHICLETE",
+     "COR FORTE"
+    ],
+    [
+     "3443 VINHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "3752 VERMELHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "5139 AZULITO",
+     "COR MÉDIA"
+    ],
+    [
+     "5152 AZUL ROYAL",
+     "COR ESPECIAL"
+    ],
+    [
+     "5590 AZUL MARINHO",
+     "COR FORTE"
+    ],
+    [
+     "6589 VERDE BANDEIRA",
+     "COR EXTRA"
+    ],
+    [
+     "7596 AREIA",
+     "COR MÉDIA"
+    ],
+    [
+     "8756 PRATA",
+     "COR MÉDIA"
+    ],
+    [
+     "8335 CHUMBO",
+     "COR ÚNICA"
+    ],
+    [
+     "9500 PRETO",
+     "COR FORTE"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "0001-CAM",
+   "nome": "0001-CAM MALHA CLÁSSICA CAMUFLADA",
+   "interno": "PV",
+   "composicao": "67% POLIÉSTER 33% VISCOSE",
+   "gramatura": 160,
+   "largura": 1.8,
+   "tipoMalha": "RAMADA",
+   "rendimento": 3.4,
+   "unidade": "KG",
+   "especificacao": "ANTI-PILLING · PROTEÇÃO UV",
+   "cores": [
+    [
+     "00EB CAMUFLADA EXÉRCITO",
+     "COR ÚNICA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "0009",
+   "nome": "0009 MALHA PENTESUL",
+   "interno": "ALGODAO 30.1 CARDADO",
+   "composicao": "100% ALGODÃO CARDADO",
+   "gramatura": 160,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.6,
+   "unidade": "KG",
+   "especificacao": "PROTEÇÃO UV",
+   "cores": [
+    [
+     "0001 BRANCO",
+     "COR BRANCO"
+    ],
+    [
+     "0003 MESCLA MÉDIO",
+     "COR MESCLA"
+    ],
+    [
+     "1303 MANTEIGA",
+     "COR CLARA"
+    ],
+    [
+     "1304 AMARELO CANÁRIO",
+     "COR FORTE"
+    ],
+    [
+     "3105 ROSA BEBÊ",
+     "COR CLARA"
+    ],
+    [
+     "3752 VERMELHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "5139 AZULITO",
+     "COR FORTE"
+    ],
+    [
+     "5152 ROYAL",
+     "COR ESPECIAL"
+    ],
+    [
+     "5590 AZUL MARINHO",
+     "COR FORTE"
+    ],
+    [
+     "6200 VERDE ÁGUA",
+     "COR CLARA"
+    ],
+    [
+     "6589 VERDE BANDEIRA",
+     "COR ESPECIAL"
+    ],
+    [
+     "8135 CINZA CLARO",
+     "COR CLARA"
+    ],
+    [
+     "8335 CHUMBO",
+     "COR FORTE"
+    ],
+    [
+     "9500 PRETO",
+     "COR FORTE"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "0013",
+   "nome": "0013 DRY FITNESS",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 125,
+   "largura": 1.85,
+   "tipoMalha": "RAMADA",
+   "rendimento": 4.3,
+   "unidade": "KG",
+   "especificacao": "TECNOLOGIA DRY · PROTEÇÃO UV",
+   "cores": [
+    [
+     "0001 BRANCO",
+     "COR BRANCO"
+    ],
+    [
+     "1302 AMARELO OURO",
+     "COR ÚNICA"
+    ],
+    [
+     "2594 LARANJA",
+     "COR ÚNICA"
+    ],
+    [
+     "3443 VINHO",
+     "COR ÚNICA"
+    ],
+    [
+     "3752 VERMELHO",
+     "COR ÚNICA"
+    ],
+    [
+     "5139 AZULITO",
+     "COR ÚNICA"
+    ],
+    [
+     "5152 AZUL ROYAL",
+     "COR ÚNICA"
+    ],
+    [
+     "5198 AZUL TURQUESA",
+     "COR ÚNICA"
+    ],
+    [
+     "5590 AZUL MARINHO",
+     "COR ÚNICA"
+    ],
+    [
+     "6589 VERDE BANDEIRA",
+     "COR ÚNICA"
+    ],
+    [
+     "8335 CHUMBO",
+     "COR ÚNICA"
+    ],
+    [
+     "8756 PRATA",
+     "COR ÚNICA"
+    ],
+    [
+     "9500 PRETO",
+     "COR ÚNICA"
+    ],
+    [
+     "1900 AMARELO FLÚOR",
+     "COR EXTRA"
+    ],
+    [
+     "2900 LARANJA FLÚOR",
+     "COR EXTRA"
+    ],
+    [
+     "3900 ROSA FLÚOR",
+     "COR EXTRA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "0023",
+   "nome": "0023 MALHA DOUBLE",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 130,
+   "largura": 1.85,
+   "tipoMalha": "RAMADA",
+   "rendimento": 4.15,
+   "unidade": "KG",
+   "especificacao": "TECNOLOGIA DRY · PROTEÇÃO UV",
+   "cores": [
+    [
+     "0001 BRANCO",
+     "COR BRANCO"
+    ],
+    [
+     "1302 AMARELO OURO",
+     "COR ÚNICA"
+    ],
+    [
+     "2594 LARANJA",
+     "COR ÚNICA"
+    ],
+    [
+     "3443 VINHO",
+     "COR ÚNICA"
+    ],
+    [
+     "3752 VERMELHO",
+     "COR ÚNICA"
+    ],
+    [
+     "5139 AZULITO",
+     "COR ÚNICA"
+    ],
+    [
+     "5152 AZUL ROYAL",
+     "COR ÚNICA"
+    ],
+    [
+     "5198 AZUL TURQUESA",
+     "COR ÚNICA"
+    ],
+    [
+     "5590 AZUL MARINHO",
+     "COR ÚNICA"
+    ],
+    [
+     "6589 VERDE BANDEIRA",
+     "COR ÚNICA"
+    ],
+    [
+     "8335 CHUMBO",
+     "COR ÚNICA"
+    ],
+    [
+     "8756 PRATA",
+     "COR ÚNICA"
+    ],
+    [
+     "9500 PRETO",
+     "COR ÚNICA"
+    ],
+    [
+     "1900 AMARELO FLÚOR",
+     "COR EXTRA"
+    ],
+    [
+     "2900 LARANJA FLÚOR",
+     "COR EXTRA"
+    ],
+    [
+     "3900 ROSA FLÚOR",
+     "COR EXTRA"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "0057",
+   "nome": "0057 FLEX COMFORT",
+   "interno": "DRY FIT POLIESTER COM ELASTANO",
+   "composicao": "91,5% POLIÉSTER 8,5% ELASTANO",
+   "gramatura": 150,
+   "largura": 1.9,
+   "tipoMalha": "RAMADA",
+   "rendimento": 3.56,
+   "unidade": "KG",
+   "especificacao": "TECNOLOGIA DRY · PROTEÇÃO UV",
+   "cores": [
+    [
+     "0001 BRANCO",
+     "COR BRANCO"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "0005",
+   "nome": "0005 PIQUET NOBRE",
+   "interno": "PIQUET P.A",
+   "composicao": "50% ALGODÃO 50% POLIÉSTER",
+   "gramatura": 190,
+   "largura": 1.2,
+   "tipoMalha": "TUBULAR",
+   "rendimento": 2.2,
+   "unidade": "KG",
+   "especificacao": "PROTEÇÃO UV",
+   "cores": [
+    [
+     "0001 BRANCO",
+     "COR BRANCO"
+    ],
+    [
+     "0003 MESCLA MÉDIO",
+     "COR MESCLA"
+    ],
+    [
+     "0004 MESCLA ESCURO",
+     "COR MESCLA"
+    ],
+    [
+     "1302 AMARELO OURO",
+     "COR FORTE"
+    ],
+    [
+     "1304 AMARELO CANÁRIO",
+     "COR FORTE"
+    ],
+    [
+     "2594 LARANJA",
+     "COR ESPECIAL"
+    ],
+    [
+     "3105 ROSA BEBÊ",
+     "COR CLARA"
+    ],
+    [
+     "3443 VINHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "3752 VERMELHO",
+     "COR ESPECIAL"
+    ],
+    [
+     "3754 MUSTANG",
+     "COR ESPECIAL"
+    ],
+    [
+     "4469 ROXO",
+     "COR ESPECIAL"
+    ],
+    [
+     "5139 AZULITO",
+     "COR MÉDIA"
+    ],
+    [
+     "5150 AZUL BEBÊ",
+     "COR CLARA"
+    ],
+    [
+     "5152 AZUL ROYAL",
+     "COR ESPECIAL"
+    ],
+    [
+     "5198 AZUL TURQUESA",
+     "COR EXTRA"
+    ],
+    [
+     "5550 JADE",
+     "COR EXTRA"
+    ],
+    [
+     "5590 AZUL MARINHO",
+     "COR FORTE"
+    ],
+    [
+     "5595 AZUL NOITE",
+     "COR ESPECIAL"
+    ],
+    [
+     "6200 VERDE ÁGUA",
+     "COR CLARA"
+    ],
+    [
+     "6218 VERDE MUSGO",
+     "COR ESPECIAL"
+    ],
+    [
+     "6244 VERDE PRIMAVERA",
+     "COR ESPECIAL"
+    ],
+    [
+     "6589 VERDE BANDEIRA",
+     "COR EXTRA"
+    ],
+    [
+     "7596 AREIA",
+     "COR MÉDIA"
+    ],
+    [
+     "8330 CINZA MÉDIO",
+     "COR FORTE"
+    ],
+    [
+     "8756 PRATA",
+     "COR MÉDIA"
+    ],
+    [
+     "9500 PRETO",
+     "COR FORTE"
+    ]
+   ]
+  }
+ ]
+}
