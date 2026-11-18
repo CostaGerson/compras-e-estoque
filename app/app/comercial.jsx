@@ -176,7 +176,8 @@ function sc(t) {   // v973 — FPP toda em MAIÚSCULAS (antes: "primeira maiúsc
   const s0 = String(t ?? "");
   return s0.toLocaleUpperCase("pt-BR");
 }
-const nomeLocal = (k) => (k === "TOTAL" ? "Total" : ([...LOCAIS_PERS, ...LOCAIS_CALCA].find((x) => x[0] === k) || [k, k])[1]);   // v659
+const LOCAL_ETIQUETA = ["ETIQUETA_INT", "Etiqueta interna"];   // v988 — silk: etiqueta interna
+const nomeLocal = (k) => (k === "TOTAL" ? "Total" : ([...LOCAIS_PERS, ...LOCAIS_CALCA, LOCAL_ETIQUETA].find((x) => x[0] === k) || [k, k])[1]);   // v659
 const nomeMetodo = (k) => (METODOS_PERS.find((x) => x[0] === k) || [k, k])[1];
 const silkPorCorDe = (params) => Number(params?.OPERACIONAL?.silkPorCor) || 0.8;
 // valor por peça de uma aplicação
@@ -188,10 +189,14 @@ function corteLaserDe(e) {
   return a ? num(a.corteLaser) : null;
 }
 // v987 — sublimação: calandragem (terceirizada) entra no valor da aplicação
-function calandraDe(a) { return a && a.metodo === "SUBLIMACAO" && a.calandra && num(a.calandraValor) > 0 ? num(a.calandraValor) : 0; }
+// v988 — fixação da sublimação: calandragem (terceirizada, valor digitado) ou prensagem interna (custo fixo do banco: COMUM · CONST · SUB_PRENSAGEM)
+const fixacaoDe = (a) => (a?.fixacao || (a?.calandra ? "CALANDRA" : ""));
+function calandraDe(a) { return a && a.metodo === "SUBLIMACAO" && fixacaoDe(a) === "CALANDRA" && num(a.calandraValor) > 0 ? num(a.calandraValor) : 0; }
+function prensagemPreco(params) { const r = (params?.COMUM?.CONST || []).find((x) => x.chave === "SUB_PRENSAGEM"); return r ? Number(r.valor) || 0 : 1.2; }
+function prensagemDe(a, params) { return a && a.metodo === "SUBLIMACAO" && fixacaoDe(a) === "PRENSA" ? prensagemPreco(params) : 0; }
 function valorAplicacao(a, params, semTerc) {
   if (!a) return 0;
-  if (a.metodo === "SUBLIMACAO") return num(a.valor) + (a.interno ? papelSubDe(a, params) * papelPrecoDe(params) : 0) + (semTerc ? 0 : calandraDe(a));   // v922 — papel (interna) · v987 calandragem
+  if (a.metodo === "SUBLIMACAO") return num(a.valor) + (a.interno ? papelSubDe(a, params) * papelPrecoDe(params) : 0) + (semTerc ? 0 : calandraDe(a)) + prensagemDe(a, params);   // v922 — papel (interna) · v987 calandragem · v988 prensagem
   return a.metodo === "SILK" ? (Number(a.cores) || 0) * silkPorCorDe(params) : num(a.valor);
 }
 // v922 — sublimação: consumo de papel (m/peça) por local. "Total": o papel é o comprimento do corte — digitado na aplicação;
@@ -210,7 +215,7 @@ function subTotalMalha(f) {
 function persPorTecnica(e, params, soInternas) {
   const out = { silk: 0, bordado: 0, sublimacao: 0 };
   for (const a of Array.isArray(e?.personalizacoes) ? e.personalizacoes : []) {
-    if (soInternas && !a.interno) continue;
+    if (soInternas && !a.interno) { if (prensagemDe(a, params)) out.sublimacao += prensagemDe(a, params); continue; }   // v988 — prensagem é interna mesmo com a sublimação terceirizada
     const t = TEC_DO_METODO[a.metodo] || "silk";
     out[t] += valorAplicacao(a, params, soInternas);   // v987 — na volta para a operação, a calandragem (terceirizada) não entra
   }
@@ -1388,7 +1393,7 @@ function docFpp(f, master, anexos) {
   }
   const pers = [];
   for (const a of Array.isArray(e.personalizacoes) ? e.personalizacoes : [])
-    pers.push([`${nomeMetodo(a.metodo)} · ${nomeLocal(a.local)}`, [a.metodo === "SILK" ? `${a.cores || 1} cor(es)` : num(a.valor) ? `R$ ${a.valor}` : "", num(a.arte) ? `${a.metodo === "BORDADO" ? "programa" : "arte/tela"} R$ ${a.arte}` : "", a.metodo === "SUBLIMACAO" && a.corteSub === "LASER" && num(a.corteLaser) ? `corte a laser R$ ${a.corteLaser}` : "", calandraDe(a) ? `calandragem R$ ${a.calandraValor}` : "", a.interno ? "interno" : "terceirizado"].filter(Boolean).join(" · ")]);
+    pers.push([`${nomeMetodo(a.metodo)} · ${nomeLocal(a.local)}`, [a.metodo === "SILK" ? `${a.cores || 1} cor(es)` : num(a.valor) ? `R$ ${a.valor}` : "", num(a.arte) ? `${a.metodo === "BORDADO" ? "programa" : "arte/tela"} R$ ${a.arte}` : "", a.metodo === "SUBLIMACAO" && a.corteSub === "LASER" && num(a.corteLaser) ? `corte a laser R$ ${a.corteLaser}` : "", calandraDe(a) ? `calandragem R$ ${a.calandraValor}` : "", fixacaoDe(a) === "PRENSA" ? "prensagem interna" : "", a.interno ? "interno" : "terceirizado"].filter(Boolean).join(" · ")]);
   if (num(e.arteTotal)) pers.push(["Arte (R$ total)", e.arteTotal]);
   secoes.push({ titulo: "Personalização", linhas: pers.length ? pers : [["Personalização", "Sem personalização"]] });
   if (!revendaP) {
@@ -2139,7 +2144,7 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT
     const n = { ...a, [k]: v };
     if (k === "metodo") {
       n.interno = (METODOS_PERS.find((x) => x[0] === v) || [])[2] ?? false;
-      if (v !== "SUBLIMACAO") { delete n.corteSub; delete n.corteLaser; delete n.calandra; delete n.calandraValor; if (n.local === "TOTAL") n.local = locais[0][0]; }
+      if (v !== "SUBLIMACAO") { delete n.corteSub; delete n.corteLaser; delete n.calandra; delete n.calandraValor; delete n.fixacao; if (n.local === "TOTAL") n.local = locais[0][0]; }
       else n.corteSub = n.corteSub || "";   // v659 — pergunta: corte interno ou laser
     }
     return n;
@@ -2162,7 +2167,7 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT
                 {METODOS_PERS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
               </select>)}
               {lbl("Local", <select value={a.local} onChange={(e) => mud(i, "local", e.target.value)} className="w-full h-full px-2 rounded text-sm" style={sel}>
-                {(() => { const ls = a.metodo === "SUBLIMACAO" ? [LOCAL_TOTAL, ...locais] : locais; return (ls.some((x) => x[0] === a.local) ? ls : [...ls, [a.local, nomeLocal(a.local)]]).map(([k, n]) => <option key={k} value={k}>{n}</option>); })()}
+                {(() => { const ls = a.metodo === "SUBLIMACAO" ? [LOCAL_TOTAL, ...locais] : a.metodo === "SILK" ? [...locais, LOCAL_ETIQUETA] : locais; return (ls.some((x) => x[0] === a.local) ? ls : [...ls, [a.local, nomeLocal(a.local)]]).map(([k, n]) => <option key={k} value={k}>{n}</option>); })()}
               </select>)}
               {a.metodo === "SILK"
                 ? lbl("Cores", <select value={a.cores || 1} onChange={(e) => mud(i, "cores", Number(e.target.value))} className="w-full h-full px-2 rounded text-sm" style={sel}>
@@ -2183,7 +2188,7 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT
                     {rateio > 0 && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] pointer-events-none whitespace-nowrap" style={{ color: C.sub }}>+{brl(rateio)}/pç</span>}
                   </div>)
                 : a.metodo === "SUBLIMACAO"   // v987 — corte (interno/laser) e calandragem num card flutuante; aqui só o total terceirizado
-                  ? lbl("Corte · calandragem", <TercSub a={a} mud={(k, v) => mud(i, k, v)} sel={sel} />)
+                  ? lbl("Corte · fixação", <TercSub a={a} mud={(k, v) => mud(i, k, v)} sel={sel} params={params} />)
                   : <div />}
               {lbl("Valor/peça", <div className="text-sm font-semibold whitespace-nowrap" style={{ color: C.text }} title={a.metodo === "SILK" ? `${a.cores || 1} × ${brl(pc)}` : undefined}>{brl(valorAplicacao(a, params))}{a.metodo === "SILK" && <span className="text-[11px] font-normal" style={{ color: C.sub }}> ({a.cores || 1}×)</span>}</div>)}
               {lbl("Origem", <SeletorOrigem interno={!!a.interno} onChange={(v) => mud(i, "interno", v)} />)}
@@ -2210,7 +2215,7 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT
 }
 
 // v987 — sublimação: corte (interno ou a laser) e calandragem. A linha mostra o total terceirizado; o clique abre o card para editar.
-function TercSub({ a, mud, sel }) {
+function TercSub({ a, mud, sel, params }) {
   const [aberto, setAberto] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -2218,9 +2223,9 @@ function TercSub({ a, mud, sel }) {
     const fora = (e) => { if (ref.current && !ref.current.contains(e.target)) setAberto(false); };
     document.addEventListener("mousedown", fora); return () => document.removeEventListener("mousedown", fora);
   }, [aberto]);
-  const laser = a.corteSub === "LASER" ? num(a.corteLaser) : 0, cal = calandraDe(a), tot = laser + cal;
-  const pend = !a.corteSub || (a.corteSub === "LASER" && !(num(a.corteLaser) > 0)) || (a.calandra && !(num(a.calandraValor) > 0));
-  const resumo = [a.corteSub === "LASER" ? "laser" : a.corteSub === "INTERNO" ? "corte interno" : null, a.calandra ? "calandra" : null].filter(Boolean).join(" + ");
+  const fx = fixacaoDe(a), laser = a.corteSub === "LASER" ? num(a.corteLaser) : 0, cal = calandraDe(a), tot = laser + cal, pr = prensagemDe(a, params);
+  const pend = !a.corteSub || (a.corteSub === "LASER" && !(num(a.corteLaser) > 0)) || (fx === "CALANDRA" && !(num(a.calandraValor) > 0));
+  const resumo = [a.corteSub === "LASER" ? "laser" : a.corteSub === "INTERNO" ? "corte interno" : null, fx === "CALANDRA" ? "calandra" : fx === "PRENSA" ? `prensa ${brl(pr)}` : null].filter(Boolean).join(" + ");
   return (
     <div className="relative w-full h-full" ref={ref}>
       <button type="button" onClick={() => setAberto((x) => !x)} className="w-full h-full px-2 rounded text-sm text-left flex items-center justify-between gap-1" style={{ ...sel, borderColor: pend ? C.accent : C.line }}
@@ -2242,17 +2247,20 @@ function TercSub({ a, mud, sel }) {
             </div>
           </div>
           <div>
-            <div className="text-[11px] mb-1" style={{ color: C.sub }}>Calandragem (terceirizada)</div>
-            <div className="flex items-center gap-2" style={{ height: 32 }}>
-              <Toggle on={!!a.calandra} onChange={(v) => mud("calandra", v)} />
-              {a.calandra && <input value={a.calandraValor || ""} onChange={(e) => mud("calandraValor", e.target.value)} inputMode="decimal" placeholder="R$/peça"
+            <div className="text-[11px] mb-1" style={{ color: C.sub }}>Fixação</div>
+            <div className="flex gap-1" style={{ height: 32 }}>
+              <select value={fx} onChange={(e) => mud("fixacao", e.target.value)} className="h-full px-1 rounded text-sm" style={{ ...sel, width: fx === "CALANDRA" ? 150 : "100%" }}>
+                <option value="">Sem fixação</option><option value="CALANDRA">Calandragem (terc.)</option><option value="PRENSA">Prensagem interna</option>
+              </select>
+              {fx === "CALANDRA" && <input value={a.calandraValor || ""} onChange={(e) => mud("calandraValor", e.target.value)} inputMode="decimal" placeholder="R$/peça"
                 className="flex-1 min-w-0 h-full px-2 rounded text-sm" style={{ ...sel, borderColor: num(a.calandraValor) > 0 ? C.line : C.accent }} />}
             </div>
+            {fx === "PRENSA" && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Prensagem interna: {brl(pr)}/peça (banco de dados · volta para a operação)</div>}
           </div>
           <div className="text-[11px] pt-2 flex justify-between" style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}>
             <span>Terceirização (corte + calandragem)</span><b style={{ color: C.text }}>{brl(tot)}/pç</b>
           </div>
-          <div className="text-[10px] leading-tight" style={{ color: C.sub }}>Corte a laser substitui o corte da ficha (produção). Calandragem soma no valor da personalização.</div>
+          <div className="text-[10px] leading-tight" style={{ color: C.sub }}>Corte interno usa o corte normal da peça (ficha); a laser substitui o corte da ficha. Calandragem e prensagem somam no valor da personalização.</div>
         </div>
       )}
     </div>

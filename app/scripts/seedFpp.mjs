@@ -93,6 +93,7 @@ const CONST_COMUM = [
   ["OP_TITULO_BANCO_TAXA", 0.058, "Operação financeira — título banco (a.m.)"],         // v686 — título: banco ou factoring
   ["OP_TITULO_FACTORING_TAXA", 0.058, "Operação financeira — título factoring (a.m.)"],
   ["SUB_PAPEL_METRO", 0, "Papel de sublimação (R$/m)"],   // v922
+  ["SUB_PRENSAGEM", 1.2, "Sublimação — prensagem interna (R$/peça)"],   // v988
 ];
 // v922 — sublimação: papel por local (m/peça); "Total" é digitado na FPP (comprimento do corte)
 const SUB_PAPEL = [["PEITO_E", "Peito esq."], ["PEITO_D", "Peito dir."], ["PEITO_C", "Peito central"], ["COSTAS_SUP", "Costas sup."], ["COSTAS_MEIO", "Costas meio"], ["COSTAS_INF", "Costas inf."], ["MANGA_D", "Manga dir."], ["MANGA_E", "Manga esq."],
