@@ -912,7 +912,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
             </div>
 
             <Card title="Logística e embalagem">
-              <div className="grid gap-3" style={{ gridTemplateColumns: "150px minmax(0,1.4fr) minmax(0,1fr)" }}>
+              <div className="grid gap-3 items-end" style={{ gridTemplateColumns: "180px minmax(0,1.4fr) minmax(0,1fr)" }}>   {/* v975 — em maiúsculas o rótulo quebrava: coluna maior e campos alinhados pela base */}
                 <Inp full label="Frete por volume (R$)" value={f.freteVolume} onChange={(v) => set("freteVolume", v)} />
                 <Combo label="Embalagem externa" value={f.embExt} onChange={(v) => set("embExt", v)} options={embExts.map((g) => g.chave)} placeholder="Digite…" />
                 <Combo label="Embalagem interna" value={f.embInt} onChange={(v) => set("embInt", v)} options={embInts.map((g) => g.chave)} placeholder="Digite…" />
