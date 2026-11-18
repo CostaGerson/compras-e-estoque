@@ -2356,7 +2356,7 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
     catch (e) { setErro(e.message); }
   };
   const apagar = async (it) => {
-    if (ehPrevisao(it)) return desconsiderar(it);   // apagar a previsão sem marcar faria ela voltar na próxima atualização
+    if (ehPrevisao(it)) return;   // previsão do PCP: desconsidera-se na OS, no PCP (apagar aqui faria ela voltar na próxima atualização)
     if (!(await confirmar(`Apagar o lançamento de ${it.nome}?`))) return;
     try { setD(await api("/api/fin/semana", "DELETE", { usuarioId: user.id, id: it.id, tituloId })); onMudou && onMudou(); }
     catch (e) { setErro(e.message); }
@@ -2440,7 +2440,6 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
                           <button onClick={() => setEdit({ item: it, grupo: it.grupo })} title="Editar" className="mr-2" style={{ color: C.sub }}><Pencil size={13} /></button>
                         </>}
                     <button onClick={() => obs(it)} title="OBS" className="mr-2" style={{ color: it.observacao ? C.accent : C.sub }}><FileText size={13} /></button>
-                    {!it.pago && ehPrevisao(it) && <button onClick={() => desconsiderar(it)} title="Desconsiderar previsão (já adiantei / não vou pagar)" className="mr-2" style={{ color: C.red }}><EyeOff size={13} /></button>}
                     {!it.pago && !ehPrevisao(it) && <button onClick={() => apagar(it)} title="Apagar" style={{ color: C.sub }}><Trash2 size={13} /></button>}
                   </td>
                 </tr>

@@ -89,7 +89,7 @@ export function montarPrevistas(itens, hoje = hojeSP(), prests = []) {
 function previstasDoAcerto(contas, hoje = hojeSP()) {
   const out = {};
   for (const c of contas || []) {
-    if (c.lancada || c.descartada || c.pagaNaPrevisao || !(Number(c.valorLiquido) > 0)) continue;   // paga adiantada pela previsão: não volta
+    if (c.lancada || c.descartada || c.pagaNaPrevisao || c.previsaoDesconsiderada || !(Number(c.valorLiquido) > 0)) continue;   // paga adiantada / desconsiderada no PCP: não volta   // paga adiantada pela previsão: não volta
     const linhas = (c.linhas || []).map((l) => ({ ...l, tipo: l.tipo || tipoDePeca(l.item) || "CAMISETA", total: r2(l.total) }));
     if (!linhas.length) continue;
     const fac = facNome(c.prestador?.nome || c.faccao);
