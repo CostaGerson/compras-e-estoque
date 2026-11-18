@@ -1,0 +1,247 @@
+{
+ "flag": "SEED|CARTELA|FABRIL MASCARENHAS EVOX|2026-11-18",
+ "fornecedor": {
+  "nome": "FABRIL MASCARENHAS",
+  "nomeFantasia": "FABRIL MASCARENHAS (EVOX)",
+  "obs": "CADASTRADO PELA CARTELA EVOX (FOTOS 18/11/2026)",
+  "busca": "MASCARENHAS"
+ },
+ "tiposNovos": [],
+ "artigos": [
+  {
+   "categoria": "TECIDO",
+   "ref": "EVOX LIGHT",
+   "nome": "EVOX LIGHT",
+   "interno": "BRIM LEVE ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 200,
+   "largura": 1.72,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "1001",
+     "GRUPO DE PREÇO G0"
+    ],
+    [
+     "1018",
+     "GRUPO DE PREÇO G1"
+    ],
+    [
+     "1017",
+     "GRUPO DE PREÇO G1"
+    ],
+    [
+     "1016",
+     "GRUPO DE PREÇO G4"
+    ],
+    [
+     "1020",
+     "GRUPO DE PREÇO G2"
+    ],
+    [
+     "1023",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1005",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1007",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1002",
+     "GRUPO DE PREÇO G2"
+    ],
+    [
+     "1004",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1019",
+     "GRUPO DE PREÇO G1"
+    ],
+    [
+     "1009",
+     "GRUPO DE PREÇO G2"
+    ],
+    [
+     "1008",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1021",
+     "GRUPO DE PREÇO G1"
+    ],
+    [
+     "1010",
+     "GRUPO DE PREÇO G5"
+    ],
+    [
+     "1013",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1012",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1015",
+     "GRUPO DE PREÇO G4"
+    ],
+    [
+     "1014",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1022",
+     "GRUPO DE PREÇO G4 · FLUORESCENTE"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "EVOX MAX",
+   "nome": "EVOX MAX",
+   "interno": "BRIM PESADO ALGODAO",
+   "composicao": "100% ALGODÃO",
+   "gramatura": 260,
+   "largura": 1.72,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 3X1",
+   "cores": [
+    [
+     "1001",
+     "GRUPO DE PREÇO G0"
+    ],
+    [
+     "1018",
+     "GRUPO DE PREÇO G1"
+    ],
+    [
+     "1017",
+     "GRUPO DE PREÇO G1"
+    ],
+    [
+     "1016",
+     "GRUPO DE PREÇO G4"
+    ],
+    [
+     "1020",
+     "GRUPO DE PREÇO G2"
+    ],
+    [
+     "1023",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1005",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1007",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1002",
+     "GRUPO DE PREÇO G2"
+    ],
+    [
+     "1004",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1019",
+     "GRUPO DE PREÇO G1"
+    ],
+    [
+     "1009",
+     "GRUPO DE PREÇO G2"
+    ],
+    [
+     "1008",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1021",
+     "GRUPO DE PREÇO G1"
+    ],
+    [
+     "1010",
+     "GRUPO DE PREÇO G5"
+    ],
+    [
+     "1013",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1012",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1015",
+     "GRUPO DE PREÇO G4"
+    ],
+    [
+     "1014",
+     "GRUPO DE PREÇO G3"
+    ],
+    [
+     "1022",
+     "GRUPO DE PREÇO G4 · FLUORESCENTE"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "EVOX MESCLA",
+   "nome": "EVOX MESCLA",
+   "interno": "BRIM MISTO ALGODAO E POLIESTER",
+   "composicao": "60% POLIÉSTER 40% ALGODÃO",
+   "gramatura": 155,
+   "largura": 1.72,
+   "unidade": "M",
+   "especificacao": "ARMAÇÃO SARJA 2X1",
+   "cores": [
+    [
+     "5001",
+     null
+    ],
+    [
+     "5002",
+     null
+    ],
+    [
+     "5003",
+     null
+    ],
+    [
+     "5004",
+     null
+    ],
+    [
+     "5009",
+     null
+    ],
+    [
+     "5005",
+     null
+    ],
+    [
+     "5006",
+     null
+    ],
+    [
+     "5007",
+     null
+    ],
+    [
+     "5008",
+     null
+    ]
+   ]
+  }
+ ]
+}

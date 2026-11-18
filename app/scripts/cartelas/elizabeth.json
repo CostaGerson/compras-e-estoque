@@ -1,0 +1,1032 @@
+{
+ "flag": "SEED|CARTELA|ELIZABETH|2026-11-18",
+ "fornecedor": {
+  "nome": "ELIZABETH",
+  "nomeFantasia": "ELIZABETH MALHAS (EMATEX WORKWEAR)",
+  "obs": "CADASTRADO PELA CARTELA ELIZABETH (FOTOS 18/11/2026)",
+  "busca": "ELIZABETH"
+ },
+ "tiposNovos": [],
+ "artigos": [
+  {
+   "categoria": "MALHA",
+   "ref": "2267",
+   "nome": "2267 PIQUET RALPH",
+   "interno": "PIQUET P.V",
+   "composicao": "65% POLIÉSTER 35% VISCOSE",
+   "gramatura": 210,
+   "largura": 1.2,
+   "rendimento": 1.98,
+   "unidade": "KG",
+   "especificacao": "LINHA CLASSIC",
+   "cores": [
+    [
+     "BR 3443 BRANCO",
+     null
+    ],
+    [
+     "CZ 0788 CINZA",
+     null
+    ],
+    [
+     "CZ 2189 CINZA",
+     null
+    ],
+    [
+     "AZ 0145 AZUL",
+     null
+    ],
+    [
+     "AZ 2887 AZUL",
+     null
+    ],
+    [
+     "AZ 2256 AZUL",
+     null
+    ],
+    [
+     "VM 0407 VERMELHO",
+     null
+    ],
+    [
+     "VD 2886 VERDE",
+     null
+    ],
+    [
+     "VD 2893 VERDE",
+     null
+    ],
+    [
+     "PT 0700 PRETO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "2208",
+   "nome": "2208 HENRY",
+   "interno": "PV",
+   "composicao": "67% POLIÉSTER 33% VISCOSE",
+   "gramatura": 175,
+   "largura": 1.2,
+   "rendimento": 2.38,
+   "unidade": "KG",
+   "especificacao": "LINHA CLASSIC · CORES DA CARTELA HENRY/JAMES/WILLIAM",
+   "cores": [
+    [
+     "BR 3443 BRANCO",
+     null
+    ],
+    [
+     "V009R MESCLA",
+     null
+    ],
+    [
+     "V003R MESCLA",
+     null
+    ],
+    [
+     "CZ 0788 CINZA",
+     null
+    ],
+    [
+     "CZ 2189 CINZA",
+     null
+    ],
+    [
+     "PT 0700 PRETO",
+     null
+    ],
+    [
+     "AZ 0145 AZUL",
+     null
+    ],
+    [
+     "AZ 0154 AZUL",
+     null
+    ],
+    [
+     "AZ 2887 AZUL",
+     null
+    ],
+    [
+     "AZ 2256 AZUL",
+     null
+    ],
+    [
+     "VD 2372 VERDE",
+     null
+    ],
+    [
+     "VD 2886 VERDE",
+     null
+    ],
+    [
+     "CQ 5047 CAQUI",
+     null
+    ],
+    [
+     "AM 0301 AMARELO",
+     null
+    ],
+    [
+     "LR 1955 LARANJA",
+     null
+    ],
+    [
+     "VM 0407 VERMELHO",
+     null
+    ],
+    [
+     "VH 2888 VINHO",
+     null
+    ],
+    [
+     "RX 6103 E ROXO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "2218",
+   "nome": "2218 JAMES",
+   "interno": "PV",
+   "composicao": "67% POLIÉSTER 33% VISCOSE",
+   "gramatura": 160,
+   "largura": 1.8,
+   "rendimento": 3.5,
+   "unidade": "KG",
+   "especificacao": "LINHA CLASSIC · CORES DA CARTELA HENRY/JAMES/WILLIAM",
+   "cores": [
+    [
+     "BR 3443 BRANCO",
+     null
+    ],
+    [
+     "V009R MESCLA",
+     null
+    ],
+    [
+     "V003R MESCLA",
+     null
+    ],
+    [
+     "CZ 0788 CINZA",
+     null
+    ],
+    [
+     "CZ 2189 CINZA",
+     null
+    ],
+    [
+     "PT 0700 PRETO",
+     null
+    ],
+    [
+     "AZ 0145 AZUL",
+     null
+    ],
+    [
+     "AZ 0154 AZUL",
+     null
+    ],
+    [
+     "AZ 2887 AZUL",
+     null
+    ],
+    [
+     "AZ 2256 AZUL",
+     null
+    ],
+    [
+     "VD 2372 VERDE",
+     null
+    ],
+    [
+     "VD 2886 VERDE",
+     null
+    ],
+    [
+     "CQ 5047 CAQUI",
+     null
+    ],
+    [
+     "AM 0301 AMARELO",
+     null
+    ],
+    [
+     "LR 1955 LARANJA",
+     null
+    ],
+    [
+     "VM 0407 VERMELHO",
+     null
+    ],
+    [
+     "VH 2888 VINHO",
+     null
+    ],
+    [
+     "RX 6103 E ROXO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "2223",
+   "nome": "2223 WILLIAM",
+   "interno": "PV",
+   "composicao": "67% POLIÉSTER 33% VISCOSE",
+   "gramatura": 185,
+   "largura": 1.8,
+   "rendimento": 3.0,
+   "unidade": "KG",
+   "especificacao": "LINHA CLASSIC · CORES DA CARTELA HENRY/JAMES/WILLIAM",
+   "cores": [
+    [
+     "BR 3443 BRANCO",
+     null
+    ],
+    [
+     "V009R MESCLA",
+     null
+    ],
+    [
+     "V003R MESCLA",
+     null
+    ],
+    [
+     "CZ 0788 CINZA",
+     null
+    ],
+    [
+     "CZ 2189 CINZA",
+     null
+    ],
+    [
+     "PT 0700 PRETO",
+     null
+    ],
+    [
+     "AZ 0145 AZUL",
+     null
+    ],
+    [
+     "AZ 0154 AZUL",
+     null
+    ],
+    [
+     "AZ 2887 AZUL",
+     null
+    ],
+    [
+     "AZ 2256 AZUL",
+     null
+    ],
+    [
+     "VD 2372 VERDE",
+     null
+    ],
+    [
+     "VD 2886 VERDE",
+     null
+    ],
+    [
+     "CQ 5047 CAQUI",
+     null
+    ],
+    [
+     "AM 0301 AMARELO",
+     null
+    ],
+    [
+     "LR 1955 LARANJA",
+     null
+    ],
+    [
+     "VM 0407 VERMELHO",
+     null
+    ],
+    [
+     "VH 2888 VINHO",
+     null
+    ],
+    [
+     "RX 6103 E ROXO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "2212",
+   "nome": "2212 RICHARD",
+   "interno": "PP",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 166,
+   "largura": 1.2,
+   "rendimento": 2.51,
+   "unidade": "KG",
+   "especificacao": "LINHA CLASSIC",
+   "cores": [
+    [
+     "BR 0002 BRANCO",
+     null
+    ],
+    [
+     "CZ 2348 CINZA",
+     null
+    ],
+    [
+     "CZ 0068 CINZA",
+     null
+    ],
+    [
+     "PT 0010 PRETO",
+     null
+    ],
+    [
+     "AZ 0888 AZUL",
+     null
+    ],
+    [
+     "AZ 1081 AZUL",
+     null
+    ],
+    [
+     "VD 2356 VERDE",
+     null
+    ],
+    [
+     "VD 2300 VERDE",
+     null
+    ],
+    [
+     "AM 2353 AMARELO",
+     null
+    ],
+    [
+     "LR 8268 LARANJA",
+     null
+    ],
+    [
+     "VM 0652 VERMELHO",
+     null
+    ],
+    [
+     "VH 2352 VINHO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "2201",
+   "nome": "2201 AIRE",
+   "interno": "POLIAMIDA COM ELASTANO",
+   "composicao": "93% POLIAMIDA 7% ELASTANO",
+   "gramatura": 165,
+   "largura": 1.6,
+   "rendimento": 3.78,
+   "unidade": "KG",
+   "especificacao": "LINHA PROTECTION",
+   "cores": [
+    [
+     "BR 2332 BRANCO",
+     null
+    ],
+    [
+     "PT 2010 PRETO",
+     null
+    ],
+    [
+     "AZ 0888 AZUL",
+     null
+    ],
+    [
+     "AZ 1192 AZUL",
+     null
+    ],
+    [
+     "AZ 2112 AZUL",
+     null
+    ],
+    [
+     "VD 2313 VERDE",
+     null
+    ],
+    [
+     "AM 2404 AMARELO",
+     null
+    ],
+    [
+     "LR 2312 LARANJA",
+     null
+    ],
+    [
+     "VM 2311 VERMELHO",
+     null
+    ],
+    [
+     "VH 1258 VINHO",
+     null
+    ],
+    [
+     "CH 0068 CHUMBO",
+     null
+    ],
+    [
+     "AM 0789 AMARELO FLUOR",
+     null
+    ],
+    [
+     "VD 0790 VERDE FLUOR",
+     null
+    ],
+    [
+     "RS 0791 ROSA FLUOR",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "2270",
+   "nome": "2270 BRISA ALL PROTECTION",
+   "interno": "POLIAMIDA COM ELASTANO",
+   "composicao": "93% POLIAMIDA 7% ELASTANO",
+   "gramatura": 165,
+   "largura": 1.6,
+   "rendimento": 3.78,
+   "unidade": "KG",
+   "especificacao": "LINHA PROTECTION",
+   "cores": [
+    [
+     "BR 2332 BRANCO",
+     null
+    ],
+    [
+     "PT 2010 PRETO",
+     null
+    ],
+    [
+     "AZ 0888 AZUL",
+     null
+    ],
+    [
+     "AZ 1192 AZUL",
+     null
+    ],
+    [
+     "AZ 2112 AZUL",
+     null
+    ],
+    [
+     "VD 2313 VERDE",
+     null
+    ],
+    [
+     "AM 2404 AMARELO",
+     null
+    ],
+    [
+     "LR 2312 LARANJA",
+     null
+    ],
+    [
+     "VM 2311 VERMELHO",
+     null
+    ],
+    [
+     "VH 1258 VINHO",
+     null
+    ],
+    [
+     "CH 0068 CHUMBO",
+     null
+    ],
+    [
+     "AM 0789 AMARELO FLUOR",
+     null
+    ],
+    [
+     "VD 0790 VERDE FLUOR",
+     null
+    ],
+    [
+     "RS 0791 ROSA FLUOR",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "2200",
+   "nome": "2200 VERANO",
+   "interno": "DRY FIT POLIESTER COM ELASTANO",
+   "composicao": "92,4% POLIÉSTER 7,6% ELASTANO",
+   "gramatura": 150,
+   "largura": 1.6,
+   "rendimento": 4.16,
+   "unidade": "KG",
+   "especificacao": "LINHA PROTECTION",
+   "cores": [
+    [
+     "BR 0002 BRANCO",
+     null
+    ],
+    [
+     "CH 0068 CHUMBO",
+     null
+    ],
+    [
+     "PT 2010 PRETO",
+     null
+    ],
+    [
+     "AZ 0888 AZUL",
+     null
+    ],
+    [
+     "AZ 1081 AZUL",
+     null
+    ],
+    [
+     "AM 0301 AMARELO",
+     null
+    ],
+    [
+     "LR 2321 LARANJA",
+     null
+    ],
+    [
+     "VM 0652 VERMELHO",
+     null
+    ],
+    [
+     "VH 0012 VINHO",
+     null
+    ],
+    [
+     "AM 0789 AMARELO FLUOR",
+     null
+    ],
+    [
+     "LR 0792 LARANJA FLUOR",
+     null
+    ],
+    [
+     "RS 0791 ROSA FLUOR",
+     null
+    ],
+    [
+     "VD 0790 VERDE FLUOR",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "2226",
+   "nome": "2226 LINCE",
+   "interno": "DRY FIT POLIESTER COM ELASTANO",
+   "composicao": "95% POLIÉSTER 5% ELASTANO",
+   "gramatura": 300,
+   "largura": 1.6,
+   "rendimento": 2.08,
+   "unidade": "KG",
+   "especificacao": "LINHA ESSENTIAL",
+   "cores": [
+    [
+     "BR 0002 BRANCO",
+     null
+    ],
+    [
+     "VM 0652 VERMELHO",
+     null
+    ],
+    [
+     "VH 0012 VINHO",
+     null
+    ],
+    [
+     "AZ 1081 AZUL",
+     null
+    ],
+    [
+     "AZ 2256 AZUL",
+     null
+    ],
+    [
+     "PT 2010 PRETO",
+     null
+    ],
+    [
+     "CH 0068 CHUMBO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "2271",
+   "nome": "2271 IMPALA",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 250,
+   "largura": 1.0,
+   "rendimento": 2.0,
+   "unidade": "KG",
+   "especificacao": "LINHA ESSENTIAL",
+   "cores": [
+    [
+     "BR 0002 BRANCO",
+     null
+    ],
+    [
+     "VM 0652 VERMELHO",
+     null
+    ],
+    [
+     "VH 0012 VINHO",
+     null
+    ],
+    [
+     "AZ 1081 AZUL",
+     null
+    ],
+    [
+     "AZ 2256 AZUL",
+     null
+    ],
+    [
+     "PT 2010 PRETO",
+     null
+    ],
+    [
+     "CH 0068 CHUMBO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "2266",
+   "nome": "2266 PIXEL",
+   "interno": "POLIAMIDA",
+   "composicao": "100% POLIAMIDA",
+   "gramatura": 115,
+   "largura": 1.8,
+   "rendimento": 4.83,
+   "unidade": "KG",
+   "especificacao": "LINHA TECH+",
+   "cores": [
+    [
+     "BR 2332 BRANCO",
+     null
+    ],
+    [
+     "PT 0010 PRETO",
+     null
+    ],
+    [
+     "AZ 0888 AZUL",
+     null
+    ],
+    [
+     "AZ 1192 AZUL",
+     null
+    ],
+    [
+     "VD 2313 VERDE",
+     null
+    ],
+    [
+     "VM 2311 VERMELHO",
+     null
+    ],
+    [
+     "LR 0792 LARANJA FLUOR",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "2203",
+   "nome": "2203 CYBER",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 127,
+   "largura": 1.8,
+   "rendimento": 4.37,
+   "unidade": "KG",
+   "especificacao": "LINHA TECH+",
+   "cores": [
+    [
+     "BR 0002 BRANCO",
+     null
+    ],
+    [
+     "CH 0068 CHUMBO",
+     null
+    ],
+    [
+     "PT 2010 PRETO",
+     null
+    ],
+    [
+     "AZ 0888 AZUL",
+     null
+    ],
+    [
+     "AZ 1081 AZUL",
+     null
+    ],
+    [
+     "AM 0301 AMARELO",
+     null
+    ],
+    [
+     "LR 2321 LARANJA",
+     null
+    ],
+    [
+     "VM 0652 VERMELHO",
+     null
+    ],
+    [
+     "VH 0012 VINHO",
+     null
+    ],
+    [
+     "AM 0789 AMARELO FLUOR",
+     null
+    ],
+    [
+     "LR 0792 LARANJA FLUOR",
+     null
+    ],
+    [
+     "RS 0791 ROSA FLUOR",
+     null
+    ],
+    [
+     "VD 0790 VERDE FLUOR",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "2228",
+   "nome": "2228 VOSTOK",
+   "interno": null,
+   "composicao": "88% POLIÉSTER 12% ALGODÃO",
+   "gramatura": 320,
+   "largura": 1.65,
+   "rendimento": 1.9,
+   "unidade": "KG",
+   "especificacao": "LINHA COMFY",
+   "cores": [
+    [
+     "PT 2010 PRETO",
+     null
+    ],
+    [
+     "CH 0068 CHUMBO",
+     null
+    ],
+    [
+     "BR 0002 BRANCO",
+     null
+    ],
+    [
+     "AZ 1081 AZUL",
+     null
+    ],
+    [
+     "AZ 0888 AZUL",
+     null
+    ],
+    [
+     "VD 0120 VERDE",
+     null
+    ],
+    [
+     "VH 0012 VINHO",
+     null
+    ],
+    [
+     "VM 0652 VERMELHO",
+     null
+    ],
+    [
+     "VD 0064 VERDE",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "9502",
+   "nome": "9502 ANDES",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 100,
+   "largura": 1.6,
+   "rendimento": null,
+   "unidade": "KG",
+   "especificacao": "LINHA ACTIVE",
+   "cores": [
+    [
+     "BR 0002 BRANCO",
+     null
+    ],
+    [
+     "VM 2894 VERMELHO",
+     null
+    ],
+    [
+     "CQ 2895 CAQUI",
+     null
+    ],
+    [
+     "CZ 2896 CINZA",
+     null
+    ],
+    [
+     "CH 2897 CHUMBO",
+     null
+    ],
+    [
+     "PT 0010 PRETO",
+     null
+    ],
+    [
+     "AZ 2898 AZUL",
+     null
+    ],
+    [
+     "AZ 2900 AZUL",
+     null
+    ],
+    [
+     "AZ 2256 AZUL",
+     null
+    ],
+    [
+     "VD 2901 VERDE",
+     null
+    ],
+    [
+     "VD 2902 VERDE",
+     null
+    ],
+    [
+     "AM 2878 AMARELO",
+     null
+    ],
+    [
+     "LR 0792 LARANJA FLUOR",
+     null
+    ],
+    [
+     "RS 0791 ROSA FLUOR",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "9520",
+   "nome": "9520 ALPES",
+   "interno": "DRY FIT POLIESTER COM ELASTANO",
+   "composicao": "92% POLIÉSTER 8% ELASTANO",
+   "gramatura": 125,
+   "largura": 1.5,
+   "rendimento": null,
+   "unidade": "KG",
+   "especificacao": "LINHA ACTIVE",
+   "cores": [
+    [
+     "BR 0002 BRANCO",
+     null
+    ],
+    [
+     "CQ 2912 CAQUI",
+     null
+    ],
+    [
+     "CZ 2903 CINZA",
+     null
+    ],
+    [
+     "PT 0010 PRETO",
+     null
+    ],
+    [
+     "AZ 2904 AZUL",
+     null
+    ],
+    [
+     "AZ 2905 AZUL",
+     null
+    ],
+    [
+     "AZ 2906 AZUL",
+     null
+    ],
+    [
+     "VD 2907 VERDE",
+     null
+    ],
+    [
+     "VD 2913 VERDE",
+     null
+    ],
+    [
+     "LR 2880 LARANJA",
+     null
+    ],
+    [
+     "VM 2909 VERMELHO",
+     null
+    ],
+    [
+     "VM 2910 VERMELHO",
+     null
+    ],
+    [
+     "VH 2911 VINHO",
+     null
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "9530",
+   "nome": "9530 HIMALAIA",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 65,
+   "largura": 1.5,
+   "rendimento": null,
+   "unidade": "KG",
+   "especificacao": "LINHA ACTIVE",
+   "cores": [
+    [
+     "BR 0002 BRANCO",
+     null
+    ],
+    [
+     "VM 0652 VERMELHO",
+     null
+    ],
+    [
+     "VH 0012 VINHO",
+     null
+    ],
+    [
+     "CH 0068 CHUMBO",
+     null
+    ],
+    [
+     "VD 1006 VERDE",
+     null
+    ],
+    [
+     "AZ 0025 AZUL",
+     null
+    ],
+    [
+     "AZ 1008 AZUL",
+     null
+    ],
+    [
+     "PT 0010 PRETO",
+     null
+    ],
+    [
+     "AM 0789 AMARELO FLUOR",
+     null
+    ],
+    [
+     "VD 0790 VERDE FLUOR",
+     null
+    ],
+    [
+     "RS 0791 ROSA FLUOR",
+     null
+    ],
+    [
+     "LR 0792 LARANJA FLUOR",
+     null
+    ]
+   ]
+  }
+ ]
+}
