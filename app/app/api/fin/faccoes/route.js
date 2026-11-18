@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 import { usuarioSoMaster, soMaster } from "@/lib/fin";
 import { nomeU } from "@/lib/finTitulos";
+import { sincronizarPrevisao } from "@/lib/faccaoPrevisao";
 import { conferirFaccoes, lancarFaccoes, listaFaccoes, estornarFaccoes, descartarFaccoes, reativarFaccoes, regravarFaccoes } from "@/lib/faccaoPcp";
 
 export async function GET(req) {
@@ -16,7 +17,9 @@ export async function POST(req) {
   const u = await usuarioSoMaster(b.usuarioId, "contasPagar");
   if (!u) return soMaster();
   // v669 — { acao: "estornar" | "descartar" | "reativar", chaves: ["12", "12-1"], motivo }
-  const r = b.acao === "estornar" ? await estornarFaccoes(b.chaves, nomeU(u), b.motivo)
+  // previsão das facções (PCP) nas semanas: { acao: "previsao" } atualiza agora (sozinha roda de hora em hora)
+  const r = b.acao === "previsao" ? await sincronizarPrevisao({ quem: nomeU(u) })
+    : b.acao === "estornar" ? await estornarFaccoes(b.chaves, nomeU(u), b.motivo)
     : b.acao === "descartar" ? await descartarFaccoes(b.chaves, nomeU(u), b.motivo)
     : b.acao === "reativar" ? await reativarFaccoes(b.chaves, nomeU(u))
     : b.acao === "regravar" ? await regravarFaccoes(b.chaves, nomeU(u))   // v726 — contas lançadas no formato antigo (1 × total)
