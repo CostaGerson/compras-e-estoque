@@ -170,15 +170,11 @@ const ehCalca = (item) => /CALCA|CALÇA|BERMUDA|SHORT/i.test(String(item || "").
 const locaisDaPeca = (item) => (ehCalca(item) ? LOCAIS_CALCA : LOCAIS_PERS);
 const METODOS_PERS = [["SILK", "Silk", true], ["BORDADO", "Bordado", true], ["DTF", "DTF", false], ["SUBLIMACAO", "Sublimação", false]];
 const TEC_DO_METODO = { SILK: "silk", DTF: "silk", BORDADO: "bordado", SUBLIMACAO: "sublimacao" };
-// v414 — FPP em "primeira maiúscula, demais minúsculas" (só na exibição; o valor gravado não muda)
+// v414 → v973 — exibição da FPP em maiúsculas
 const SIGLAS_SC = new Set(["DTF", "DTG", "MC", "ML", "PA", "PU", "PVC", "EVA", "NF", "OP", "FPP", "CNPJ", "LTDA", "ME", "EPP", "SA", "UV"]);
-function sc(t) {
+function sc(t) {   // v973 — FPP toda em MAIÚSCULAS (antes: "primeira maiúscula")
   const s0 = String(t ?? "");
-  if (!s0.trim()) return s0;
-  const low = s0.toLocaleLowerCase("pt-BR").replace(/r\$/g, "R$")
-    .replace(/\p{L}+/gu, (w) => (SIGLAS_SC.has(w.toUpperCase()) ? w.toUpperCase() : w));
-  const i = low.search(/\p{L}/u);
-  return i < 0 ? low : low.slice(0, i) + low.charAt(i).toLocaleUpperCase("pt-BR") + low.slice(i + 1);
+  return s0.toLocaleUpperCase("pt-BR");
 }
 const nomeLocal = (k) => (k === "TOTAL" ? "Total" : ([...LOCAIS_PERS, ...LOCAIS_CALCA].find((x) => x[0] === k) || [k, k])[1]);   // v659
 const nomeMetodo = (k) => (METODOS_PERS.find((x) => x[0] === k) || [k, k])[1];
@@ -674,7 +670,10 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
   if (!params) return <div className="text-sm" style={{ color: C.sub }}>Carregando parâmetros…</div>;
 
   return (
-    <div>
+    <div className="fpp-maiusc">
+      {/* v973 — tudo da FPP em maiúsculas: campos, listas, cards, modais (placeholders seguem normais) */}
+      <style>{`.fpp-maiusc, .fpp-maiusc input:not([type=number]):not([type=date]):not([type=email]):not([type=password]), .fpp-maiusc textarea, .fpp-maiusc select, .fpp-maiusc option, .fpp-maiusc button{text-transform:uppercase}
+        .fpp-maiusc input::placeholder, .fpp-maiusc textarea::placeholder{text-transform:none}`}</style>
       {/* topo: abas ficha/banco (o tipo é definido pela peça) */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex gap-1 flex-1" style={{ borderBottom: `1px solid ${C.line}` }}>
@@ -708,10 +707,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
         onClose={() => setItemPadrao(null)} onSaved={() => { setItemPadrao(null); alerta("Item padrão salvo. Ele já aparece no lançamento do pedido para o cliente (e no portal, se o cliente tiver)."); }} />}
 
       {aba === "ficha" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 fpp-maiusc">
-          {/* v801 — FPP: todos os campos editáveis em maiúsculas (a v414 exibia "primeira maiúscula") */}
-          <style>{`.fpp-maiusc input:not([type=number]):not([type=date]):not([type=email]), .fpp-maiusc textarea, .fpp-maiusc select, .fpp-maiusc option{text-transform:uppercase}
-            .fpp-maiusc input::placeholder, .fpp-maiusc textarea::placeholder{text-transform:none}`}</style>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* coluna de entradas */}
           <div className="lg:col-span-2 space-y-4">
             <Card title="Identificação">
@@ -2294,7 +2290,7 @@ function SeletorOrigem({ interno, onChange }) {
 let _fornCache = null;
 function resumoDet(d, categoria, botao) {
   return [d.fornecedorNome && sc(d.fornecedorNome), d.cor && sc(d.cor) + ((d.variantes || []).filter((v) => v?.cor).length ? ` +${(d.variantes || []).filter((v) => v?.cor).length} cor(es)` : ""), d.codigo, d.largura ? `${d.largura} m larg.` : null, d.gramatura ? `${d.gramatura} g/m²` : null,
-    categoria === "MALHA" && d.rendimento ? `${d.rendimento} m/kg` : null, categoria === "MALHA" && d.tipoMalha ? d.tipoMalha.toLowerCase() : null,
+    categoria === "MALHA" && d.rendimento ? `${d.rendimento} m/kg` : null, categoria === "MALHA" && d.tipoMalha ? d.tipoMalha : null,
     categoria === "AVIAMENTO" && !botao && d.qtdPeca && String(d.qtdPeca) !== "1" ? `${d.qtdPeca} un/peça` : null, d.obs ? `obs: ${String(d.obs).toLocaleLowerCase("pt-BR")}` : null].filter(Boolean);
 }
 function DetBotao({ det, categoria, nome, onDet, botao, titulo, semQtd }) {

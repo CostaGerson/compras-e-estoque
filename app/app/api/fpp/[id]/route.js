@@ -18,6 +18,7 @@ export async function DELETE(_req, { params }) {
 }
 
 // PATCH: atualiza uma ficha existente (edição)
+import { maiusc, up } from "@/lib/fppMaiusc";
 export async function PATCH(req, { params }) {
   const b = await req.json();
   const data = {};
@@ -29,9 +30,9 @@ export async function PATCH(req, { params }) {
   if (b.clienteNome !== undefined) data.clienteNome = b.clienteNome || null;
   if (b.negociacao !== undefined) data.negociacao = b.negociacao ? String(b.negociacao).toUpperCase() : null;
   if (b.qtde !== undefined) data.qtde = b.qtde != null ? Number(b.qtde) : null;
-  if (b.condicaoPagamento !== undefined) data.condicaoPagamento = b.condicaoPagamento || null;
+  if (b.condicaoPagamento !== undefined) data.condicaoPagamento = b.condicaoPagamento ? up(b.condicaoPagamento) : null;
   if (b.leadTime !== undefined) data.leadTime = b.leadTime != null ? Number(b.leadTime) : null;
-  if (b.entradas !== undefined) data.entradas = b.entradas || {};
+  if (b.entradas !== undefined) data.entradas = maiusc(b.entradas || {});   // v973
   if (b.overrides !== undefined) data.overrides = b.overrides || Prisma.DbNull;
   if (b.resultados !== undefined) data.resultados = b.resultados || {};
   if (b.custoProducao !== undefined) data.custoProducao = b.custoProducao != null ? Number(b.custoProducao) : null;

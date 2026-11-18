@@ -67,7 +67,7 @@ export function imprimirFpps(w, docs) {
 <style>
   @page { size: A4; margin: 12mm 13mm; }
   * { box-sizing: border-box; }
-  body { font-family: 'Montserrat', Arial, sans-serif; color: #1F2733; margin: 0; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { text-transform: uppercase; font-family: 'Montserrat', Arial, sans-serif; color: #1F2733; margin: 0; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .pg + .pg { page-break-before: always; }
   .top { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid #001E41; padding-bottom: 9px; }
   .marca img { height: 26px; display: block; }

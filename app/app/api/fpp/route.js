@@ -13,6 +13,7 @@ export async function GET() {
 }
 
 // POST: salva uma ficha de precificação
+import { maiusc, up } from "@/lib/fppMaiusc";
 export async function POST(req) {
   const b = await req.json();
   if (!b.item) return NextResponse.json({ error: "Informe o ITEM da ficha." }, { status: 400 });
@@ -23,13 +24,13 @@ export async function POST(req) {
       tipo: ["PLANO", "REVENDA"].includes(b.tipo) ? b.tipo : "MALHA",   // v512 — revenda
       item: String(b.item).toUpperCase(),
       nomeComercial: b.nomeComercial ? String(b.nomeComercial).toUpperCase() : null,
-      condicaoPagamento: b.condicaoPagamento || null,
+      condicaoPagamento: b.condicaoPagamento ? up(b.condicaoPagamento) : null,
       leadTime: b.leadTime != null ? Number(b.leadTime) : null,
       clienteId: b.clienteId != null ? Number(b.clienteId) : null,
       clienteNome: b.clienteNome || null,
       negociacao: b.negociacao ? String(b.negociacao).toUpperCase() : null,
       qtde: b.qtde != null ? Number(b.qtde) : null,
-      entradas: b.entradas || {},
+      entradas: maiusc(b.entradas || {}),   // v973
       overrides: b.overrides || null,
       resultados: b.resultados || {},
       custoProducao: b.custoProducao != null ? Number(b.custoProducao) : null,
