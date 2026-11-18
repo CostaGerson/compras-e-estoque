@@ -2442,6 +2442,7 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
   const [agrupar, setAgrupar] = useState(anual || grupoDre ? "conta" : "banco");
   const [fBanco, setFBanco] = useState("");
   const [fConta, setFConta] = useState(contaInicial ? String(contaInicial) : "");
+  const [semPar, setSemPar] = useState(null);   // v945 — Casar contas: ids da conciliação sem par (valor igual, sinal trocado)
   const [periodo, setPeriodo] = useState(() => periodoPadrao(comp, ano));
   const [soGrupo, setSoGrupo] = useState(false);
   const [fStatus, setFStatus] = useState("todos");
@@ -2499,6 +2500,7 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
       return true;
     });
   }, [dados, fBanco, fConta, fStatus, busca, contasById, periodo, soGrupo, gruposDre]);
+  useEffect(() => { setSemPar(null); }, [dados, fBanco, fConta, fStatus, busca, periodo]);   // v945 — filtro mudou: refaz o casamento
 
   const grupos = useMemo(() => {
     const m = new Map();
@@ -2701,7 +2703,36 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
           <option value="">Todas as contas</option><option value="_sem">— sem conta —</option>
           {(dados?.contas || []).map((c) => <option key={c.id} value={c.id}>{c.codigo} · {c.nome}</option>)}
         </select>
-        <div className="flex rounded-lg overflow-hidden ml-auto" style={{ border: `1px solid ${C.line}` }}>
+        {(() => {
+          // v945 — conta CONCILIAÇÃO selecionada: casa entradas e saídas de mesmo valor (por ordem de data); o que sobra fica amarelo
+          const cc = (dados?.contas || []).find((c) => String(c.id) === fConta);
+          if (!cc || cc.codigo !== "3000000") return null;
+          const casar = () => {
+            if (semPar) { setSemPar(null); return; }
+            const b = new Map();
+            for (const l of visiveis) {
+              const k = Math.round(Math.abs(l.valor) * 100);
+              if (!b.has(k)) b.set(k, { p: [], n: [] });
+              (l.valor > 0 ? b.get(k).p : b.get(k).n).push(l);
+            }
+            const sobra = new Set();
+            for (const { p, n } of b.values()) {
+              const ord = (a, x) => String(a.data).localeCompare(String(x.data));
+              p.sort(ord); n.sort(ord);
+              const q = Math.min(p.length, n.length);
+              [...p.slice(q), ...n.slice(q)].forEach((l) => sobra.add(l.id));
+            }
+            setSemPar(sobra);
+            setAviso(sobra.size ? `${sobra.size} lançamento(s) da conciliação sem par (em amarelo) · R$ ${brl(visiveis.filter((l) => sobra.has(l.id)).reduce((a, l) => a + l.valor, 0))}` : "Todas as contas da conciliação têm par.");
+          };
+          return (
+            <button onClick={casar} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold ml-auto"
+              style={semPar ? { background: C.yellowSoft, color: C.yellow, border: `1px solid ${C.yellow}` } : { background: C.navy, color: "#fff" }}>
+              <ArrowLeftRight size={14} /> {semPar ? `Sem par: ${semPar.size} · limpar` : "Casar contas"}
+            </button>
+          );
+        })()}
+        <div className={`flex rounded-lg overflow-hidden ${(dados?.contas || []).some((c) => String(c.id) === fConta && c.codigo === "3000000") ? "" : "ml-auto"}`} style={{ border: `1px solid ${C.line}` }}>
           {[["banco", "Por banco"], ["conta", "Por conta-caixa"]].map(([k, t]) => (
             <button key={k} onClick={() => setAgrupar(k)} className="px-3 py-1.5 text-sm" style={{ background: agrupar === k ? C.navy : C.panel, color: agrupar === k ? "#fff" : C.sub }}>{t}</button>
           ))}
@@ -2768,7 +2799,7 @@ function Identificacao({ user, comp, setComp, contaInicial, ano, grupoDre, nomeG
                     const conta = l.contaId ? contasById[l.contaId] : null;
                     const cor = corConta(conta);
                     return (
-                      <tr key={l.id} style={{ borderTop: `1px solid ${C.line}`, background: sel.has(l.id) ? C.accentSoft : undefined, boxShadow: conta ? undefined : `inset 3px 0 0 ${C.accent}` }}>
+                      <tr key={l.id} style={{ borderTop: `1px solid ${C.line}`, background: sel.has(l.id) ? C.accentSoft : semPar?.has(l.id) ? "#FEF3C7" : undefined, boxShadow: conta ? undefined : `inset 3px 0 0 ${C.accent}` }}>
                         <td className="px-2 py-1.5"><input type="checkbox" checked={sel.has(l.id)} onChange={() => toggle(l.id)} /></td>
                         <td className="px-2 py-1.5 font-semibold" style={{ color: cor }}>{l.banco}</td>
                         <td className="px-2 py-1.5" style={{ color: cor }}>{dBR(l.data)}</td>
