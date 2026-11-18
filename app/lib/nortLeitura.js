@@ -66,7 +66,7 @@ export async function lerPedidos() {
       const ref = String(p?.ref || "").trim();
       if (!ref) continue;
       if (await prisma.pp.findUnique({ where: { extRef: `NORT|${ref}` }, select: { id: true } })) continue;   // já trazido
-      const itens = (Array.isArray(p.itens) ? p.itens : []).map((it) => ({ ...it, dispensaDesign: Array.isArray(it.artes) && it.artes.length > 0 }));
+      const itens = (Array.isArray(p.itens) ? p.itens : []).map((it) => ({ ...it, dispensaDesign: (Array.isArray(it.artes) && it.artes.length > 0) || !(Array.isArray(it.personalizacao) && it.personalizacao.length) }));   // v950 — peça lisa (sem personalização) não pede layout
       const r = await criarPedidoNort({ ...p, vendedor, itens }, "LEITURA NORT");
       if (!r.ok) { res.erros.push(`${ref}: ${r.error}`); continue; }
       res.novos++; if (r.status === "AGUARDANDO_FPP") res.aguardandoFpp++;
