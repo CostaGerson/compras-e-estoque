@@ -18,8 +18,8 @@ const ARTIGOS = [
     cores: c("BRANCO|CRISTAL:C|OPALA:C|SKY:S|ROYAL:S|MARINHO:E|MARINHO NOITE:S|VERDE BB:C|AQUA SEA:C|JADE:E|PETRÓLEO:E|MUSGO:E|CACTO:E|BANDEIRA:S|MARFIM:C|ARENA:C|BEGE:C|CAQUI:E|AGRESTE:C|CROMO:E|MARROM:E|GLACIAL:C|PRATA:C|CINZA:E|CONCRETO:E|GRAFITE:E|PRETO:S|ROXO:S|LIMA:C|IPANEMA:C|HANOI:E|OURO:E|LARANJA:E|CORAL:E|GOLDEN:E|ROSA BB:C|AZALÉIA:E|FRAMBOESA:E|MAUVE:E|VERMELHO:S|TOMATE:S|BORDEAUX:E|NUDE:C|SALMON:C") },
   { nome: "MALHA PA", interno: "PA", composicao: "50% POLIÉSTER 50% ALGODÃO", gramatura: 173, largura: 1.2, tipo: "TUBULAR", rendimento: 2.4,
     cores: c("BRANCO|MARFIM:C|BEGE:C|PRATA:C|CINZA:E|GRAFITE:E|PRETO:E|HANOI:E|OURO:E|MUSGO:E|BANDEIRA:S|JADE:E|ROYAL:S|MARINHO:E") },
-  // na cartela esta página da Malha PA está impressa com "50% Poliéster 50% Elastano" — mantido como está; conferir com o fornecedor
-  { nome: "MALHA PA", interno: "PA", composicao: "50% POLIÉSTER 50% ELASTANO", gramatura: 173, largura: 1.2, tipo: "TUBULAR", rendimento: 2.4,
+  // v958 — a cartela imprime "50% Poliéster 50% Elastano" nesta página; o correto (confirmado pelo Gerson) é 50% poliéster 50% algodão
+  { nome: "MALHA PA", interno: "PA", composicao: "50% POLIÉSTER 50% ALGODÃO", gramatura: 173, largura: 1.2, tipo: "TUBULAR", rendimento: 2.4,
     cores: c("BORDEAUX:E|MARROM:E|VERMELHO:E|CAQUI MESCLA:E|ATLÂNTICO MESCLA:E|ROYAL MESCLA:E|MARINHO MESCLA:E|VERMELHO MESCLA:E|BORDEAUX MESCLA:E|PRETO MESCLA:E|CINZA MESCLA (FIO TINTO)") },
   { nome: "COTTON LITE PENTEADO", interno: "ALGODAO PENTEADO COM ELASTANO", composicao: "95% ALGODÃO 5% ELASTANO", gramatura: 185, largura: 1.8, tipo: "TUBULAR", rendimento: 3.0,
     cores: c("BRANCO|MARFIM:C|MOCASSIM:C|AMARELO BB:C|LIMA:C|VERDE BB:C|CRISTAL:C|ROSA BB:C|TULIPERA:E|ROMANCE:C|MAUVE:E|RACY:E|BORDEAUX:S|ROXO:S|CANELA:C|CASTANHO:E|MARROM:E|SALMON:C|CORAL:E|PIMENTA:E|VERMELHO:S|PRATA:C|CINZA:E|CHUMBO:E|AZUL JEANS:E|ROYAL:S|MARINHO:E|MUSGO:E|PRETO:E") },
@@ -40,6 +40,9 @@ const NOVOS_TIPOS = ["PA", "ALGODAO PENTEADO COM ELASTANO"];
 const sa = (t) => String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
 
 async function main() {
+  // v958 — corrige a Malha PA mescla já cadastrada com a composição errada da cartela
+  const corr = await prisma.artigo.updateMany({ where: { origem: "CARTELA", nome: "MALHA PA", composicao: "50% POLIÉSTER 50% ELASTANO" }, data: { composicao: "50% POLIÉSTER 50% ALGODÃO" } });
+  if (corr.count) console.log(`Seed cartela Stamp Lite: composição corrigida em ${corr.count} artigo(s) da Malha PA.`);
   if (await prisma.finConfig.findUnique({ where: { chave: FLAG } })) return;
   // artigos internos: se a tabela ainda está vazia, carrega a lista inicial antes (senão ela nunca seria carregada)
   if (!(await prisma.artigoTipoInterno.count())) {
