@@ -3017,7 +3017,7 @@ function ArteInp({ label, value, onChange, qtde, full }) {
 function Inp({ label, value, onChange, destaque, text, placeholder, full }) {
   return (
     <div>
-      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
+      <div className="text-xs mb-1 whitespace-nowrap overflow-hidden text-ellipsis" title={typeof label === "string" ? label : undefined} style={{ color: C.sub }}>{label}</div>   {/* v981 — rótulo numa linha só: os campos ficam alinhados */}
       <input value={value} onChange={(e) => onChange(text ? e.target.value.toLocaleUpperCase("pt-BR") : e.target.value)} inputMode={text ? "text" : "decimal"} placeholder={placeholder || ""}
         className={`px-2 py-1.5 rounded text-sm ${text || full ? "w-full" : "w-36"}`} style={{ background: "#fff", border: `1px solid ${destaque ? C.accent : C.line}`, color: C.text }} />
     </div>
@@ -3075,7 +3075,7 @@ function Combo({ label, value, onChange, onPick, options, placeholder, livre }) 
   }
   return (
     <div style={{ position: "relative" }}>
-      <div className="text-xs mb-1" style={{ color: C.sub }}>{label}</div>
+      <div className="text-xs mb-1 whitespace-nowrap overflow-hidden text-ellipsis" title={typeof label === "string" ? label : undefined} style={{ color: C.sub }}>{label}</div>
       <input value={sc(q)} placeholder={placeholder} onChange={(e) => digitar(e.target.value)} onKeyDown={onKey}
         onFocus={abrir} onBlur={() => setTimeout(() => setOpen(false), 150)}
         className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${open ? C.accent : C.line}`, color: C.text }} />
