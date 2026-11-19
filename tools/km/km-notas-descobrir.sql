@@ -1,4 +1,4 @@
--- v1017 — descobrir onde o KM (MentorSoft) guarda o "Monta notas" (NF de saída ligada a um ou vários pedidos, parcial ou total). SÓ LEITURA.
+-- v1017 — descobrir onde o KM (MentorSoft) guarda o "Monta notas" (NF de saída ligada a um ou vários pedidos, parcial ou total). SÓ LEITURA. (sem xpath: o KM tem texto LATIN1 que quebra o parser de XML)
 -- Gera texto: tabelas candidatas (nome ou colunas de nota/pedido), colunas, nº de linhas e amostra;
 -- e as linhas que citam o pedido 26070012 (GRABER, concluído e sem NF ligada pelo livsaida).
 SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
@@ -14,12 +14,10 @@ WITH tabs AS (
               AND EXISTS (SELECT 1 FROM information_schema.columns c WHERE c.table_schema = t.table_schema AND c.table_name = t.table_name AND c.column_name ~* '(nfsai|nfs|notaf|nota)')))
 )
 SELECT E'\n### ' || s || '.' || n
-       || '  (' || coalesce((xpath('/row/c/text()', query_to_xml(format('select count(*) c from %I.%I', s, n), false, true, '')))[1]::text, '?') || ' linhas)'
+       || '  (' || coalesce(substring(query_to_xml(format('select count(*) c from %I.%I', s, n), false, true, '')::text from '<c>(\d+)</c>'), '?') || ' linhas)'
        || E'\n' || (SELECT string_agg(c.column_name || ':' || c.data_type, ', ' ORDER BY c.ordinal_position)
                       FROM information_schema.columns c WHERE c.table_schema = tabs.s AND c.table_name = tabs.n)
-       || E'\n' || coalesce((SELECT string_agg(r::text, E'\n')
-                               FROM (SELECT (xpath('/table/row', query_to_xml(format('select * from %I.%I limit 8', s, n), true, false, '')))) x(a),
-                                    unnest(x.a) r), '')
+       || E'\n' || coalesce(query_to_xml(format('select * from %I.%I limit 8', s, n), true, false, '')::text, '')
   FROM tabs ORDER BY s, n;
 
 -- linhas que citam o pedido 26070012 em qualquer tabela com coluna de pedido (pelo id interno e pelo código)
@@ -31,15 +29,12 @@ cols AS (
    WHERE c.table_schema NOT IN ('pg_catalog', 'information_schema') AND c.column_name ~* 'pedid' AND c.data_type IN ('integer', 'bigint', 'numeric', 'smallint')
      AND has_table_privilege(format('%I.%I', c.table_schema, c.table_name), 'SELECT')
 )
-SELECT E'\n--- ' || s || '.' || n || '.' || col || E'\n' || string_agg(r::text, E'\n')
-  FROM cols, alvo,
-       LATERAL unnest(xpath('/table/row', query_to_xml(format('select * from %I.%I where %I = %s limit 20', s, n, col, alvo.id), true, false, ''))) r
- GROUP BY s, n, col;
+SELECT * FROM (SELECT E'\n--- ' || s || '.' || n || '.' || col || E'\n' || query_to_xml(format('select * from %I.%I where %I = %s limit 20', s, n, col, alvo.id), true, false, '')::text AS t
+  FROM cols, alvo) z WHERE t ~ '<row>';
 
 -- NFs de saída do cliente GRABER desde julho (para casar com o pedido)
-SELECT E'\n### livsaida GRABER desde 01/07/2026\n' || coalesce(string_agg(r::text, E'\n'), '(nenhuma)')
-  FROM unnest(xpath('/table/row', query_to_xml($q$
+SELECT E'\n### livsaida GRABER desde 01/07/2026\n' || query_to_xml($q$
     select ls.* from livsaida ls
      left join pedidos pn on pn.nnumeropedid = ls.nnumeropedid
      left join solclien cn on cn.nnumeroclien = pn.nnumeroclien
-     where ls.demissenfsai >= '2026-07-01' and (cn.cnomeclien ilike '%GRABER%' or ls::text ilike '%GRABER%') limit 20 $q$, true, false, ''))) r;
+     where ls.demissenfsai >= '2026-07-01' and (cn.cnomeclien ilike '%GRABER%' or ls::text ilike '%GRABER%') limit 20 $q$, true, false, '')::text;
