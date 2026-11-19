@@ -48,6 +48,16 @@ export async function POST(req) {
   const nome = [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
   // relê na hora de gravar para não apagar pauta incluída ao mesmo tempo
   const atual = (await prisma.tarefa.findUnique({ where: { id: t.id }, select: { reuniao: true } })).reuniao || R;
-  await prisma.tarefa.update({ where: { id: t.id }, data: { reuniao: { ...atual, apresentacao: { ...A, textos, atualizadoPor: nome, atualizadoEm: new Date().toISOString() } } } });
+  const A2 = atual.apresentacao || A;
+  // v1007 — páginas em branco (títulos, subtítulos, caixas de texto, links e imagens posicionados livremente); imagem fica como anexo da tarefa
+  let paginas = A2.paginas || [];
+  if (Array.isArray(b.paginas)) {
+    const n = (v, a0, z) => Math.max(a0, Math.min(z, Math.round(Number(v) || 0)));
+    paginas = b.paginas.slice(0, 60).map((pg) => ({ id: String(pg.id || "").slice(0, 40), apos: String(pg.apos || "").slice(0, 120),
+      elementos: (Array.isArray(pg.elementos) ? pg.elementos : []).slice(0, 80).map((e) => ({ id: String(e.id || "").slice(0, 40), tipo: ["TITULO", "SUBTITULO", "TEXTO", "LINK", "IMAGEM"].includes(e.tipo) ? e.tipo : "TEXTO",
+        x: n(e.x, -200, 1280), y: n(e.y, -200, 720), w: n(e.w, 20, 1280), h: n(e.h, 16, 720), texto: String(e.texto ?? "").slice(0, 8000), url: String(e.url || "").slice(0, 1000),
+        arquivoId: Number(e.arquivoId) || null })) })).filter((pg) => pg.id);
+  }
+  await prisma.tarefa.update({ where: { id: t.id }, data: { reuniao: { ...atual, apresentacao: { ...A2, textos: { ...(A2.textos || {}), ...Object.fromEntries(Object.entries(b.textos || {}).map(([k, v]) => [String(k).slice(0, 60), String(v ?? "").slice(0, 20000)])) }, paginas, atualizadoPor: nome, atualizadoEm: new Date().toISOString() } } } });
   return Response.json({ ok: true });
 }

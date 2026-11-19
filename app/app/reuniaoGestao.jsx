@@ -5,7 +5,7 @@
 //   lidos na hora do sistema (KPIs, análises de corte/expedição, endividamento, DRE, fluxo e painel). Textos e observações
 //   são editados direto na tela e ficam salvos na reunião.
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Maximize2, X, Plus, Loader2, Landmark, Eye, EyeOff, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, Maximize2, X, Plus, Loader2, Landmark, Eye, EyeOff, ExternalLink, Type, Heading1, Heading2, Link2, ImagePlus, Trash2, GripVertical, FilePlus2 } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { Acervo } from "./acervo";
 
@@ -65,10 +65,48 @@ function Reuniao({ user, irMatriz, mesInicial }) {
       try { await fetch("/api/reuniao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, tarefaId: R.tarefa.id, textos: t }) }); } catch (e) { alerta(`Não salvou o texto: ${e.message}`); }
     }, 800);
   };
-  const ctx = { D, R, txt: (k) => textos.current[k], salvar, editavel: !tela, irMatriz };
-  const slides = useMemo(() => (R ? montarSlides(R) : []), [R]);
+  // v1007 — páginas em branco (salvas na reunião; a página entra logo depois do slide em que foi criada)
+  const [paginas, setPaginas] = useState([]);
+  useEffect(() => { setPaginas(Array.isArray(R?.apresentacao?.paginas) ? R.apresentacao.paginas : []); }, [R]);
+  const tPag = useRef(null);
+  const gravarPaginas = (l) => {
+    setPaginas(l);
+    clearTimeout(tPag.current);
+    tPag.current = setTimeout(async () => {
+      try { const r = await fetch("/api/reuniao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, tarefaId: R.tarefa.id, paginas: l }) }); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `Erro ${r.status}`); }
+      catch (e) { alerta(`Não salvou a página: ${e.message}`); }
+    }, 700);
+  };
+  const mudarPagina = (id, fn) => gravarPaginas(paginas.map((pg) => (pg.id === id ? fn(pg) : pg)));
+  const ctx = { D, R, txt: (k) => textos.current[k], salvar, editavel: !tela, irMatriz, user, paginas, mudarPagina };
+  const slides = useMemo(() => {
+    if (!R) return [];
+    const base = montarSlides(R).map((x) => ({ ...x, chave: `${x.g}|${x.t}` }));
+    const out = [];
+    const extra = (ch) => paginas.filter((pg) => pg.apos === ch).forEach((pg, k) => {
+      const tit = (pg.elementos || []).find((e) => e.tipo === "TITULO")?.texto;
+      out.push({ g: "PÁGINA", t: tit || "Página em branco", chave: `PG|${pg.id}`, pagina: pg.id, C: (p) => <PaginaBranca {...p} id={pg.id} /> });
+      extra(`PG|${pg.id}`);
+    });
+    for (const x of base) { out.push(x); extra(x.chave); }
+    const vistos = new Set(out.map((x) => x.pagina).filter(Boolean));
+    for (const pg of paginas) if (!vistos.has(pg.id)) out.push({ g: "PÁGINA", t: "Página em branco", chave: `PG|${pg.id}`, pagina: pg.id, C: (p) => <PaginaBranca {...p} id={pg.id} /> });
+    return out;
+  }, [R, paginas]);
+  const novaPagina = () => {
+    const ch = slides[i]?.chave || "";
+    const id = `p${Date.now().toString(36)}`;
+    gravarPaginas([...paginas.map((pg) => (pg.apos === ch ? { ...pg, apos: `PG|${id}` } : pg)), { id, apos: ch, elementos: [] }]);
+    setI((x) => x + 1);
+  };
+  const excluirPagina = async (id) => {
+    if (!(await confirmar("Excluir esta página em branco?"))) return;
+    const pg = paginas.find((x) => x.id === id);
+    gravarPaginas(paginas.filter((x) => x.id !== id).map((x) => (x.apos === `PG|${id}` ? { ...x, apos: pg?.apos || "" } : x)));
+    setI((x) => Math.max(0, x - 1));
+  };
   useEffect(() => {
-    const f = (e) => { if (e.target?.tagName === "TEXTAREA" || e.target?.tagName === "INPUT") return; if (e.key === "ArrowRight" || e.key === "PageDown") setI((x) => Math.min(slides.length - 1, x + 1)); if (e.key === "ArrowLeft" || e.key === "PageUp") setI((x) => Math.max(0, x - 1)); if (e.key === "Escape") setTela(false); };
+    const f = (e) => { if (e.target?.tagName === "TEXTAREA" || e.target?.tagName === "INPUT" || e.target?.isContentEditable) return; if (e.key === "ArrowRight" || e.key === "PageDown") setI((x) => Math.min(slides.length - 1, x + 1)); if (e.key === "ArrowLeft" || e.key === "PageUp") setI((x) => Math.max(0, x - 1)); if (e.key === "Escape") setTela(false); };
     window.addEventListener("keydown", f); return () => window.removeEventListener("keydown", f);
   }, [slides.length]);
 
@@ -86,6 +124,7 @@ function Reuniao({ user, irMatriz, mesInicial }) {
         <select value={R.mes} onChange={(e) => setMes(e.target.value)} className="px-2 py-1.5 rounded text-sm" style={{ border: `1px solid ${LN}` }}>
           {[...new Set([R.mes, ...R.meses, ...proximosMeses()])].sort().reverse().map((m) => <option key={m} value={m}>Reunião {m.slice(5)}/{m.slice(0, 4)}</option>)}
         </select>
+        <button onClick={novaPagina} title="Cria uma página em branco logo depois desta" className="flex items-center gap-1 px-3 py-1.5 rounded text-sm font-semibold" style={{ border: `1px solid ${N}`, color: N, background: "#fff" }}><FilePlus2 size={14} /> Página em branco</button>
         <button onClick={() => setTela(true)} className="flex items-center gap-1 px-3 py-1.5 rounded text-sm font-semibold" style={{ background: N, color: "#fff" }}><Maximize2 size={14} /> Apresentar</button>
       </div>
       <div className="flex gap-3 items-start">
@@ -96,6 +135,7 @@ function Reuniao({ user, irMatriz, mesInicial }) {
             <span className="text-xs" style={{ color: CZ }}>{i + 1} / {slides.length} · {S?.t}</span>
             <button onClick={() => setI((x) => Math.min(slides.length - 1, x + 1))} className="p-1.5 rounded" style={{ border: `1px solid ${LN}` }}><ChevronRight size={16} /></button>
             {!D && <span className="text-xs flex items-center gap-1" style={{ color: CZ }}><Loader2 size={12} className="animate-spin" /> lendo os números…</span>}
+            {S?.pagina && <button onClick={() => excluirPagina(S.pagina)} className="ml-auto flex items-center gap-1 text-xs" style={{ color: VM }}><Trash2 size={12} /> excluir esta página</button>}
           </div>
           <div className="flex gap-2 mt-2 overflow-x-auto pb-2">
             {slides.map((x, k) => (
@@ -166,9 +206,14 @@ function Cab({ g, t, escuro }) {
         <div style={{ fontWeight: 800, fontSize: 26, color: escuro ? "#fff" : AZ, letterSpacing: 0.5 }}>{g}</div>
         <div style={{ fontWeight: 700, fontSize: 17, color: escuro ? "#FFB27A" : N, marginTop: 2 }}>{t}</div>
       </div>
-      <img src="/meridian-wordmark.svg" alt="" style={{ height: 22, opacity: escuro ? 0 : 0.9 }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+      {!escuro && <Logo inline />}
     </div>
   );
+}
+// v1007 — logo padrão no canto superior direito de todas as páginas
+function Logo({ inline }) {
+  const img = <img src="/meridian-wordmark.svg" alt="MERIDIAN" style={{ height: 22, opacity: 0.9, display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />;
+  return inline ? img : <div style={{ position: "absolute", right: 40, top: 30, pointerEvents: "none" }}>{img}</div>;
 }
 // texto editável direto no slide (salvo na reunião)
 function Txt({ k, txt, salvar, editavel, ph, style, linhas = 4, padrao = "" }) {
@@ -241,7 +286,8 @@ function montarSlides(R) {
     </>));
   add("PESSOAS E PROCESSOS", "Tema livre", (p) => (
     <>
-      <div style={{ position: "absolute", left: 40, top: 26, right: 40 }}>
+      <Logo />
+      <div style={{ position: "absolute", left: 40, top: 26, right: 200 }}>
         <div style={{ fontWeight: 800, fontSize: 26, color: AZ }}>PESSOAS E PROCESSOS</div>
         <Txt {...p} k="pp.tema.titulo" ph="TÍTULO (ex.: FRENTE DE RECRUTAMENTO OPERACIONAL)" linhas={1} style={{ fontWeight: 700, fontSize: 17, color: N, padding: "2px 6px" }} />
       </div>
@@ -496,4 +542,133 @@ function montarSlides(R) {
       <div style={{ width: 700, marginTop: 50 }}><Txt {...p} k="fim.texto" ph="Próximos passos / encaminhamentos (opcional)…" linhas={4} style={{ color: "#fff", background: "transparent", textAlign: "center", fontSize: 16 }} /></div>
     </div>));
   return sl;
+}
+
+
+/* ---------------- v1007 — página em branco ---------------- */
+// elementos em coordenadas do slide (1280×720): TITULO e SUBTITULO no padrão do cabeçalho, TEXTO (caixa como as de Pessoas e processos),
+// LINK (abre a página da web) e IMAGEM (upload ou Ctrl+V; vira anexo da tarefa da reunião). Tudo arrasta; caixa, link e imagem redimensionam.
+const PADRAO = {
+  TITULO: { w: 760, h: 40, texto: "TÍTULO" }, SUBTITULO: { w: 600, h: 28, texto: "SUBTÍTULO" }, TEXTO: { w: 1200, h: 160, texto: "" },
+  LINK: { w: 360, h: 32, texto: "Abrir link" }, IMAGEM: { w: 420, h: 280, texto: "" },
+};
+const ESTILO = {
+  TITULO: { fontWeight: 800, fontSize: 26, color: AZ, letterSpacing: 0.5, lineHeight: 1.2 },
+  SUBTITULO: { fontWeight: 700, fontSize: 17, color: N, lineHeight: 1.25 },
+  TEXTO: { fontSize: 14, lineHeight: 1.45, color: "#1F2733" },
+  LINK: { fontSize: 15, fontWeight: 600, color: "#2E7CD6", textDecoration: "underline" },
+};
+async function reduzirImagem(file, max = 1600) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const f = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement("canvas"); c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    const tipo = /png/i.test(file.type) ? "image/png" : "image/jpeg";
+    return { dataUrl: c.toDataURL(tipo, 0.88), w: c.width, h: c.height, tipo };
+  } finally { URL.revokeObjectURL(url); }
+}
+function PaginaBranca({ id, paginas, mudarPagina, editavel, user, R }) {
+  const pg = (paginas || []).find((x) => x.id === id) || { elementos: [] };
+  const els = pg.elementos || [];
+  const [sel, setSel] = useState(null);
+  const [subindo, setSubindo] = useState(false);
+  const area = useRef(null);
+  const mudar = (fn) => mudarPagina(id, (p) => ({ ...p, elementos: fn(p.elementos || []) }));
+  const upd = (eid, campos) => mudar((l) => l.map((e) => (e.id === eid ? { ...e, ...campos } : e)));
+  const escala = () => { const r = area.current?.getBoundingClientRect(); return r && r.width ? r.width / W : 1; };
+  const add = (tipo, extra = {}) => {
+    const eid = `e${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+    const p0 = PADRAO[tipo], n = els.length;
+    const y = tipo === "TITULO" ? 26 : tipo === "SUBTITULO" ? 64 : 110 + (n % 6) * 24;
+    mudar((l) => [...l, { id: eid, tipo, x: 40, y, w: p0.w, h: p0.h, texto: p0.texto, url: "", ...extra }]);
+    setSel(eid);
+  };
+  const addImagem = async (file) => {
+    if (!file || !/^image\//.test(file.type)) return;
+    setSubindo(true);
+    try {
+      const r0 = await reduzirImagem(file);
+      const r = await fetch(`/api/tarefas/${R.tarefa.id}/arquivos`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, nome: `pagina-${id}-${file.name || "print.png"}`, mime: r0.tipo, conteudo: r0.dataUrl.split(",")[1] }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.arquivo?.id) throw new Error(j.error || `Erro ${r.status}`);
+      const f = Math.min(1, 560 / r0.w, 400 / r0.h);
+      add("IMAGEM", { arquivoId: j.arquivo.id, w: Math.round(r0.w * f), h: Math.round(r0.h * f) });
+    } catch (e) { alerta(`Não foi possível inserir a imagem: ${e.message}`); }
+    setSubindo(false);
+  };
+  // Ctrl+V com imagem (print) entra na página aberta; Delete tira o elemento selecionado
+  useEffect(() => {
+    if (!editavel) return;
+    const colar = (e) => { const it = [...(e.clipboardData?.items || [])].find((x) => x.kind === "file" && /^image\//.test(x.type)); if (!it) return; e.preventDefault(); addImagem(it.getAsFile()); };
+    const tecla = (e) => { if (!sel || !(e.key === "Delete")) return; if (e.target?.tagName === "TEXTAREA" || e.target?.tagName === "INPUT") return; mudar((l) => l.filter((x) => x.id !== sel)); setSel(null); };
+    document.addEventListener("paste", colar); window.addEventListener("keydown", tecla);
+    return () => { document.removeEventListener("paste", colar); window.removeEventListener("keydown", tecla); };
+  });
+  // arrastar (mover) e redimensionar com o mouse, convertendo para as coordenadas do slide
+  const arrastar = (e, el, modo) => {
+    e.preventDefault(); e.stopPropagation(); setSel(el.id);
+    const k = escala(), x0 = e.clientX, y0 = e.clientY, b = { x: el.x, y: el.y, w: el.w, h: el.h };
+    const razao = el.tipo === "IMAGEM" && b.h ? b.w / b.h : null;
+    let ult = null;
+    const mv = (ev) => {
+      const dx = (ev.clientX - x0) / k, dy = (ev.clientY - y0) / k;
+      if (modo === "mover") ult = { x: Math.round(Math.max(-b.w + 20, Math.min(W - 20, b.x + dx))), y: Math.round(Math.max(0, Math.min(H - 16, b.y + dy))) };
+      else { let w = Math.max(40, b.w + dx), h = Math.max(20, b.h + dy); if (razao && !ev.shiftKey) h = w / razao; ult = { w: Math.round(w), h: Math.round(h) }; }
+      const no = area.current?.querySelector(`[data-el="${el.id}"]`);
+      if (no) { if (ult.x != null) { no.style.left = `${ult.x}px`; no.style.top = `${ult.y}px`; } else { no.style.width = `${ult.w}px`; no.style.height = `${ult.h}px`; } }
+    };
+    const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); if (ult) upd(el.id, ult); };
+    window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
+  };
+  const src = (el) => `/api/tarefas/${R.tarefa.id}/arquivos?u=${user.id}&arquivo=${el.arquivoId}`;
+  const urlOk = (u) => (/^https?:\/\//i.test(u) ? u : u ? `https://${u}` : "");
+  return (
+    <div ref={area} style={{ position: "absolute", inset: 0 }} onPointerDown={() => editavel && setSel(null)}>
+      <Logo />
+      {editavel && (
+        <div onPointerDown={(e) => e.stopPropagation()} style={{ position: "absolute", left: 40, bottom: 14, display: "flex", gap: 8, zIndex: 50, fontSize: 13 }}>
+          {[["TITULO", "Título", Heading1], ["SUBTITULO", "Subtítulo", Heading2], ["TEXTO", "Caixa de texto", Type], ["LINK", "Link", Link2]].map(([t, r, I]) => (
+            <button key={t} onClick={() => add(t)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 6, border: `1px solid ${LN}`, background: "#fff", color: N, fontWeight: 600 }}><I size={14} /> {r}</button>))}
+          <label style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 6, border: `1px solid ${LN}`, background: "#fff", color: N, fontWeight: 600, cursor: "pointer" }}>
+            {subindo ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />} Imagem
+            <input type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; addImagem(f); }} /></label>
+          <span style={{ alignSelf: "center", color: CZ, fontSize: 12 }}>Ctrl+V cola print · arraste pelo ⠿ · Delete tira o selecionado</span>
+        </div>)}
+      {!els.length && editavel && <div style={{ position: "absolute", left: 0, right: 0, top: 320, textAlign: "center", color: CZ, fontSize: 16 }}>Página em branco — use os botões abaixo para inserir título, subtítulo, caixas de texto, links e imagens.</div>}
+      {els.map((el) => {
+        const on = editavel && sel === el.id;
+        const caixa = { position: "absolute", left: el.x, top: el.y, width: el.w, ...(el.tipo === "TITULO" || el.tipo === "SUBTITULO" ? { minHeight: el.h } : { height: el.h }),
+          outline: on ? `2px solid ${L}` : editavel ? `1px dashed ${el.tipo === "TEXTO" ? "transparent" : "#C9D2DE"}` : "none", borderRadius: 6, zIndex: on ? 20 : 10 };
+        const alca = editavel && <div title="Arrastar" onPointerDown={(e) => arrastar(e, el, "mover")} style={{ position: "absolute", left: -22, top: 2, width: 18, height: 22, cursor: "move", color: on ? L : CZ, display: "flex", alignItems: "center", justifyContent: "center", background: "#fff", borderRadius: 4, border: `1px solid ${LN}` }}><GripVertical size={13} /></div>;
+        const tam = editavel && el.tipo !== "TITULO" && el.tipo !== "SUBTITULO" && <div title="Redimensionar (Shift solta a proporção da imagem)" onPointerDown={(e) => arrastar(e, el, "tam")} style={{ position: "absolute", right: -6, bottom: -6, width: 12, height: 12, background: on ? L : "#C9D2DE", borderRadius: 3, cursor: "nwse-resize" }} />;
+        const tirar = on && <button title="Tirar" onPointerDown={(e) => e.stopPropagation()} onClick={() => { mudar((l) => l.filter((x) => x.id !== el.id)); setSel(null); }} style={{ position: "absolute", right: -10, top: -10, width: 20, height: 20, borderRadius: 10, background: VM, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={12} /></button>;
+        if (el.tipo === "IMAGEM") return (
+          <div key={el.id} data-el={el.id} style={caixa} onPointerDown={(e) => { if (editavel) arrastar(e, el, "mover"); }}>
+            <img src={src(el)} alt="" draggable={false} style={{ width: "100%", height: "100%", objectFit: "fill", display: "block", borderRadius: 4, userSelect: "none", pointerEvents: "none" }} />
+            {alca}{tam}{tirar}
+          </div>);
+        if (el.tipo === "LINK") return (
+          <div key={el.id} data-el={el.id} style={{ ...caixa, display: "flex", alignItems: "center" }} onPointerDown={(e) => { if (editavel) { e.stopPropagation(); setSel(el.id); } }}>
+            {editavel ? <div style={{ display: "flex", flexDirection: "column", width: "100%", gap: 2 }}>
+                <input value={el.texto} onChange={(e) => upd(el.id, { texto: e.target.value })} placeholder="Texto do link" style={{ ...ESTILO.LINK, border: "none", outline: "none", background: "transparent", width: "100%", fontFamily: "inherit" }} />
+                {on && <input value={el.url} onChange={(e) => upd(el.id, { url: e.target.value })} placeholder="https://endereço da página" autoFocus={!el.url} style={{ fontSize: 12, border: `1px solid ${LN}`, borderRadius: 4, padding: "2px 6px", outline: "none", fontFamily: "inherit" }} />}
+              </div>
+              : <a href={urlOk(el.url)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ ...ESTILO.LINK, display: "flex", alignItems: "center", gap: 6 }}><ExternalLink size={15} /> {el.texto || el.url}</a>}
+            {alca}{tam}{tirar}
+          </div>);
+        const est = ESTILO[el.tipo] || ESTILO.TEXTO;
+        const ehTexto = el.tipo === "TEXTO";
+        const base = { ...est, width: "100%", fontFamily: "inherit", whiteSpace: "pre-wrap", ...(ehTexto ? { border: editavel ? `1px dashed ${LN}` : "1px solid transparent", borderRadius: 6, padding: "6px 8px", background: editavel ? "#FAFBFC" : "transparent", height: "100%", overflow: "hidden" } : { padding: "2px 4px" }) };
+        return (
+          <div key={el.id} data-el={el.id} style={caixa} onPointerDown={(e) => { if (editavel) { e.stopPropagation(); setSel(el.id); } }}>
+            {editavel ? <textarea value={el.texto} onChange={(e) => upd(el.id, { texto: el.tipo === "TEXTO" ? e.target.value : e.target.value.toUpperCase() })} rows={1}
+                placeholder={ehTexto ? "Texto…" : el.tipo === "TITULO" ? "TÍTULO" : "SUBTÍTULO"} style={{ ...base, resize: "none", outline: "none", ...(ehTexto ? {} : { border: "none", background: "transparent", height: el.h, overflow: "hidden" }) }} />
+              : <div style={base}>{el.texto}</div>}
+            {alca}{tam}{tirar}
+          </div>);
+      })}
+    </div>
+  );
 }
