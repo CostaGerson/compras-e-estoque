@@ -463,12 +463,22 @@ function Caber({ maxH = 520, children, style, largura = true }) {
   const [h, setH] = useState(null);
   useLayoutIso(() => {
     const el = dentro.current, box = fora.current; if (!el || !box) return;
-    const medir = () => { const w = el.scrollWidth, hh = el.scrollHeight, W0 = box.clientWidth || w; const nk = Math.max(0.5, Math.min(1, largura ? W0 / Math.max(1, w) : 1, maxH / Math.max(1, hh))); if (Math.abs(nk - k) > 0.005) setK(nk); const nh = hh * nk; if (h == null || Math.abs(nh - h) > 1) setH(nh); };
+    // v1025 — mede no tamanho real da caixa (sem a escala atual), senão o texto longo e as tabelas "max-content" encolhem tudo demais
+    const medir = () => {
+      const W0 = box.clientWidth; if (!W0) return;
+      const pw = el.style.width, pt = el.style.transform;
+      el.style.width = `${W0}px`; el.style.transform = "none";
+      const w = el.scrollWidth, hh = el.scrollHeight;
+      el.style.width = pw; el.style.transform = pt;
+      const nk = Math.max(0.55, Math.min(1, largura ? W0 / Math.max(1, w) : 1, maxH / Math.max(1, hh)));
+      if (Math.abs(nk - k) > 0.005) setK(nk);
+      const nh = Math.min(hh, maxH / nk) * nk; if (h == null || Math.abs(nh - h) > 1) setH(nh);
+    };
     medir(); const ro = new ResizeObserver(medir); ro.observe(el); return () => ro.disconnect();
   });
   return (
     <div ref={fora} style={{ ...style, height: h ?? "auto", overflow: "visible" }}>
-      <div ref={dentro} style={{ width: largura && k < 1 ? `${100 / k}%` : "100%", transform: `scale(${k})`, transformOrigin: "0 0" }}>{children}</div>
+      <div ref={dentro} style={{ width: k < 1 ? `${100 / k}%` : "100%", transform: `scale(${k})`, transformOrigin: "0 0" }}>{children}</div>
     </div>
   );
 }
@@ -484,7 +494,7 @@ function Tab({ cols: cols0, linhas, rodape, larg, fs = 12, colW }) {
   });
   const th = (c) => ({ background: "#EEF2F8", color: c.cor || N, padding: "7px 10px", textAlign: c.r ? "right" : "left", fontWeight: 700, whiteSpace: "nowrap", fontSize: fs - 1, letterSpacing: 0.3, textTransform: "uppercase", borderBottom: `1px solid #DCE3EE` });
   return (
-    <div style={{ border: `1px solid ${LN}`, borderRadius: 10, overflow: "hidden", width: larg || "max-content", minWidth: larg ? undefined : "100%", background: "#fff" }}>
+    <div style={{ border: `1px solid ${LN}`, borderRadius: 10, overflow: "hidden", width: larg || (colW ? "100%" : "max-content"), minWidth: larg || colW ? undefined : "100%", background: "#fff" }}>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: fs, tableLayout: colW ? "fixed" : "auto" }}>
         {colW && <colgroup>{colW.map((w, k) => <col key={k} style={{ width: w }} />)}</colgroup>}
         <thead><tr>{cols.map((c, k) => <th key={k} style={th(c)}>{c.t}</th>)}</tr></thead>
@@ -599,6 +609,13 @@ function montarSlides(R) {
   const sl = [];
   const add = (g, t, C, deps = []) => sl.push({ g, t, C, deps });
   const addD = (deps, g, t, C) => add(g, t, C, deps);   // v1008 — deps: fontes de dados do slide (versão salva / o que mudou)
+  // v1025 — divisórias no padrão da capa do relatório comercial
+  const divisoria = (g, t, rotulo, titulo) => add(g, t, () => (
+    <div style={{ position: "absolute", inset: 0, background: N, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 90 }} />
+      <div style={{ color: L, letterSpacing: 6, fontSize: 15, fontWeight: 700, marginTop: 110 }}>{rotulo}</div>
+      <div style={{ color: "#fff", letterSpacing: 6, fontSize: 18, marginTop: 14 }}>{titulo} · {MES} · {ra}</div>
+    </div>));
   add("MERIDIAN", "Capa", () => (
     <div style={{ position: "absolute", inset: 0, background: N, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
       <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 90 }} />
@@ -624,6 +641,7 @@ function montarSlides(R) {
       </div>
       <div style={{ position: "absolute", left: 60, right: 60, top: 120 }}><Txt {...p} k="pp.tema.texto" ph="Texto do tema…" linhas={18} style={{ fontSize: 16 }} /></div>
     </>));
+  divisoria("PESSOAS E PROCESSOS", "Análises operacionais", "PESSOAS E PROCESSOS", "ANÁLISES OPERACIONAIS");
   // v1012 — análises operacionais na ordem do processo: corte, silk, bordado, costura, expedição e logística (sublimação e DTF ficam de fora)
   for (const [setor, nome, onde] of [["corte", "ANALISE CORTE", "corte"], ["silk", "ANALISE SILK", "silk"], ["bordado", "ANALISE BORDADO", "bordado"], ["costura", "ANALISE COSTURA", "costura"], ["exp", "ANALISE EXPEDIÇÃO", "expedição"]]) addD([setor], "PESSOAS E PROCESSOS", nome.toLowerCase().replace("analise", "Análise").replace(/ ([a-zç]+)$/, (m) => m.toLowerCase()), (p) => {
     const x = p.D?.[setor];
@@ -634,7 +652,7 @@ function montarSlides(R) {
         <Cab g="PESSOAS E PROCESSOS" t={nome} />
         {!p.D || !x || x._erro ? <Sem x={p.D ? x : null} /> : !a ? <div style={{ position: "absolute", left: 40, top: 120, color: CZ, fontSize: 15 }}>Análise de {onde} de {MES.toLowerCase()} ainda não lançada (Operação › Análises operacionais).</div> : (
           <Caber maxH={530} style={{ position: "absolute", left: 40, right: 40, top: 96 }}><div style={{ display: "flex", gap: 24 }}>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
               {grade ? <>
                 <Tab cols={[{ t: "PEÇA" }, { t: "QTD", r: 1 }, { t: "CONCENTRAÇÃO", r: 1 }]} linhas={(c.linhas || []).filter((k) => k.qtd).map((k) => ({ c: [k.n, num(k.qtd), pct(k.concentracao, 0)] }))} rodape={[["TOTAL", num(c.pecas), "100%"]]} />
                 <Tab cols={[{ t: "CORES" }, { t: "QTD", r: 1 }, { t: "CONCENTRAÇÃO", r: 1 }, { t: "MERCADO", r: 1 }, { t: "VALOR INTERNO", r: 1 }]} linhas={(c.colunas || []).filter((k) => k.qtd).map((k) => ({ c: [k.n, num(k.qtd), pct(k.concentracao, 0), brl(k.mercado), brl(k.valorInterno)] }))} />
@@ -643,7 +661,7 @@ function montarSlides(R) {
                 rodape={[["TOTAL", num(c.pecas), "100%", "", ""]]} />}
               <div style={{ fontSize: 12, color: CZ }}>Histórico: {(x.serie || []).map((s) => `${s.competencia.slice(5)}/${s.competencia.slice(2, 4)} ${grade && s.custoUnid ? `${brl(s.custoUnid)}/cor` : `${brl(s.incorrido)}/pç`}`).join(" · ")}</div>
             </div>
-            <div style={{ width: 330, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ flex: "0 0 auto", minWidth: 330, display: "flex", flexDirection: "column", gap: 10 }}>
               <Tab cols={[{ t: "CUSTO INTERNO" }, { t: "", r: 1 }]} linhas={[
                 { c: ["Pessoal", brl(c.pessoal)] }, { c: ["Freelancer", brl(c.freelancer)] }, { c: ["Insumo", brl(c.insumo)] }, { c: ["Custo total", brl(c.custoTotal)], _b: 1 },
                 ...(grade && c.unidades ? [   // v1014 — silk: métricas por cor (cor × peça), não por peça
@@ -672,13 +690,13 @@ function montarSlides(R) {
         <Cab g="PESSOAS E PROCESSOS" t="ANALISE LOGÍSTICA" />
         {!m ? <div style={{ position: "absolute", left: 40, top: 120, color: CZ, fontSize: 15 }}>Sem análise da logística para {MES.toLowerCase()}/{ra}.</div> : (
           <Caber maxH={530} style={{ position: "absolute", left: 40, right: 40, top: 96 }}><div style={{ display: "flex", gap: 24 }}>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
               <Tab cols={[{ t: "CONTA" }, { t: "VALOR", r: 1 }, { t: "R$ / PÇ", r: 1 }, { t: "ENTRA NO CUSTO" }]}
                 linhas={(x.contas || []).filter((k) => m.valores?.[k.k]).map((k) => ({ c: [k.n, brl(m.valores[k.k]), m.pecas ? brl(m.valores[k.k] / m.pecas) : "—", k.entra ? "sim" : "não (informativo)"] }))}
                 rodape={[["CUSTO (sem frete entrega)", brl(m.outros), m.pecas ? brl(m.outros / m.pecas) : "—", ""]]} />
               <div style={{ fontSize: 12, color: CZ }}>Histórico: {(x.meses || []).filter((k) => k.pecas).map((k) => `${k.comp.slice(5)}/${k.comp.slice(2, 4)} ${brl(k.porPeca)}/pç`).join(" · ")}</div>
             </div>
-            <div style={{ width: 330, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ flex: "0 0 auto", minWidth: 330, display: "flex", flexDirection: "column", gap: 10 }}>
               <Tab cols={[{ t: "CUSTO LOGÍSTICO" }, { t: "", r: 1 }]} linhas={[
                 { c: ["Pessoal (Matriz)", brl(m.pessoal)] }, { c: ["Demais custos", brl(m.outros)] }, { c: ["Custo total", brl(m.custo)], _b: 1 },
                 { c: ["Peças (expedição)", num(m.pecas)] }, { c: ["Custo / pç", brl(m.porPeca)], _b: 1 },
@@ -733,6 +751,53 @@ function montarSlides(R) {
       </>
     );
   };
+  // v1025 — resultado da operação: cada setor (mercado/cobrado − custo) e a soma = resultado operacional
+  addD(["corte", "silk", "bordado", "costura", "exp", "log"], "PESSOAS E PROCESSOS", "Resultado da operação", (p) => {
+    const SET = [["corte", "Corte"], ["silk", "Silk"], ["bordado", "Bordado"], ["costura", "Costura"], ["exp", "Expedição"]];
+    const ls = [];
+    for (const [k, n] of SET) { const c = p.D?.[k]?.calc; if (!c || !p.D?.[k]?.analise) { ls.push({ n, sem: true }); continue; }
+      ls.push({ n, ref: c.terceirizado, custo: c.custoTotal, res: (c.terceirizado || 0) - (c.custoTotal || 0), pecas: c.pecas }); }
+    { const x = p.D?.log, m = (x?.meses || []).find((k) => k.comp === R.ref), md = x?.media || {};
+      if (m && md.porPeca != null && m.pecas) ls.push({ n: "Logística", ref: md.porPeca * m.pecas, custo: m.custo, res: md.porPeca * m.pecas - (m.custo || 0), pecas: m.pecas }); else ls.push({ n: "Logística", sem: true }); }
+    const ok = ls.filter((l) => !l.sem), tot = ok.reduce((a2, l) => a2 + l.res, 0), totRef = ok.reduce((a2, l) => a2 + (l.ref || 0), 0), totCusto = ok.reduce((a2, l) => a2 + (l.custo || 0), 0);
+    const mx = Math.max(1, ...ok.map((l) => Math.abs(l.res)), Math.abs(tot));
+    const W = 560, x0 = 140, meio = x0 + (W - x0) / 2, esc = (W - x0) / 2 / mx, hb = 34;
+    const barras = [...ls, { n: "Resultado operacional", res: tot, total: true }];
+    return (
+      <>
+        <Cab g="PESSOAS E PROCESSOS" t="RESULTADO DA OPERAÇÃO" />
+        {!p.D ? <Sem x={null} /> : (
+          <Caber maxH={500} style={{ position: "absolute", left: 40, right: 40, top: 96 }}><div style={{ display: "flex", gap: 28, alignItems: "flex-start" }}>
+            <div style={{ flex: "0 0 auto", border: `1px solid ${LN}`, borderRadius: 10, padding: "14px 16px", background: "#fff" }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: N, letterSpacing: 0.3, marginBottom: 8 }}>RESULTADO POR SETOR (MERCADO / COBRADO − CUSTO)</div>
+              <svg width={W + 120} height={barras.length * hb + 10}>
+                <line x1={meio} x2={meio} y1={0} y2={barras.length * hb} stroke="#C9D2DE" />
+                {barras.map((b, i) => { const y = i * hb + 6, w = b.sem ? 0 : Math.abs(b.res) * esc, neg = !b.sem && b.res < 0;
+                  return <g key={b.n}>
+                    {b.total && <line x1={0} x2={W + 120} y1={y - 4} y2={y - 4} stroke={LN} />}
+                    <text x={x0 - 10} y={y + 15} textAnchor="end" fontSize={b.total ? 13 : 12} fontWeight={b.total ? 800 : 600} fill={N}>{b.n}</text>
+                    {b.sem ? <text x={meio + 6} y={y + 15} fontSize={11} fill={CZ}>sem análise do mês</text> : <>
+                      <rect x={neg ? meio - w : meio} y={y} width={Math.max(2, w)} height={20} rx={4} fill={b.total ? (neg ? VM : N) : neg ? VM : VD} />
+                      <text x={neg ? meio - w - 6 : meio + w + 6} y={y + 15} textAnchor={neg ? "end" : "start"} fontSize={12} fontWeight={700} fill={neg ? VM : b.total ? N : VD}>{brl(b.res, 0)}</text></>}
+                  </g>; })}
+              </svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+              <Tab fs={13} cols={[{ t: "SETOR" }, { t: "MERCADO / COBRADO", r: 1 }, { t: "CUSTO", r: 1 }, { t: "RESULTADO", r: 1 }]}
+                linhas={ls.map((l) => (l.sem ? { c: [l.n, "—", "—", "sem análise"] } : { c: [l.n, brl(l.ref, 0), brl(l.custo, 0), brl(l.res, 0)], _fg: [null, null, null, l.res < 0 ? VM : VD] }))}
+                rodape={[["RESULTADO OPERACIONAL", brl(totRef, 0), brl(totCusto, 0), brl(tot, 0)]]} />
+              <div style={{ display: "flex", gap: 12 }}>
+                <Caixa t="RESULTADO OPERACIONAL" v={brl(tot, 0)} cor={tot < 0 ? VM : VD} sub={`${ok.length} de ${ls.length} setores com análise`} />
+                <Caixa t="RETORNO SOBRE O CUSTO" v={totCusto ? pct(tot / totCusto, 0) : "—"} cor={N} sub="resultado ÷ custo dos setores" />
+              </div>
+              <div style={{ fontSize: 11, color: CZ }}>Corte, silk, bordado, costura e expedição: valor de mercado do que foi feito dentro − custo do setor (pessoal, freelancers e insumos). Logística: cobrado na FPP (média 6 meses × peças) − custo do mês.</div>
+            </div>
+          </div></Caber>)}
+        <Obs {...p} chave="op.resultado" />
+      </>
+    );
+  });
+  divisoria("KPIS", "KPIs", "INDICADORES", "KPIS");
   add("KPIS", "Vendas", kpiSlide("vendas", "VENDAS"), ["kpi"]);
   add("KPIS", "Faturamento", kpiSlide("fat", "FATURAMENTO"), ["kpi"]);
   add("KPIS", "Receita", kpiSlide("rec", "RECEITA"), ["kpi"]);
@@ -924,6 +989,7 @@ function montarSlides(R) {
       <Obs {...p} chave="com.cli" /></>);
   });
   // financeiro
+  divisoria("FINANCEIRO", "Relatório financeiro", "RELATÓRIO FINANCEIRO", "RESULTADO E CAIXA");
   addD(["dre"], "FINANCEIRO", "DRE mês", (p) => {
     const d = p.D?.dre; if (!p.D || !d || d._erro) return <><Cab g="FINANCEIRO" t="DRE MES" /><Sem x={p.D ? d : null} /></>;
     const o = d.operacao || {};
