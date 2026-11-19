@@ -1809,7 +1809,12 @@ export function Cotacoes({ user, fases, ir }) {
               {/* itens */}
               <div className="px-5 pb-2" style={{ borderTop: `1px solid ${C.line}` }}>
                 <div className="flex gap-3 pt-3 pb-1.5" style={{ color: C.sub }}>
-                  <div className={`flex-1 ${lbl}`}>Artigo</div><div className={`w-28 text-right ${lbl}`}>Quantidade</div><div className={`w-28 text-right ${lbl}`}>Valor unit.</div><div className={`w-36 ${lbl}`}>Prazo</div><div className={`w-16 text-center ${lbl}`}>Não tem</div><div className={`w-28 text-right ${lbl}`}>Total</div>
+                  <div className={`flex-1 ${lbl}`}>Artigo</div><div className={`w-28 text-right ${lbl}`}>Quantidade</div><div className={`w-28 text-right ${lbl}`}>Valor unit.</div><div className="w-36"><div className={lbl}>Prazo</div>
+                    {/* v1001 — prazo único: o mesmo prazo de entrega para todos os itens da cotação */}
+                    {(() => { const ps = d.itens.filter((y) => !y.naoTem).map((y) => y.prazo || ""); const igual = ps.length && ps.every((p) => p === ps[0]) ? ps[0] : "";
+                      return <label className="flex items-center gap-1 mt-1 text-[10px] font-semibold normal-case" style={{ color: C.accent }} title="Prazo único: coloca o mesmo prazo de entrega em todos os itens (menos os que o fornecedor não tem)">único
+                        <input type="date" value={igual} onChange={(e) => { const v = e.target.value; setD(c, (x) => ({ ...x, itens: x.itens.map((y) => (y.naoTem ? y : { ...y, prazo: v })) })); }} className={`${inp} flex-1 min-w-0`} style={{ border: `1px solid ${C.accent}`, background: "#fff", fontSize: 11, padding: "1px 4px" }} /></label>; })()}
+                  </div><div className={`w-16 text-center ${lbl}`}>Não tem</div><div className={`w-28 text-right ${lbl}`}>Total</div>
                 </div>
                 {c.itens.map((i, k) => {
                   const di = d.itens[k] || {}; const v = lerNum(di.valorUnitario);
