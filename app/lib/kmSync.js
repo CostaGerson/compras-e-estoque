@@ -140,7 +140,7 @@ export async function sincronizarKm(pedidos, { previa = false, nfs, nfsDesde, mo
   const lista = (Array.isArray(pedidos) ? pedidos : []).filter((k) => k && k.numero && !excl.has(String(k.numero).trim()));
   const nums = lista.map((k) => String(k.numero).trim());
   const existentes = Object.fromEntries((await prisma.pedidoVenda.findMany({ where: { numero: { in: nums } },
-    select: { id: true, numero: true, cliente: true, clienteCodigo: true, total: true, qtd: true, itens: true, status: true, faturadoEm: true, fonte: true } }))
+    select: { id: true, numero: true, cliente: true, clienteCodigo: true, total: true, qtd: true, itens: true, status: true, faturadoEm: true, fonte: true, kmNfs: true } }))
     .map((x) => [x.numero, x]));
   const hashes = previa ? {} : Object.fromEntries((await prisma.kmPedido.findMany({ where: { numero: { in: nums } } })).map((x) => [x.numero, x.hash]));
   // nome do cliente: o que já está nos pedidos do mesmo código (o PDF mostrava o nome do cadastro)
@@ -154,7 +154,10 @@ export async function sincronizarKm(pedidos, { previa = false, nfs, nfsDesde, mo
     try {
       const { pv, pp, extra } = mapearPedido(k);
       const at = existentes[pv.numero];
-      if (at?.fonte === "SISTEMA") { res.iguais++; (res.assumidos ||= []).push(pv.numero); continue; }   // v730 — pedido assumido no sistema: o KM não mexe mais
+      if (at?.fonte === "SISTEMA") {   // v730 — pedido assumido no sistema: o KM não mexe mais… v1023 — exceto as NFs que o KM liga a ele (livsaida / Monta notas)
+        if (!previa && JSON.stringify(at.kmNfs || []) !== JSON.stringify(extra.nfs || [])) { await prisma.pedidoVenda.update({ where: { id: at.id }, data: { kmNfs: extra.nfs } }); res.nfsSistema = (res.nfsSistema || 0) + 1; }
+        res.iguais++; (res.assumidos ||= []).push(pv.numero); continue;
+      }   // v730 — pedido assumido no sistema: o KM não mexe mais
       // v867 — lançamento de pedido só pelo sistema: pedido novo no KM não entra (os que já existem seguem atualizando saldo, NFs e faturamento)
       if (!at) { res.ignorados++; (res.novosKmIgnorados ||= []).push(`${pv.numero} · ${pv.cliente || ""}`); continue; }
       const h = hashDe(k);
