@@ -323,6 +323,16 @@ function normBordado(a) {
 export function calcularCorte(a0, pessoal, freelancer) {
   const a = a0?.setor === "BORDADO" ? normBordado(a0) : a0;
   const merc = { ...mercadoPadrao(a.setor), ...(a.mercado || {}) };
+  // v1019 — silk: a coluna "6 cores" junta 6 ou mais; o mercado dela é o nº médio real de cores × R$/cor (as impressões do mês dizem quantas),
+  //   senão o mercado por cor sai abaixo de R$ 0,80 (peças com 8, 10 cores contadas como 6)
+  if (a.setor === "SILK" && a.extra?.unidades && (a.extra.mercadoUnit || merc.C1)) {
+    const vm = Number(a.extra.mercadoUnit) || Number(merc.C1) || SILK_POR_COR;
+    const qs = Object.entries(a.qtds || {}).map(([k, q]) => [Number(String(nivelDe(k) || "").slice(1)) || 1, Number(q) || 0]);
+    const max = NIVEIS_OP.SILK.niveis.length;
+    const ate = qs.filter(([n]) => n < max).reduce((s2, [n, q]) => s2 + n * q, 0), qUlt = qs.filter(([n]) => n >= max).reduce((s2, [, q]) => s2 + q, 0);
+    const resto = Number(a.extra.unidades) - (Number(a.extra.unidSemCat) || 0) - ate;
+    if (qUlt > 0 && resto > qUlt * max) merc[`C${max}`] = r2((resto / qUlt) * vm);
+  }
   const cats = catsDe(a.setor).map(([k, n]) => ({ k, n, qtd: Number(a.qtds?.[k]) || 0, mercado: Number(merc[k] ?? merc[nivelDe(k)]) || 0 }));
   const pecas = cats.reduce((s, c) => s + c.qtd, 0);
   // v257 — silk/bordado: custo do setor = mão de obra (pessoal + freelancers) + insumo (tinta/linha)
@@ -344,7 +354,7 @@ export function calcularCorte(a0, pessoal, freelancer) {
     terceirizado, mediaTerc, economiaTerc: r2(terceirizado - custoTotal),
     retornoPct: terceirizado ? (terceirizado - custoTotal) / terceirizado : 0,          // v257 — retorno interno ÷ terceirizado
     // v255 — silk/bordado importados: custo por unidade (cor×peça) e terceirizado do mês
-    ...(grade ? { unidades, custoUnid: unidades ? custoTotal / unidades : 0, mercadoUnid: unidades ? terceirizado / unidades : 0 } : {}),
+    ...(grade ? { unidades, custoUnid: unidades ? custoTotal / unidades : 0, mercadoUnid: unidades - (Number(a.extra?.unidSemCat) || 0) > 0 ? terceirizado / (unidades - (Number(a.extra?.unidSemCat) || 0)) : 0 } : {}),
     ...(a.extra ? { extra: a.extra } : {}),
     categorias: cats.map((c) => ({ ...c, concentracao: pecas ? c.qtd / pecas : 0, fator: mediaTerc ? c.mercado / mediaTerc : 0, valorInterno: mediaTerc ? (c.mercado / mediaTerc) * incorrido : 0 })),
     // v254 — grade (silk/bordado): totais por nível e por peça
