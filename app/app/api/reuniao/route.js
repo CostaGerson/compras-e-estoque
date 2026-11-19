@@ -18,6 +18,18 @@ export async function GET(req) {
   const sp = new URL(req.url).searchParams;
   const u = await quem(sp.get("u"));
   if (!u || !gerencial(u)) return Response.json({ error: "Só master e diretoria." }, { status: 403 });
+  // v1015 — lista de meses (cards da página inicial): só lê, não cria reunião
+  if (sp.get("lista")) {
+    const todas = await prisma.tarefa.findMany({ where: { titulo: { startsWith: "REUNIÃO DE GESTÃO · " }, modelo: false, status: { not: "CANCELADA" } }, select: { id: true, reuniao: true, prazo: true, hora: true, status: true } });
+    const ids = todas.map((x) => x.id);
+    const snaps = ids.length ? await prisma.finConfig.findMany({ where: { chave: { in: ids.map(KS) } }, select: { chave: true } }) : [];
+    const comSnap = new Set(snaps.map((x) => Number(x.chave.split("|")[2])));
+    const meses = {};
+    for (const x of todas) { const mm = x.reuniao?.mes; if (!mm) continue; const A = x.reuniao.apresentacao || {};
+      meses[mm] = { tarefaId: x.id, prazo: x.prazo, hora: x.hora, status: x.status, pautas: (x.reuniao.pautas || []).length,
+        salva: comSnap.has(x.id), editada: comSnap.has(x.id) || Object.keys(A.textos || {}).length > 0 || (A.estrutura || []).length > 0 }; }
+    return Response.json({ hoje: hojeSP(), meses });
+  }
   let m = sp.get("mes");
   if (!/^\d{4}-\d{2}$/.test(m || "")) { const h = hojeSP(); m = h.slice(0, 7); if (dataReuniao(Number(h.slice(0, 4)), Number(h.slice(5, 7))) < h) { const d = new Date(`${m}-01T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1); m = d.toISOString().slice(0, 7); } }
   const ano = Number(m.slice(0, 4)), mes = Number(m.slice(5, 7));

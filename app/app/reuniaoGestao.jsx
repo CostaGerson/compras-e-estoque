@@ -5,7 +5,7 @@
 //   lidos na hora do sistema (KPIs, análises de corte/expedição, endividamento, DRE, fluxo e painel). Textos e observações
 //   são editados direto na tela e ficam salvos na reunião.
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Maximize2, X, Plus, Loader2, Landmark, Eye, EyeOff, ExternalLink, Type, Heading1, Heading2, Link2, ImagePlus, Trash2, GripVertical, FilePlus2, Save, Copy } from "lucide-react";
+import { ChevronLeft, ChevronRight, Maximize2, X, Plus, Loader2, Landmark, Eye, EyeOff, ExternalLink, Type, Heading1, Heading2, Link2, ImagePlus, Trash2, GripVertical, FilePlus2, Save, Copy, CalendarDays } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { Acervo } from "./acervo";
 
@@ -59,7 +59,7 @@ function Reuniao({ user, irMatriz, mesInicial }) {
       if (!m) setMes(x.mes);
     }).catch((e) => setErro(e.message));
   };
-  useEffect(() => { ler(mes); }, [mes]);
+  useEffect(() => { if (mes) ler(mes); else setR(null); }, [mes]);
   // dados do mês de referência (todos em paralelo; o que falhar fica vazio no slide)
   useEffect(() => {
     if (!R) return;
@@ -217,7 +217,8 @@ function Reuniao({ user, irMatriz, mesInicial }) {
   const naFaixa = (e) => { const r = faixa.current?.getBoundingClientRect(); if (!r) return; const x = e.clientX - r.left, z = 110; rolar.current = x > r.width - z ? Math.ceil(((x - (r.width - z)) / z) * 14) : x < z ? -Math.ceil(((z - x) / z) * 14) : 0; };
   useEffect(() => { const el = faixa.current?.querySelector(`[data-mini="${i}"]`); el?.scrollIntoView?.({ block: "nearest", inline: "nearest", behavior: "smooth" }); }, [i]);
 
-  if (erro) return <div className="text-sm" style={{ color: VM }}>{erro}</div>;
+  if (!mes) return <MesesReuniao user={user} onAbrir={setMes} />;
+  if (erro) return <div className="text-sm" style={{ color: VM }}>{erro} <button onClick={() => setMes(null)} className="underline font-semibold ml-2" style={{ color: L }}>voltar aos meses</button></div>;
   if (!R) return <Loader2 size={18} className="animate-spin" style={{ color: CZ }} />;
   const [ra, rm] = R.ref.split("-").map(Number);
   const ii = Math.min(i, slides.length - 1);
@@ -225,12 +226,11 @@ function Reuniao({ user, irMatriz, mesInicial }) {
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <Landmark size={18} style={{ color: N }} />
+        <span className="px-2 py-0.5 rounded text-sm font-bold" style={{ background: L, color: "#fff" }}>{MESES[Number(R.mes.slice(5)) - 1]} {R.mes.slice(0, 4)}</span>
         <div className="text-base font-bold" style={{ color: N }}>{R.tarefa.titulo}</div>
         <span className="text-xs" style={{ color: CZ }}>· {dBR(R.dataReuniao)} {R.tarefa.hora || ""} · apresenta os números de <b>{MESES[rm - 1].toLowerCase()}/{ra}</b></span>
         <div className="flex-1" />
-        <select value={R.mes} onChange={(e) => setMes(e.target.value)} className="px-2 py-1.5 rounded text-sm" style={{ border: `1px solid ${LN}` }}>
-          {[...new Set([R.mes, ...R.meses, ...proximosMeses()])].sort().reverse().map((m) => <option key={m} value={m}>Reunião {m.slice(5)}/{m.slice(0, 4)}</option>)}
-        </select>
+        <button onClick={() => setMes(null)} title="Voltar aos cards dos meses" className="flex items-center gap-1 px-3 py-1.5 rounded text-sm font-semibold" style={{ border: `1px solid ${LN}`, color: N, background: "#fff" }}><CalendarDays size={14} /> Todos os meses</button>
         <span className="text-[11px]" style={{ color: CZ }}>{salvoEm ? `versão salva ${new Date(salvoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : "ainda não salva"}</span>
         <button onClick={salvarVersao} disabled={salvando} title="Salva a apresentação e congela os números de cada slide (depois o sistema avisa o que mudou)" className="flex items-center gap-1 px-3 py-1.5 rounded text-sm font-semibold" style={{ background: L, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Salvar</button>
         <button onClick={novaPagina} title="Cria uma página em branco logo depois desta" className="flex items-center gap-1 px-3 py-1.5 rounded text-sm font-semibold" style={{ border: `1px solid ${N}`, color: N, background: "#fff" }}><FilePlus2 size={14} /> Página em branco</button>
@@ -279,6 +279,48 @@ function Reuniao({ user, irMatriz, mesInicial }) {
   );
 }
 // versão salva compacta: cada conjunto de dados igual é guardado uma vez só (vários slides usam os mesmos KPIs)
+// v1015 — página inicial: um card por mês do ano; mês atual (e anteriores com reunião) coloridos, futuros opacos
+function MesesReuniao({ user, onAbrir }) {
+  const [x, setX] = useState(null), [erro, setErro] = useState("");
+  const [ano, setAno] = useState(null);
+  useEffect(() => { j(`/api/reuniao?u=${user.id}&lista=1`).then((r) => { setX(r); setAno((a) => a ?? Number(r.hoje.slice(0, 4))); }).catch((e) => setErro(e.message)); }, []);
+  if (erro) return <div className="text-sm" style={{ color: VM }}>{erro}</div>;
+  if (!x || !ano) return <Loader2 size={18} className="animate-spin" style={{ color: CZ }} />;
+  const atual = x.hoje.slice(0, 7);
+  const anos = [...new Set([Number(atual.slice(0, 4)), ...Object.keys(x.meses).map((m) => Number(m.slice(0, 4)))])].sort();
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <CalendarDays size={18} style={{ color: N }} />
+        <div className="text-base font-bold" style={{ color: N }}>Reuniões de gestão</div>
+        <div className="flex-1" />
+        <button disabled={ano <= anos[0]} onClick={() => setAno(ano - 1)} className="px-2 py-1 rounded text-sm" style={{ border: `1px solid ${LN}`, opacity: ano <= anos[0] ? 0.4 : 1 }}>‹</button>
+        <span className="text-sm font-bold" style={{ color: N, minWidth: 44, textAlign: "center" }}>{ano}</span>
+        <button disabled={ano >= anos[anos.length - 1] + 1} onClick={() => setAno(ano + 1)} className="px-2 py-1 rounded text-sm" style={{ border: `1px solid ${LN}`, opacity: ano >= anos[anos.length - 1] + 1 ? 0.4 : 1 }}>›</button>
+      </div>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))" }}>
+        {MESES.map((nome, k) => {
+          const m = `${ano}-${String(k + 1).padStart(2, "0")}`, r = x.meses[m];
+          const futuro = m > atual, passadoSem = m < atual && !r, eAtual = m === atual;
+          const ref = k === 0 ? `${MESES[11]} ${ano - 1}` : `${MESES[k - 1]} ${ano}`;
+          const ativo = !futuro && !passadoSem;
+          return (
+            <button key={m} disabled={passadoSem} onClick={() => onAbrir(m)} title={passadoSem ? "Não houve reunião registrada neste mês" : futuro ? "Reunião ainda não trabalhada" : `Abrir a reunião de ${nome.toLowerCase()}`}
+              className="text-left rounded-xl p-4 transition-transform hover:-translate-y-0.5"
+              style={{ background: ativo ? (eAtual ? L : N) : "#fff", color: ativo ? "#fff" : N, border: `1px solid ${ativo ? "transparent" : LN}`, opacity: futuro ? 0.45 : passadoSem ? 0.3 : 1, cursor: passadoSem ? "default" : "pointer", boxShadow: eAtual ? "0 6px 18px rgba(234,88,12,.25)" : "none" }}>
+              <div className="text-[11px] font-semibold uppercase" style={{ opacity: 0.8 }}>Reunião</div>
+              <div className="text-lg font-bold leading-tight">{nome}</div>
+              <div className="text-xs mt-1" style={{ opacity: 0.85 }}>números de {ref.toLowerCase()}</div>
+              <div className="text-[11px] mt-3 font-semibold" style={{ opacity: 0.9 }}>
+                {r ? <>{r.prazo ? `${dBR(r.prazo)}${r.hora ? ` ${r.hora}` : ""}` : ""}{r.salva ? " · versão salva" : r.editada ? " · em edição" : ""}{r.pautas ? ` · ${r.pautas} pauta${r.pautas > 1 ? "s" : ""}` : ""}</> : futuro ? "ainda não trabalhada" : passadoSem ? "sem reunião" : "abrir"}
+              </div>
+            </button>);
+        })}
+      </div>
+    </div>
+  );
+}
+
 function empacotar(snap) {
   const pool = [], idx = new Map(), slides = {};
   for (const [id, c] of Object.entries(snap || {})) {
@@ -333,7 +375,6 @@ function AvisoMudancas({ l, onAtualizar, onManter }) {
     </div>
   );
 }
-const proximosMeses = () => { const h = new Date(); return [0, 1].map((k) => { const d = new Date(Date.UTC(h.getFullYear(), h.getMonth() + k, 1)); return d.toISOString().slice(0, 7); }); };
 
 // palco 16:9 — o slide é desenhado em 1280×720 e escalado para a largura disponível
 function Palco({ children }) {
