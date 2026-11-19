@@ -273,7 +273,7 @@ export async function painelDemandas({ avulsasAbertas = false, soAvulsas = true 
     }
     if (oc) previsao = entregaDaOc(oc, rotas[oc.id])?.previsao || null;   // v497 — mesma previsão da OC
     return { id: i.id, pic: i.pic.numero, picData: i.pic.data, nome: inf.nome || `Artigo #${i.artigoId}`, det: [inf.cor, inf.codigo].filter(Boolean).join(" · "), quantidade: Number(i.quantidade), unidade: inf.unidade,
-      pedidos: [...new Set((inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${String(x.cliente || "").split("·")[0].replace("AVULSA", "").trim() || x.pedido}` : `Ped. ${x.pedido}`)))],
+      pedidos: [...new Set((inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${String(x.cliente || "").split("·")[0].replace("AVULSA", "").trim() || x.pedido}` : `Ped. ${x.pedido}${x.cliente ? ` · ${String(x.cliente).trim()}` : ""}`)))],   // v999 — com o cliente
       // v489 — destino: pedido(s) indexado(s) ou operação (avulsa sem pedido)
       destinos: [...new Set((inf.pedidos || []).map((x) => { if (!x.avulsa) return `PED ${x.pedido}`; const p = avMap[`${x.pedido}|${x.chave}`]; return p ? `PED ${p}` : "OPERACAO"; }))],
       origens: (inf.pedidos || []).map((x) => `${x.pedido}|${x.chave}`),   // v493

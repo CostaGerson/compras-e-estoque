@@ -59,6 +59,8 @@ function Modal({ titulo, onClose, children, largo }) {
   );
 }
 
+// v999 — PIC, cotação e OC: nº do pedido sempre com o nome do cliente
+const rotOrigem = (x) => `Ped. ${x.pedido}${x.cliente ? ` · ${String(x.cliente).trim()}` : ""}`;
 // v913 — dispensar compras em qualquer fase (PIC, cotação, OC): escolhe os pedidos/linhas de origem da demanda
 export function BotaoDispensar({ origens, user, onFeito, rotulo = "Dispensar" }) {
   const [ab, setAb] = useState(false);
@@ -1344,7 +1346,7 @@ export function PicCompras({ user, fases, ir }) {
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold truncate" style={{ color: C.text }}>{inf.nome || `Artigo #${i.artigoId}`} <span className="text-xs font-normal" style={{ color: C.sub }}>{[inf.cor, inf.codigo].filter(Boolean).join(" · ")}</span></div>
                     <div className="text-[11px] truncate" style={{ color: C.sub }} title={(inf.pedidos || []).map((x) => `${x.avulsa ? "Avulsa" : "Pedido"} ${x.pedido} ${ch(x.chave)} · ${qtdU(x.quantidade, inf.unidade)}`).join("\n")}>
-                      {(inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${x.cliente?.split("·")[0]?.replace("AVULSA", "").trim() || x.pedido}` : `Ped. ${x.pedido}`)).filter((x, k, a) => a.indexOf(x) === k).join(" · ")}
+                      {(inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${x.cliente?.split("·")[0]?.replace("AVULSA", "").trim() || x.pedido}` : rotOrigem(x))).filter((x, k, a) => a.indexOf(x) === k).join(" · ")}
                       {inf.embalagem ? ` · grosa de ${inf.embalagem}` : ""}
                     </div>
                     <div className="mt-0.5"><BotaoDispensar origens={inf.pedidos} user={user} onFeito={carregar} /></div>
@@ -1465,7 +1467,7 @@ export function OrdensCompra({ user, fases, ir }) {
                       <div key={i.id} className="flex gap-2 py-1.5 text-sm items-center" style={{ borderTop: `1px solid ${C.line}` }}>
                         <div className="flex-1">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{[i.cor, i.codigo].filter(Boolean).join(" · ")}</span>
                           {i.nfNome && norm(i.nfNome) !== norm(i.nome) && <div className="text-xs" style={{ color: C.blue }}>na NF: {i.nfNome}</div>}
-                          {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{i.origens.map((x) => (x.avulsa ? "Avulsa" : `Ped. ${x.pedido}`)).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{pode && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} />}</div>}</div>
+                          {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{i.origens.map((x) => (x.avulsa ? "Avulsa" : rotOrigem(x))).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{pode && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} />}</div>}</div>
                         <div className="w-32 text-right">{pode ? <span className="inline-flex items-center gap-1"><input value={e[i.id]?.q ?? ""} onChange={(ev) => setE(i.id, "q", ev.target.value)} className="w-20 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /><span className="text-xs" style={{ color: C.sub }}>{String(i.unidade || "").toLowerCase()}</span></span> : qtdU(i.quantidade, i.unidade)}</div>
                         <div className="w-28 text-right">{pode ? <input value={e[i.id]?.v ?? ""} onChange={(ev) => setE(i.id, "v", ev.target.value)} className="w-24 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /> : <span style={{ color: C.sub }}>{brl(i.valorUnitario)}</span>}</div>
                         <div className="w-28 text-right font-semibold">{brl((lerNum(e[i.id]?.q) || 0) * (lerNum(e[i.id]?.v) || 0))}</div>
@@ -1820,7 +1822,7 @@ export function Cotacoes({ user, fases, ir }) {
                         <div className="min-w-0">
                           <div className="font-semibold truncate" style={{ color: C.text, textDecoration: di.naoTem ? "line-through" : "none" }} title={i.nome}>{i.nome}</div>
                           {i.det && <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.det}</div>}
-                          {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{(i.origens || []).map((o) => (o.avulsa ? "Avulsa" : `Ped. ${o.pedido}`)).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{!comOc && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} />}</div>}   {/* v913 */}
+                          {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{(i.origens || []).map((o) => (o.avulsa ? "Avulsa" : rotOrigem(o))).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{!comOc && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} />}</div>}   {/* v913 */}
                           {comOc && i.valorNegociado != null && !di.naoTem && <div className="text-[11px] font-semibold" style={{ color: C.green }}>negociado na {c.ocNumero}: {brl(i.valorNegociado)}</div>}
                           {m && m.n !== c.numero && <div className="text-[11px]" style={{ color: C.sub }}>menor preço: <b style={{ color: C.green }}>{brl(m.v)}</b> · {m.f}</div>}
                           {i.previstoFpp != null && !di.naoTem && (() => {   // v528 — valor previsto na FPP: confirmar com um clique
@@ -2044,7 +2046,7 @@ function JanelaPicOc({ jan, onClose, ir }) {
           <div className="flex gap-2 py-1 text-xs font-semibold" style={{ color: C.sub }}><div className="flex-1">Artigo</div><div className="w-24 text-center">Qtd</div><div className="w-40 text-center">Fornecedor</div><div className="w-24 text-center">Valor</div><div className="w-20 text-center">OC</div></div>
           {d.itens.map((i) => (
             <div key={i.id} className={linha} style={{ borderTop: `1px solid ${C.line}` }}>
-              <div className="flex-1 min-w-0"><div className="truncate font-semibold">{i.info?.nome}</div><div className="text-[11px] truncate" style={{ color: C.sub }}>{(i.info?.pedidos || []).map((x) => (x.avulsa ? "Avulsa" : `Ped. ${x.pedido}`)).filter((x, k, a) => a.indexOf(x) === k).join(" · ")}</div></div>
+              <div className="flex-1 min-w-0"><div className="truncate font-semibold">{i.info?.nome}</div><div className="text-[11px] truncate" style={{ color: C.sub }}>{(i.info?.pedidos || []).map((x) => (x.avulsa ? "Avulsa" : rotOrigem(x))).filter((x, k, a) => a.indexOf(x) === k).join(" · ")}</div></div>
               <div className="w-24 text-center">{qtdU(i.quantidade, i.info?.unidade)}</div>
               <div className="w-40 text-center text-xs truncate">{i.fornecedor || "—"}</div>
               <div className="w-24 text-center">{i.valorUnitario ? brl(i.valorUnitario) : "—"}</div>
