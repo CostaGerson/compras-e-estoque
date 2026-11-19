@@ -6,8 +6,11 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 import { prisma } from "@/lib/prisma";
 import { iniciar, parte, resposta, PARTE } from "@/lib/arquivos";
+import { usuarioServicoPcp } from "@/lib/servicoPcp";   // v1006
 
 async function usuario(req) {
+  const svc = usuarioServicoPcp(req.headers.get("x-usuario-id") || new URL(req.url).searchParams.get("u"));   // v1006
+  if (svc) return svc;
   const id = Number(req.headers.get("x-usuario-id") || new URL(req.url).searchParams.get("u")) || 0;
   return id ? prisma.usuario.findFirst({ where: { id, ativo: true }, select: { id: true, nome: true, sobrenome: true } }) : null;
 }

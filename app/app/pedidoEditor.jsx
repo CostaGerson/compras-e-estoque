@@ -399,7 +399,7 @@ export { paramsDoKm, fundirParams };
 // descrição do KM sem espaços/sinais repetidos e sem os parâmetros colados no nome
 export const limparDescKm = (d) => String(d || "").split(/\*{3,}/)[0].replace(/([-·,/])(\s*\1)+/g, "$1").replace(/\s+/g, " ").replace(/^[\s\-·,/]+|[\s\-·,/]+$/g, "").trim().toUpperCase();
 
-export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true, veVal = true, uid, componentes, tamanhos, imprimir }) {
+export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true, veVal = true, uid, componentes, tamanhos, imprimir, somenteServico = false }) {   // v1006 — somenteServico: ferramenta de Silk/Bordado do PCP
   const TIPOS = Object.keys(componentes);
   const novoItem = () => ({ tipoPecaNome: "",   // v631 — sem pré-preenchimento: o vendedor escolhe
     codigo: "", descricao: "", valorUnitario: "", grade: tamanhos.map((t) => ({ tam: t, qtd: "" })), parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null, aplicacoes: [] });
@@ -407,8 +407,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const novoServico = () => ({ tipoPecaNome: "SERVIÇO", anexos: [], codigo: "", descricao: "", valorUnitario: "", quantidade: "", grade: [], parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
   const api = (url, o = {}) => fetch(url, { cache: "no-store", ...o, headers: { ...(o.headers || {}), "Content-Type": "application/json", "x-usuario-id": String(uid || "") } });
   const [ppId, setPpId] = useState(ppId0 || null);
-  const [f, setF] = useState(vazioF());
-  const [itens, setItens] = useState([novoItem()]);
+  const [f, setF] = useState(() => (somenteServico ? { ...vazioF(), servico: true } : vazioF()));
+  const [itens, setItens] = useState(() => [somenteServico ? novoServico() : novoItem()]);
   const [anexos, setAnexos] = useState([]);
   const [envArq, setEnvArq] = useState("");   // v865 — progresso do envio de arquivo grande
   const [carregado, setCarregado] = useState(!ppId0);
@@ -866,13 +866,13 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           {/* v705 — resetar: limpa o pedido em lançamento (cliente, itens, anexos, prazos); o rascunho salvo só muda ao salvar de novo */}
           {podeLancar && !efetivado && <button onClick={async () => {
             if (!(await confirmar("Resetar o pedido? Cliente, itens (com grades e personalização exclusiva), anexos, prazo e pagamento são apagados da tela."))) return;
-            setF((s) => ({ ...vazioF(), numero: s.numero, status: s.status, emissao: hojeISO() }));   // v793 — rascunho continua rascunho setItens([novoItem()]); setAnexos([]);
+            setF((s) => ({ ...vazioF(), ...(somenteServico ? { servico: true } : {}), numero: s.numero, status: s.status, emissao: hojeISO() }));   // v793 — rascunho continua rascunho setItens([novoItem()]); setAnexos([]);
           }} title="Limpa tudo e começa o pedido de novo" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.red, border: `1px solid ${C.line}` }}><RotateCcw size={14} /> Resetar pedido</button>}
           {podeLancar && !efetivado && <button onClick={salvarRascunho} disabled={salvando} title="Salva com o número reservado, fora da produção e dos indicadores" className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.panel, color: C.yellow, border: `1px solid ${C.yellow}`, opacity: salvando ? 0.6 : 1 }}>
             Salvar rascunho</button>}
           {podeLancar && <button onClick={efetivar} disabled={salvando} className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
             {salvando ? "Salvando…" : efetivado ? "Salvar alterações" : "Gerar pedido"}</button>}
-          {podeLancar && efetivado && !faturado && !f.interno && <button onClick={() => setFat({ nf: "", emissaoNf: hojeISO(), entrega: despacho || "", pedirEntrega: false })} className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.blue, color: "#fff" }}>Faturar</button>}
+          {podeLancar && efetivado && !faturado && !f.interno && !somenteServico && <button onClick={() => setFat({ nf: "", emissaoNf: hojeISO(), entrega: despacho || "", pedirEntrega: false })} className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.blue, color: "#fff" }}>Faturar</button>}
         </div>
       </div>
 
@@ -945,7 +945,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         <div className="grid grid-cols-4 gap-3">
           <Campo label="Tipo de pedido">
             <div className="flex rounded overflow-hidden text-sm" style={{ border: `1px solid ${C.line}` }}>
-              {[["VENDA", "Venda normal"], ["INTERNO", "Interno"], ["SERVICO", "Serviço"]].map(([v, t]) => { const atual = f.servico ? "SERVICO" : f.interno ? "INTERNO" : "VENDA"; return (
+              {[["VENDA", "Venda normal"], ["INTERNO", "Interno"], ["SERVICO", "Serviço"]].filter(([v]) => !somenteServico || v === "SERVICO").map(([v, t]) => { const atual = f.servico ? "SERVICO" : f.interno ? "INTERNO" : "VENDA"; return (
                 <button key={t} type="button" disabled={efetivado && (v === "SERVICO") !== f.servico} title={efetivado && (v === "SERVICO") !== f.servico ? "Pedido já efetivado: não muda entre produto e serviço" : ""}
                   onClick={() => trocarTipo(v)} className="flex-1 px-2 py-1.5" style={{ background: atual === v ? C.accent : C.panel2, color: atual === v ? "#fff" : C.sub, fontWeight: atual === v ? 600 : 400 }}>{t}</button>
               ); })}

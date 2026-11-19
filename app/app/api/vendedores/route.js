@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { usuarioAtivoFin } from "@/lib/fin";
 import { gerencial, tipoDe, lancaPP } from "@/lib/acesso";
 import { prisma } from "@/lib/prisma";
+import { usuarioServicoPcp } from "@/lib/servicoPcp";   // v1006
 import { listarVendedores, salvarVendedor, FECHAMENTOS, PIX_TIPOS } from "@/lib/comissoes";
 
 const pode = (u) => u && (gerencial(u) || lancaPP(u) || ["FINANCEIRO", "ADMINISTRATIVO", "COMERCIAL"].includes(tipoDe(u)));
@@ -12,7 +13,10 @@ const quemE = (u) => [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase
 
 export async function GET(req) {
   const q = new URL(req.url).searchParams;
-  const u = await usuarioAtivoFin(q.get("u") || req.headers.get("x-usuario-id"));
+  const idU = q.get("u") || req.headers.get("x-usuario-id");
+  const svc = usuarioServicoPcp(idU);   // v1006 — a ferramenta de serviço do PCP escolhe o vendedor (só os ativos, sem os totais)
+  if (svc) return Response.json({ vendedores: (await listarVendedores({ todos: false })).map((v) => Object.fromEntries(Object.entries(v).filter(([k]) => !/pix|cpf|cnpj|doc|banco|agencia|conta|telefone|email|endereco/i.test(k)))), fechamentos: FECHAMENTOS, pixTipos: PIX_TIPOS });
+  const u = await usuarioAtivoFin(idU);
   if (!pode(u)) return negado();
   const vendedores = await listarVendedores({ todos: q.get("todos") === "1" });
   const totais = await prisma.vendaComissao.groupBy({ by: ["vendedorId"], _sum: { valor: true }, _count: { _all: true } }).catch(() => []);

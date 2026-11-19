@@ -4,6 +4,7 @@ import { usuarioPP, negadoPP, ppParaUsuario, nomeQuem } from "@/lib/pp";
 import { salvarPp } from "@/lib/pedidoEfetivar";   // v595
 import { proximoNumero } from "@/lib/pedidoLanc";
 import { garantirPpTodos } from "@/lib/pedidos";
+import { ehServico, negadoServico } from "@/lib/servicoPcp";   // v1006
 
 export async function GET(req) {
   const u = await usuarioPP(req, "ve");
@@ -13,6 +14,7 @@ export async function GET(req) {
     const [a, b] = await Promise.all([prisma.pp.findMany({ where: { numero: { not: null } }, select: { numero: true } }), prisma.pedidoVenda.findMany({ select: { numero: true } })]);
     return Response.json({ numero: proximoNumero([...a, ...b].map((x) => x.numero)) });
   }
+  if (u.servicoPcp) return Response.json([]);   // v1006 — a ferramenta do PCP não vê a lista de pedidos
   // v328 — todo pedido do sistema aparece no Lançar PP: cria as cascas que faltam
   try { const { concluirVencidosPortal } = await import("@/lib/portalCliente"); await concluirVencidosPortal(); } catch {}   // v711
   try { const { ajustarContasPedidosV797 } = await import("@/lib/pedidoEfetivar"); await ajustarContasPedidosV797(); } catch (e) { console.log("v797:", e.message); }
@@ -47,6 +49,7 @@ export async function POST(req) {
   const u = await usuarioPP(req);
   if (!u) return negadoPP();
   const b = await req.json();
+  if (u.servicoPcp && !ehServico(b?.tipoPedido)) return negadoServico();   // v1006
   try {
     const id = await salvarPp(null, b, nomeQuem(u));
     return Response.json({ id }, { status: 201 });

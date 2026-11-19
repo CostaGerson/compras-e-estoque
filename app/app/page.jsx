@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { useMobile, useGaveta } from "./useMobile";   // v550
+import { COMPONENTES, TAMANHOS } from "@/lib/componentesPedido";   // v1006
 import { ETIQUETAS } from "@/lib/msgEtiquetas";   // v862
 import {
   LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
@@ -92,15 +93,7 @@ const ESTOQUE = [
   { art: "Oxford — Azul Marinho", end: "Corredor A · Célula 7", saldo: "180 m", origem: "NF 12.401", val: 3330 },
   { art: "Zíper 6mm — Preto", end: "Corredor B · Célula 1", saldo: "1.500 un", origem: "NF 12.410", val: 2850 },
 ];
-const COMPONENTES = {
-  CAMISETA: ["MODELAGEM","TECIDO","GOLA DA CAMISETA","MANGA DA CAMISETA","BARRA DA CAMISETA","RECORTE DA CAMISETA","BOLSO DA CAMISETA","EXTRA DA CAMISETA","PERSONALIZAÇÃO"],
-  CAMISA: ["MODELAGEM","TECIDO","GOLA DA CAMISA","PE DE GOLA","MANGA DA CAMISA","FECHAMENTO DA CAMISA","FRENTE DA CAMISA","COSTAS DA CAMISA","BARRA DA CAMISA","PUNHO DA CAMISA","RECORTE DA CAMISA","BOLSO DA CAMISA","EXTRA DA CAMISA","PERSONALIZAÇÃO"],
-  POLO: ["MODELAGEM","TECIDO","GOLA DA POLO","FECHAMENTO DA POLO","MANGA DA POLO","FRENTE DA POLO","COSTAS DA POLO","BARRA DA POLO","RECORTE DA POLO","BOLSO DA POLO","EXTRA DA POLO","PERSONALIZAÇÃO"],
-  JAQUETA: ["MODELAGEM","TECIDO","GOLA","MANGA","FECHAMENTO","COSTAS","BARRA","PUNHO","RECORTE","BOLSO","FORRO","EXTRA","PERSONALIZAÇÃO"],
-  CALÇA: ["MODELAGEM","TECIDO","FECHAMENTO DA CALÇA","COS DA CALÇA","BOLSO DIANTEIRO","BOLSO TRASEIRO","REFORÇO","EXTRA","PERSONALIZAÇÃO"],
-  JALECO: ["MOLDE","TECIDO","GOLA DO JALECO","FECHAMENTO DO JALECO","MANGA DO JALECO","BOLSO DO JALECO","EXTRA DO JALECO","PERSONALIZAÇÃO"],
-  AVENTAL: ["MODELAGEM","TECIDO","BOLSO DO AVENTAL","ALÇA DO AVENTAL","EXTRA DO AVENTAL","PERSONALIZAÇÃO"],
-};
+// v1006 — COMPONENTES foi para lib/componentesPedido.js (a tela de serviço do PCP também usa)
 const PERFIS = ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE"];
 const TODOS = ["FINANCEIRO", "PCP", "COMPRAS", "ESTOQUE"];
 // v167 — setores novos
@@ -1555,7 +1548,7 @@ function Producao() {
   );
 }
 
-const TAMANHOS = ["PP","P","M","G","GG","XG","EXG","EXGG","EXGGG"];   // v891 — EXGGG   // v632 — grade padrão (masculina); infantil e babylook entram como grade especial
+// v1006 — TAMANHOS foi para lib/componentesPedido.js (a tela de serviço do PCP também usa)
 const COND_PGTO = [
   "30% antecipado 30% entrega e 40% 30d",
   "50% antecipado e 50% entrega",

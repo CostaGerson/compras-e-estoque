@@ -3,11 +3,13 @@ import { respostaAnexo, enxugarItensPp } from "@/lib/arquivos";
 import { prisma } from "@/lib/prisma";
 import { usuarioPP, negadoPP, ppParaUsuario, nomeQuem } from "@/lib/pp";
 import { salvarPp, efetivarPedido, faturarPedido, criticas } from "@/lib/pedidoEfetivar";   // v595
+import { ehServico, ppDeServico, negadoServico } from "@/lib/servicoPcp";   // v1006
 
 export async function GET(req, { params }) {
   const u = await usuarioPP(req, "ve");
   if (!u) return negadoPP();
   const id = Number(params.id);
+  if (u.servicoPcp && !(await ppDeServico(id))) return negadoServico();   // v1006
   try { await enxugarItensPp(id); } catch (e) { console.log("enxugar anexos:", e.message); }   // v868 — arquivos grandes dos itens vão para o disco
   // v320 — ?arquivo=arquivoPedidoPdf|arquivoOpPdf|arquivoPcPdf|arquivoLancPdf → o PDF
   // v595 — ?anexo=ID → o arquivo anexado
@@ -98,6 +100,7 @@ export async function DELETE(req, { params }) {
   const u = await usuarioPP(req);
   if (!u) return negadoPP();
   const id = Number(params.id);
+  if (u.servicoPcp && !(await ppDeServico(id))) return negadoServico();   // v1006
   // v671 — pedido com número (KM ou lançado) vai para a lixeira de pedidos: senão o KM / a lista o recriam
   const pp = await prisma.pp.findUnique({ where: { id }, select: { numero: true } });
   if (pp?.numero && (await prisma.pedidoVenda.findUnique({ where: { numero: pp.numero }, select: { id: true } }))) {
@@ -124,7 +127,9 @@ export async function PUT(req, { params }) {
   const u = await usuarioPP(req);
   if (!u) return negadoPP();
   try {
-    const id = await salvarPp(Number(params.id), await req.json(), nomeQuem(u));
+    const corpo = await req.json();
+    if (u.servicoPcp && (!ehServico(corpo?.tipoPedido) || !(await ppDeServico(params.id)))) return negadoServico();   // v1006
+    const id = await salvarPp(Number(params.id), corpo, nomeQuem(u));
     try { await enxugarItensPp(id); } catch (e) { console.log("enxugar anexos:", e.message); }   // v868
     const pp = await prisma.pp.findUnique({ where: { id }, include: { itens: true } });
     return Response.json({ id, ...criticas(pp) });
@@ -136,6 +141,7 @@ export async function POST(req, { params }) {
   const u = await usuarioPP(req);
   if (!u) return negadoPP();
   const b = await req.json().catch(() => ({}));
+  if (u.servicoPcp && (b.acao === "faturar" || !(await ppDeServico(params.id)))) return negadoServico();   // v1006 — o PCP efetiva o serviço; faturar é no ERP
   try {
     if (b.acao === "efetivar") {
       const r = await efetivarPedido(Number(params.id), nomeQuem(u));
