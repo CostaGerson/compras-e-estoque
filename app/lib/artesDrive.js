@@ -23,7 +23,7 @@ export async function configDrive() {
 export async function salvarConfig(b) {
   const atual = await configDrive();
   const url = String(b.url ?? atual.url).trim();
-  if (url && !/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)) return { error: "Cole o endereço do app da web do Apps Script (termina em /exec)." };
+  if (url && !/^https:\/\/script\.google\.com\/(a\/macros\/[A-Za-z0-9.-]+|macros)\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)) return { error: "Cole o endereço do app da web do Apps Script (termina em /exec)." };
   const v = { ...atual, url, pasta: String(b.pasta || atual.pasta).trim() };
   await prisma.finConfig.upsert({ where: { chave: K }, create: { chave: K, valor: JSON.stringify(v) }, update: { valor: JSON.stringify(v) } });
   return { ok: true };
@@ -34,7 +34,7 @@ async function chamar(corpo, cfg0) {
   if (!cfg.url) throw new Error("Google Drive não configurado (Dados › Artes e layouts › Configurar).");
   const r = await fetch(cfg.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ segredo: cfg.segredo, pasta: cfg.pasta, ...corpo }), redirect: "follow" });
   const t = await r.text();
-  let j; try { j = JSON.parse(t); } catch { throw new Error(r.ok ? "O Apps Script não respondeu JSON (confira se está publicado para 'Qualquer pessoa')." : `Apps Script respondeu ${r.status}.`); }
+  let j; try { j = JSON.parse(t); } catch { throw new Error(r.ok ? "O Apps Script pediu login em vez de responder: na implantação, 'Quem pode acessar' precisa ser 'Qualquer pessoa' (não 'Qualquer pessoa em meridianpro.com.br'). Se essa opção não aparecer, o administrador do Google Workspace bloqueou o compartilhamento externo." : `Apps Script respondeu ${r.status}.`); }
   if (j.error) throw new Error(j.error);
   return j;
 }
