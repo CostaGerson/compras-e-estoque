@@ -144,6 +144,59 @@ export async function adicionarPauta(id, u, texto) {
   await prisma.tarefa.update({ where: { id: t.id }, data: { reuniao: { ...R, pautas: [...(R.pautas || []), { id: uid(), texto: x, origem: "MANUAL", autor: nomeU(u) }] } } });
   return { ok: true };
 }
+// v1026 — ordem das pautas (arrastar uma sobre a outra na reunião)
+export async function ordenarPautas(id, u, ids) {
+  const t = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
+  if (!t?.reuniao) return { error: "Não é uma reunião de gestão." };
+  if (!(t.responsavelId === u.id || u.isMaster || u.diretoria)) return { error: "Só o responsável pela reunião, master ou diretoria reordenam as pautas." };
+  const R = t.reuniao, l = R.pautas || [], pos = new Map((Array.isArray(ids) ? ids : []).map((x, i) => [String(x), i]));
+  const nova = [...l].sort((a, b) => (pos.has(a.id) ? pos.get(a.id) : 1e9) - (pos.has(b.id) ? pos.get(b.id) : 1e9));
+  await prisma.tarefa.update({ where: { id: t.id }, data: { reuniao: { ...R, pautas: nova } } });
+  return { ok: true };
+}
+// v1026 — tarefas gerenciais criadas durante a reunião: ficam em rascunho na reunião até "efetivar tarefas"
+async function reuniaoDe(id) { const t = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } }); return t?.reuniao ? t : null; }
+const podeReuniao = async (t, u) => t.responsavelId === u.id || u.isMaster || u.diretoria || !!(await prisma.tarefaConvite.findFirst({ where: { tarefaId: t.id, usuarioId: u.id } }));
+export async function rascunhoTarefa(id, u, tarefa) {
+  const t = await reuniaoDe(id); if (!t) return { error: "Não é uma reunião de gestão." };
+  if (!(await podeReuniao(t, u))) return { error: "Só os convidados da reunião criam tarefas nela." };
+  const x = tarefa || {};
+  if (!String(x.titulo || "").trim()) return { error: "Escreva a demanda." };
+  if (!Number(x.responsavelId)) return { error: "Escolha o responsável." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(x.prazo || "")) return { error: "Informe a data limite." };
+  const resp = await prisma.usuario.findUnique({ where: { id: Number(x.responsavelId) }, select: { nome: true, sobrenome: true } });
+  const R = (await prisma.tarefa.findUnique({ where: { id: t.id }, select: { reuniao: true } })).reuniao || t.reuniao;
+  const item = { id: uid(), tarefa: { ...x, tipo: "GERENCIAL", colaboracao: undefined, recorrencia: null }, responsavelNome: resp ? nomeU(resp) : "", autorId: u.id, autor: nomeU(u), em: new Date().toISOString() };
+  await prisma.tarefa.update({ where: { id: t.id }, data: { reuniao: { ...R, rascunhos: [...(R.rascunhos || []), item] } } });
+  return { ok: true, rascunho: item };
+}
+export async function tirarRascunho(id, u, rid) {
+  const t = await reuniaoDe(id); if (!t) return { error: "Não é uma reunião de gestão." };
+  const R = t.reuniao, x = (R.rascunhos || []).find((r) => r.id === rid);
+  if (!x) return { ok: true };
+  if (x.tarefaId) return { error: "Essa tarefa já foi efetivada na agenda." };
+  if (!(x.autorId === u.id || t.responsavelId === u.id || u.isMaster || u.diretoria)) return { error: "Só quem criou tira a tarefa." };
+  await prisma.tarefa.update({ where: { id: t.id }, data: { reuniao: { ...R, rascunhos: R.rascunhos.filter((r) => r.id !== rid) } } });
+  return { ok: true };
+}
+export async function efetivarRascunhos(id, u) {
+  const t = await reuniaoDe(id); if (!t) return { error: "Não é uma reunião de gestão." };
+  if (!(await podeReuniao(t, u))) return { error: "Só os convidados da reunião efetivam as tarefas." };
+  const { criar } = await import("@/lib/tarefas");
+  const R0 = t.reuniao, feitos = [], erros = [];
+  const novos = [];
+  for (const x of R0.rascunhos || []) {
+    if (x.tarefaId) { novos.push(x); continue; }
+    const autor = await prisma.usuario.findUnique({ where: { id: Number(x.autorId) || u.id } });
+    const r = await criar({ ...x.tarefa, tipo: "GERENCIAL", descricao: [x.tarefa.descricao, `Tarefa gerencial definida na ${t.titulo}.`].filter(Boolean).join("\n\n") }, autor?.ativo ? autor : u);
+    if (r.error || !r.tarefa) { erros.push(`${x.tarefa.titulo}: ${r.error || "não criou"}`); novos.push(x); continue; }
+    feitos.push(r.tarefa.id); novos.push({ ...x, tarefaId: r.tarefa.id, efetivadaEm: new Date().toISOString(), efetivadaPor: nomeU(u) });
+  }
+  const R = (await prisma.tarefa.findUnique({ where: { id: t.id }, select: { reuniao: true } })).reuniao || R0;
+  const porId = new Map(novos.map((x) => [x.id, x]));
+  await prisma.tarefa.update({ where: { id: t.id }, data: { reuniao: { ...R, rascunhos: (R.rascunhos || []).map((x) => porId.get(x.id) || x) } } });
+  return { ok: true, criadas: feitos.length, erros };
+}
 export async function tirarPauta(id, u, pautaId) {
   const t = await prisma.tarefa.findUnique({ where: { id: Number(id) || 0 } });
   if (!t?.reuniao) return { error: "Não é uma reunião de gestão." };

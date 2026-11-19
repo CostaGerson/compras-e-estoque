@@ -8,6 +8,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "re
 import { ChevronLeft, ChevronRight, Maximize2, X, Plus, Loader2, Landmark, Eye, EyeOff, ExternalLink, Type, Heading1, Heading2, Link2, ImagePlus, Trash2, GripVertical, FilePlus2, Save, Copy, CalendarDays } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { Acervo } from "./acervo";
+import { TarefaForm } from "./tarefas";   // v1026 — tarefa gerencial em rascunho durante a reunião
 
 const N = "#001E41", L = "#FF6B1A", AZ = "#2E5C9A", CZ = "#667085", LN = "#E4E7EC", VD = "#12A150", VM = "#D92D20";
 const MESES = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"];
@@ -50,6 +51,18 @@ function Reuniao({ user, irMatriz, mesInicial }) {
   const [salvando, setSalvando] = useState(false);
   const [mudancas, setMudancas] = useState(null);   // [{ id, titulo, n, exemplos }]
   const [arrastando, setArrastando] = useState(null);
+  // v1026 — tarefas gerenciais em rascunho (o + laranja) e ações da tarefa da reunião (pautas, rascunhos, efetivar)
+  const [formTarefa, setFormTarefa] = useState(null);   // { usuarios, projetos }
+  const atualizarTarefa = (m) => j(`/api/reuniao?u=${user.id}&mes=${m}`).then((x) => setR((r) => (r ? { ...r, tarefa: x.tarefa } : r))).catch(() => {});
+  const acaoReuniao = async (acao, extra = {}) => {
+    const r = await fetch(`/api/tarefas/${R.tarefa.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao, ...extra }) });
+    const x = await r.json().catch(() => ({})); if (!r.ok || x.error) throw new Error(x.error || `Erro ${r.status}`);
+    await atualizarTarefa(R.mes); return x;
+  };
+  const abrirTarefa = async () => {
+    try { const h = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10); const d = await j(`/api/tarefas?u=${user.id}&escopo=minhas&de=${h}&ate=${h}`); setFormTarefa({ usuarios: d.usuarios || [], projetos: d.projetos || [] }); }
+    catch (e) { alerta(e.message); }
+  };
   const ler = (m) => {
     setR(null); setErro(""); setMudancas(null);
     j(`/api/reuniao?u=${user.id}${m ? `&mes=${m}` : ""}`).then((x) => {
@@ -205,7 +218,7 @@ function Reuniao({ user, irMatriz, mesInicial }) {
   const S = slides[Math.min(i, slides.length - 1)];
   const ctxDe = (s) => {
     const pre = s?.pre || "";
-    return { D: s ? dadosDe(s) : D, R, txt: (k) => (pre ? textos.current[pre + k] ?? textos.current[k] : textos.current[k]), salvar: (k, v) => salvar(pre + k, v), editavel: !tela, irMatriz, user, paginas, mudarPagina, chaveSlide: s?.id };
+    return { D: s ? dadosDe(s) : D, R, txt: (k) => (pre ? textos.current[pre + k] ?? textos.current[k] : textos.current[k]), salvar: (k, v) => salvar(pre + k, v), editavel: !tela, irMatriz, user, paginas, mudarPagina, chaveSlide: s?.id, acaoReuniao, abrirTarefa };
   };
   useEffect(() => {
     const f = (e) => { if (e.target?.tagName === "TEXTAREA" || e.target?.tagName === "INPUT" || e.target?.isContentEditable) return; if (e.key === "ArrowRight" || e.key === "PageDown") setI((x) => Math.min(slides.length - 1, x + 1)); if (e.key === "ArrowLeft" || e.key === "PageUp") setI((x) => Math.max(0, x - 1)); if (e.key === "Escape") setTela(false); };
@@ -266,15 +279,22 @@ function Reuniao({ user, irMatriz, mesInicial }) {
               </div>))}
           </div>
         </div>
-        <Pautas user={user} R={R} onMudou={() => ler(R.mes)} />
+        <Pautas user={user} R={R} acao={acaoReuniao} />
       </div>
       {tela && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center" style={{ background: "#000" }} onClick={() => setI((x) => Math.min(slides.length - 1, x + 1))}>
           <div style={{ width: "100vw", maxWidth: "calc(100vh * 16 / 9)" }}><Palco>{S && <S.C key={S.id} {...ctxDe(S)} editavel={false} />}</Palco></div>
           <button onClick={(e) => { e.stopPropagation(); setTela(false); }} className="absolute top-3 right-3 p-2 rounded-full" style={{ background: "rgba(255,255,255,.15)", color: "#fff" }}><X size={18} /></button>
-          <div className="absolute bottom-3 right-4 text-xs" style={{ color: "rgba(255,255,255,.6)" }}>{ii + 1} / {slides.length} · ← → para navegar · Esc para sair</div>
+          <div className="absolute bottom-3 right-20 text-xs" style={{ color: "rgba(255,255,255,.6)" }}>{ii + 1} / {slides.length} · ← → para navegar · Esc para sair</div>
+          <BotaoTarefa onClick={(e) => { e.stopPropagation(); abrirTarefa(); }} n={(R.tarefa.rascunhos || []).filter((x) => !x.tarefaId).length} />
         </div>
       )}
+      {!tela && <BotaoTarefa onClick={abrirTarefa} n={(R.tarefa.rascunhos || []).filter((x) => !x.tarefaId).length} />}
+      {formTarefa && (
+        <div style={{ position: "relative", zIndex: 100 }} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <TarefaForm user={user} inicial={{ tipo: "GERENCIAL", setor: "GESTAO" }} usuarios={formTarefa.usuarios} projetos={formTarefa.projetos}
+            onRascunho={(t) => acaoReuniao("rascunhoTarefa", { tarefa: t })} onClose={() => setFormTarefa(null)} onOk={() => setFormTarefa(null)} />
+        </div>)}
     </div>
   );
 }
@@ -391,31 +411,63 @@ function Palco({ children }) {
 }
 
 // pautas da tarefa (mesmo registro da agenda: incluir aqui aparece lá e vice-versa)
-function Pautas({ user, R, onMudou }) {
+// v1026 — pautas: arrastar uma sobre a outra muda a ordem (e o número); tarefas gerenciais em rascunho logo abaixo
+function Pautas({ user, R, acao }) {
   const [txt, setTxt] = useState("");
-  const P = R.tarefa.pautas || [];
-  const acao = async (a, extra) => {
-    const r = await fetch(`/api/tarefas/${R.tarefa.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: a, ...extra }) });
-    const x = await r.json().catch(() => ({})); if (!r.ok || x.error) return alerta(x.error || "Erro."); onMudou();
-  };
+  const [arr, setArr] = useState(null), [sobre, setSobre] = useState(null);
+  const P = R.tarefa.pautas || [], T = R.tarefa.rascunhos || [];
+  const fazer = async (a, extra) => { try { await acao(a, extra); } catch (e) { alerta(e.message); } };
+  const soltar = (k) => { if (arr == null || arr === k) return; const l = [...P]; const [x] = l.splice(arr, 1); l.splice(k, 0, x); fazer("ordenarPautas", { ids: l.map((p) => p.id) }); };
   const COR = { FIXA: N, DECISAO: L, MANUAL: AZ };
   return (
     <div className="shrink-0 rounded-lg p-3" style={{ width: 280, background: "#fff", border: `1px solid ${LN}` }}>
       <div className="text-sm font-bold mb-1" style={{ color: N }}>Pautas ({P.length})</div>
-      <div className="text-[11px] mb-2" style={{ color: CZ }}>As mesmas da tarefa da reunião na agenda.</div>
-      <ol className="space-y-1.5 mb-3">
+      <div className="text-[11px] mb-2" style={{ color: CZ }}>As mesmas da tarefa da reunião na agenda. Arraste para mudar a ordem.</div>
+      <ol className="space-y-1 mb-3">
         {P.map((p, k) => (
-          <li key={p.id} className="flex gap-2 text-xs items-start">
+          <li key={p.id} draggable onDragStart={(e) => { setArr(k); e.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => { setArr(null); setSobre(null); }}
+            onDragOver={(e) => { e.preventDefault(); setSobre(k); }} onDrop={(e) => { e.preventDefault(); soltar(k); setArr(null); setSobre(null); }}
+            className="flex gap-1.5 text-xs items-start rounded px-1 py-0.5 cursor-grab"
+            style={{ opacity: arr === k ? 0.4 : 1, borderTop: sobre === k && arr != null && arr > k ? `2px solid ${L}` : "2px solid transparent", borderBottom: sobre === k && arr != null && arr < k ? `2px solid ${L}` : "2px solid transparent" }}>
+            <GripVertical size={12} className="shrink-0 mt-0.5" style={{ color: "#B8C0CC" }} />
             <span className="font-bold shrink-0" style={{ color: COR[p.origem] || N }}>{k + 1}.</span>
             <span className="flex-1">{p.texto}{p.autor && p.origem !== "FIXA" ? <span style={{ color: CZ }}> · {p.autor}</span> : null}</span>
-            {p.origem !== "FIXA" && <button onClick={async () => (await confirmar("Tirar esta pauta?")) && acao("tirarPauta", { pautaId: p.id })} style={{ color: CZ }}><X size={12} /></button>}
+            {p.origem !== "FIXA" && <button onClick={async () => (await confirmar("Tirar esta pauta?")) && fazer("tirarPauta", { pautaId: p.id })} style={{ color: CZ }}><X size={12} /></button>}
           </li>))}
       </ol>
       <div className="flex gap-1">
-        <input value={txt} onChange={(e) => setTxt(e.target.value)} onKeyDown={async (e) => { if (e.key === "Enter" && txt.trim()) { await acao("pauta", { texto: txt }); setTxt(""); } }} placeholder="Nova pauta…" className="flex-1 rounded px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${LN}` }} />
-        <button disabled={!txt.trim()} onClick={async () => { await acao("pauta", { texto: txt }); setTxt(""); }} className="px-2 rounded text-xs font-semibold" style={{ background: N, color: "#fff", opacity: txt.trim() ? 1 : 0.5 }}><Plus size={12} /></button>
+        <input value={txt} onChange={(e) => setTxt(e.target.value)} onKeyDown={async (e) => { if (e.key === "Enter" && txt.trim()) { await fazer("pauta", { texto: txt }); setTxt(""); } }} placeholder="Nova pauta…" className="flex-1 rounded px-2 py-1.5 text-xs outline-none" style={{ border: `1px solid ${LN}` }} />
+        <button disabled={!txt.trim()} onClick={async () => { await fazer("pauta", { texto: txt }); setTxt(""); }} className="px-2 rounded text-xs font-semibold" style={{ background: N, color: "#fff", opacity: txt.trim() ? 1 : 0.5 }}><Plus size={12} /></button>
       </div>
+      {T.length > 0 && <>
+        <div className="text-xs font-bold mt-4 mb-1" style={{ color: L }}>Tarefas gerenciais ({T.length})</div>
+        <ListaRascunhos T={T} fazer={fazer} compacta />
+      </>}
     </div>
+  );
+}
+function ListaRascunhos({ T, fazer, compacta }) {
+  return (
+    <div className="space-y-1">
+      {T.map((x) => (
+        <div key={x.id} className="flex items-start gap-1.5 rounded px-2 py-1" style={{ background: x.tarefaId ? "#E7F6EE" : "#FFE9DB", border: `1px solid ${x.tarefaId ? "#BFE6CF" : "#FFC9A6"}`, fontSize: compacta ? 11 : 13 }}>
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold" style={{ color: N }}>{x.tarefa?.titulo}</div>
+            <div style={{ color: CZ, fontSize: compacta ? 10 : 11.5 }}>{x.responsavelNome || "—"} · até {String(x.tarefa?.prazo || "").split("-").reverse().join("/")}{x.tarefaId ? ` · na agenda (#${x.tarefaId})` : " · rascunho"}</div>
+          </div>
+          {!x.tarefaId && <button onClick={async (e) => { e.stopPropagation(); if (await confirmar("Tirar esta tarefa da reunião?")) fazer("tirarRascunho", { rascunhoId: x.id }); }} style={{ color: CZ }}><X size={12} /></button>}
+        </div>))}
+    </div>
+  );
+}
+// v1026 — + laranja sempre visível: nova tarefa gerencial (fica em rascunho até efetivar no slide de pautas)
+function BotaoTarefa({ onClick, n }) {
+  return (
+    <button onClick={onClick} title="Nova tarefa gerencial (rascunho da reunião — vai para a agenda ao efetivar no slide de pautas)"
+      className="fixed z-[65] flex items-center justify-center rounded-full shadow-lg" style={{ right: 24, bottom: 24, width: 52, height: 52, background: L, color: "#fff" }}>
+      <Plus size={26} />
+      {n > 0 && <span className="absolute -top-1 -right-1 rounded-full text-[11px] font-bold px-1.5" style={{ background: N, color: "#fff", minWidth: 20, lineHeight: "20px" }}>{n}</span>}
+    </button>
   );
 }
 
@@ -1063,6 +1115,8 @@ function montarSlides(R) {
       <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 80 }} />
       <div style={{ width: 700, marginTop: 50 }}><Txt {...p} k="fim.texto" ph="Próximos passos / encaminhamentos (opcional)…" linhas={4} style={{ color: "#fff", background: "transparent", textAlign: "center", fontSize: 16 }} /></div>
     </div>));
+  // v1026 — pautas: último slide, com espaço para escrever depois de cada uma; tarefas gerenciais e "efetivar tarefas"
+  add("MERIDIAN", "Pautas", (p) => <SlidePautas {...p} />);
   return sl;
 }
 
@@ -1091,6 +1145,39 @@ async function reduzirImagem(file, max = 1600) {
     return { dataUrl: c.toDataURL(tipo, 0.88), w: c.width, h: c.height, tipo };
   } finally { URL.revokeObjectURL(url); }
 }
+function SlidePautas(p) {
+  const P = p.R?.tarefa?.pautas || [], T = p.R?.tarefa?.rascunhos || [];
+  const pend = T.filter((x) => !x.tarefaId).length;
+  const [ef, setEf] = useState(false);
+  const fazer = async (a, extra) => { try { return await p.acaoReuniao(a, extra); } catch (e) { alerta(e.message); } };
+  const efetivar = async (e) => {
+    e.stopPropagation();
+    if (!(await confirmar(`Criar as ${pend} tarefa(s) gerencial(is) na agenda de cada responsável?`))) return;
+    setEf(true); const r = await fazer("efetivarRascunhos"); setEf(false);
+    if (r) alerta(`${r.criadas} tarefa(s) criada(s) na agenda.${r.erros?.length ? `\nNão criou: ${r.erros.join("; ")}` : ""}`);
+  };
+  return (
+    <div onClick={(e) => e.stopPropagation()} style={{ position: "absolute", inset: 0 }}>
+      <Cab g="MERIDIAN" t="PAUTAS DA REUNIÃO" />
+      <div style={{ position: "absolute", left: 40, top: 96, bottom: 30, width: 760, overflowY: "auto", paddingRight: 8 }}>
+        {P.map((x, k) => (
+          <div key={x.id} style={{ marginBottom: 10 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: N }}>{k + 1}. {x.texto}</div>
+            <Txt {...p} editavel k={`pauta.${x.id}`} ph="Anotações / encaminhamentos desta pauta…" linhas={2} style={{ fontSize: 13, marginTop: 3 }} />
+          </div>))}
+      </div>
+      <div style={{ position: "absolute", right: 40, top: 96, bottom: 30, width: 400, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontWeight: 800, fontSize: 14, color: L, letterSpacing: 0.3 }}>TAREFAS GERENCIAIS ({T.length})</div>
+        <div style={{ flex: 1, overflowY: "auto" }}>{T.length ? <ListaRascunhos T={T} fazer={fazer} /> : <div style={{ fontSize: 13, color: CZ }}>Nenhuma ainda. Use o + laranja (canto inferior direito) a qualquer momento da apresentação.</div>}</div>
+        <button onClick={efetivar} disabled={!pend || ef} style={{ background: pend ? L : "#C9D2DE", color: "#fff", borderRadius: 8, padding: "10px 14px", fontWeight: 700, fontSize: 14, opacity: ef ? 0.6 : 1 }}>
+          {ef ? "Efetivando…" : pend ? `Efetivar tarefas (${pend})` : "Todas as tarefas já estão na agenda"}
+        </button>
+        <div style={{ fontSize: 11, color: CZ }}>Até efetivar, as tarefas ficam só na reunião (rascunho). Ao efetivar, cada uma vai para a agenda do responsável como tarefa gerencial (card laranja).</div>
+      </div>
+    </div>
+  );
+}
+
 function PaginaBranca({ id, paginas, mudarPagina, editavel, user, R }) {
   const pg = (paginas || []).find((x) => x.id === id) || { elementos: [] };
   const els = pg.elementos || [];

@@ -23,6 +23,10 @@ export async function PATCH(req, { params }) {
     : b.acao === "votar" ? await (await import("@/lib/decisoes")).votar(id, u, b.opcao)   // v655
     : b.acao === "pauta" ? await (await import("@/lib/decisoes")).adicionarPauta(id, u, b.texto)
     : b.acao === "tirarPauta" ? await (await import("@/lib/decisoes")).tirarPauta(id, u, b.pautaId)
+    : b.acao === "ordenarPautas" ? await (await import("@/lib/decisoes")).ordenarPautas(id, u, b.ids)   // v1026
+    : b.acao === "rascunhoTarefa" ? await (await import("@/lib/decisoes")).rascunhoTarefa(id, u, b.tarefa)
+    : b.acao === "tirarRascunho" ? await (await import("@/lib/decisoes")).tirarRascunho(id, u, b.rascunhoId)
+    : b.acao === "efetivarRascunhos" ? await (await import("@/lib/decisoes")).efetivarRascunhos(id, u)
     : b.acao === "colaborar" ? await (await import("@/lib/tarefaColaboracao")).responderColaboracao(id, b.texto, u)   // v992
     : b.acao === "restaurar" ? await (await import("@/lib/tarefas")).restaurar(id, u)   // v566 — lixeira
     : await editar(id, b.tarefa || {}, u);

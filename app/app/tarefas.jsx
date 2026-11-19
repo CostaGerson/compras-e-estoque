@@ -17,7 +17,8 @@ const C = {
   accent: "#FF6B1A", accentSoft: "#FFF0E6", green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC",
   yellow: "#D99A00", yellowSoft: "#FFF6DD", red: "#D92D20", redSoft: "#FDECEA", navy: "#001E41", cinza: "#98A2B3", cinzaSoft: "#F2F4F7",
 };
-export const TIPO = { ROTINA: ["Rotina", C.cinza, C.cinzaSoft]   /* v646 — recorrente não tem cor própria: só o ícone */, URGENTE: ["Urgente", C.red, C.redSoft], PADRAO: ["Padrão", C.cinza, C.cinzaSoft] };
+export const TIPO = { ROTINA: ["Rotina", C.cinza, C.cinzaSoft]   /* v646 — recorrente não tem cor própria: só o ícone */, URGENTE: ["Urgente", C.red, C.redSoft], PADRAO: ["Padrão", C.cinza, C.cinzaSoft], GERENCIAL: ["Gerencial", "#FF6B1A", "#FFE9DB"] };
+export const GER = { fundo: "#FFD3B5", borda: "#FF6B1A", texto: "#B8460B" };   // v1026 — tarefa gerencial (criada na reunião de gestão): sempre laranja
 export const OURO = { fundo: "#FFE38A", borda: "#D4A017", texto: "#8A6500" };   // v992 — tarefa de colaboração (amarelo ouro)
 export const STATUS_P = { DISPONIVEL: ["Disponível", C.green], OCUPADO: ["Ocupado", C.yellow], REUNIAO: ["Em reunião", C.navy], INATIVO: ["Inativo", C.cinza] };
 const api = async (url, method = "GET", body) => {
@@ -315,13 +316,13 @@ const intervalo = (h, hf) => { const a = minHH(h); return [a, hf && minHH(hf) > 
 export const conflitosHora = (lista, h, hf) => { if (!h) return []; const [a, b] = intervalo(h, hf); return lista.filter((t) => t.hora && t.status !== "CONCLUIDA" && t.status !== "CANCELADA" && (() => { const [c, d] = intervalo(t.hora, t.horaFim); return a < d && c < b; })()); };
 
 /* ======================= formulário (nova / editar) ======================= */
-export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, onOk }) {
+export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, onOk, onRascunho }) {   // v1026 — onRascunho: reunião de gestão guarda a tarefa em rascunho (não vai para a agenda)
   const ed = !!inicial.id;
   const criador = ed ? inicial.criadoPorId : user.id;
   const [f, setF] = useState({
     hora: inicial.hora || "", horaFim: inicial.horaFim || "", lembreteMin: inicial.lembreteMin === undefined ? 30 : inicial.lembreteMin, natureza: inicial.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", projetoId: inicial.projetoId || "",
     titulo: inicial.titulo || "", descricao: inicial.descricao || "", setor: inicial.setor || setorTarefaDe(user), responsavelId: inicial.responsavelId || "",
-    prazo: inicial.prazo || hojeISO(), tipo: inicial.tipo === "URGENTE" ? "URGENTE" : "PADRAO", publica: inicial.publica !== false,
+    prazo: inicial.prazo || hojeISO(), tipo: inicial.tipo === "URGENTE" || inicial.tipo === "GERENCIAL" ? inicial.tipo : "PADRAO", publica: inicial.publica !== false,
     multi: !!inicial.inicio, inicio: inicial.inicio || "",   // v902 — início e fim (tarefa de vários dias)
     rec: { tipo: "NENHUMA", ...(inicial.recorrencia || {}) }, subtarefas: inicial.subtarefas || [], dependencias: inicial.dependencias || [], aplicarSerie: false,
     // v600 — período sem horário, evento com convidados e pessoas necessárias
@@ -394,6 +395,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
       hora: f.hora || null, horaFim: f.horaFim || null, periodo: f.hora ? null : f.periodo || null, evento: f.evento, efetivo: f.evento && f.efetivo ? Number(f.efetivo) : null, convidados: f.evento ? f.convidados : [], lembreteMin: f.lembreteMin,
       ...(f.decisao ? { decisao: { opcoes: f.opcoes.map((o) => o.trim()).filter(Boolean), envolvidos: f.envolvidos } } : {}), ...(ehColabFilha || recorrente ? {} : { colaboracao: f.colab ? { pedido: f.pedidoColab.trim(), colaboradores: f.colabs.filter((id) => id !== respFinal) } : { colaboradores: [] } }),   // v992
       natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: projsOpc.some((p) => p.id === Number(f.projetoId)) ? Number(f.projetoId) : null };
+    if (onRascunho) { try { await onRascunho({ ...t, tipo: "GERENCIAL", recorrencia: null, colaboracao: undefined }); onOk(); } catch (e) { setSt(false); setErro(e.message); } return; }
     try {
       const r = ed ? await api(`/api/tarefas/${inicial.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: t }) : await api("/api/tarefas", "POST", { usuarioId: user.id, tarefa: t });
       const id = r.tarefa?.id || (ed ? inicial.id : null);
@@ -413,13 +415,13 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   const depsSel = depsVal.filter((t) => f.dependencias.includes(t.id));
   const depsOpc = depsVal.filter((t) => !f.dependencias.includes(t.id) && buscaDep && `${t.titulo} ${t.responsavelNome} #${t.id}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(buscaDep.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))).slice(0, 8);
   return (
-    <Janela titulo={ed ? `Editar demanda #${inicial.id}` : "Nova demanda"} onClose={onClose} largura={720}
+    <Janela titulo={onRascunho ? "Nova tarefa gerencial (rascunho da reunião)" : ed ? `Editar demanda #${inicial.id}` : "Nova demanda"} onClose={onClose} largura={720}
       rodape={<>
         {erro ? <span className="text-xs mr-auto" style={{ color: C.red }}>{erro}</span>
           : faltando.length > 0 && <span className="text-xs mr-auto" style={{ color: C.sub }}>Para criar, preencha: <b style={{ color: C.text }}>{faltando.join(", ")}</b></span>}
         <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
         <button onClick={salvar} disabled={st || faltando.length > 0} className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff", opacity: st || !f.titulo.trim() || !f.responsavelId ? 0.5 : 1 }}>
-          {st && <Loader2 size={14} className="animate-spin" />} {ed ? "Salvar" : "Criar demanda"}
+          {st && <Loader2 size={14} className="animate-spin" />} {onRascunho ? "Guardar na reunião" : ed ? "Salvar" : "Criar demanda"}
         </button>
       </>}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
@@ -552,7 +554,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div className="text-xs" style={{ color: C.sub }}>Status
           <div className="flex gap-1 mt-1">
-            {(recorrente ? [["ROTINA", "Rotina"], ["URGENTE", "Urgente"]] : [["PADRAO", "Padrão"], ["URGENTE", "Urgente"]]).map(([k, t]) => {
+            {(recorrente ? [["ROTINA", "Rotina"], ["URGENTE", "Urgente"]] : f.tipo === "GERENCIAL" || onRascunho ? [["GERENCIAL", "Gerencial"]] : [["PADRAO", "Padrão"], ["URGENTE", "Urgente"]]).map(([k, t]) => {
               const sel = recorrente ? (k === "URGENTE" ? f.tipo === "URGENTE" : f.tipo !== "URGENTE") : f.tipo === k;
               const [, c, bg] = TIPO[k];
               return <button key={k} onClick={() => set("tipo", k === "ROTINA" ? "PADRAO" : k)} className="flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold" style={sel ? { background: c, color: "#fff" } : { background: bg, color: c }}>{t}</button>;
@@ -1106,7 +1108,7 @@ function AvatarMini({ foto, nome, size = 22 }) {
 }
 // v592 — tarefa de projeto fica com a cor do projeto (urgente ganha borda vermelha)
 // v600 — evento abaixo das pessoas necessárias fica amarelo
-const corCard = (t, proj) => t.colaboracao?.origemId ? [OURO.fundo, OURO.borda] : t.evento && t.efetivo && !t.efetivoOk ? ["#FCE7A6", "#E5B53A"] : proj?.cor ? [`${proj.cor}40`, t.tipo === "URGENTE" ? "#E8384F" : proj.cor] : t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : [A.cardBranco, A.cardBrancoBorda];   // v646 — rotina sem azul
+const corCard = (t, proj) => t.tipo === "GERENCIAL" ? [GER.fundo, GER.borda] : t.colaboracao?.origemId ? [OURO.fundo, OURO.borda] : t.evento && t.efetivo && !t.efetivoOk ? ["#FCE7A6", "#E5B53A"] : proj?.cor ? [`${proj.cor}40`, t.tipo === "URGENTE" ? "#E8384F" : proj.cor] : t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : [A.cardBranco, A.cardBrancoBorda];   // v646 — rotina sem azul
 // v648 — ordem do dia: período (manhã antes de tarde), depois a ordem escolhida arrastando; sem ordem gravada, as com horário primeiro.
 //   As que têm horário ocupam as mesmas posições, mas reordenadas entre si de mais cedo para mais tarde.
 export function ordenarDia(l) {
@@ -1337,7 +1339,7 @@ function Sentinela({ onMais, dep }) {
 /* v590 — celular: mês no estilo do calendário do iPhone (domingo primeiro, hoje em círculo vermelho, tarefas em pílulas).
    Toque no dia: lista as tarefas dele embaixo · arrastar para o lado troca o mês. */
 const SEM_DOM = ["D", "S", "T", "Q", "Q", "S", "S"];
-const corPilula = (t, proj) => (t.evento && t.efetivo && !t.efetivoOk ? "#D99A00" : null) || proj?.cor || (t.tipo === "URGENTE" ? "#E8384F" : "#8A8B8C");
+const corPilula = (t, proj) => (t.tipo === "GERENCIAL" ? "#FF6B1A" : null) || (t.evento && t.efetivo && !t.efetivoOk ? "#D99A00" : null) || proj?.cor || (t.tipo === "URGENTE" ? "#E8384F" : "#8A8B8C");
 function MesMobile({ ref0, H, porDia, P, fotos, nMeses = 3, topo = 0, onMais, onDia, onMover, onNova, onAbrir, onConcluir, onSemana, pressionar, alvo, arrastandoId }) {
   // v592 — rolar para baixo emenda o mês seguinte (infinito); o dia tocado abre embaixo do mês dele
   const ano0 = Number(ref0.slice(0, 4)), mes0 = Number(ref0.slice(5, 7));

@@ -42,7 +42,7 @@ export async function GET(req) {
   const R = t.reuniao || {};
   return Response.json({
     mes: m, ref: ant(ano, mes), dataReuniao: dataReuniao(ano, mes),
-    tarefa: { id: t.id, titulo: t.titulo, prazo: t.prazo, hora: t.hora, status: t.status, pautas: R.pautas || [] },
+    tarefa: { id: t.id, titulo: t.titulo, prazo: t.prazo, hora: t.hora, status: t.status, pautas: R.pautas || [], rascunhos: R.rascunhos || [] },
     apresentacao: R.apresentacao || { textos: {} },
     snapshot: await lerSnap(t.id),   // v1008 — versão salva: números congelados por slide
     meses: [...new Set(todas.map((x) => x.reuniao?.mes).filter(Boolean))],

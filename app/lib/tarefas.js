@@ -211,7 +211,7 @@ function limpar(b) {
     responsavelId: Number(b.responsavelId) || null,
     prazo: /^\d{4}-\d{2}-\d{2}$/.test(b.prazo || "") ? b.prazo : null,
     inicio: /^\d{4}-\d{2}-\d{2}$/.test(b.inicio || "") ? b.inicio : null,   // v902 — início (vários dias)
-    tipo: b.tipo === "URGENTE" ? "URGENTE" : b.tipo === "ROTINA" ? "ROTINA" : "PADRAO",
+    tipo: b.tipo === "URGENTE" ? "URGENTE" : b.tipo === "ROTINA" ? "ROTINA" : b.tipo === "GERENCIAL" ? "GERENCIAL" : "PADRAO",   // v1026 — gerencial: da reunião de gestão
     publica: b.publica !== false,
     subtarefas: (Array.isArray(b.subtarefas) ? b.subtarefas : []).map((x) => ({ texto: String(x.texto || "").trim().slice(0, 300), feita: !!x.feita })).filter((x) => x.texto),
     dependencias: [...new Set((Array.isArray(b.dependencias) ? b.dependencias : []).map(Number).filter(Boolean))],
@@ -283,7 +283,7 @@ export async function criar(b, u) {
   if (criada && t.evento) await sincronizarConvites(criada, b.convidados, u);
   if (criada && !regra && b.colaboracao?.colaboradores?.length) { const rc = await (await import("@/lib/tarefaColaboracao")).sincronizarColaboradores(criada, b.colaboracao, u); if (rc.error) return { ok: true, tarefa: criada, aviso: rc.error }; }   // v992
   if (criada && b.decisao) await (await import("@/lib/decisoes")).salvarDecisao(criada, b.decisao, u);   // v655
-  await avisar(u.id, t.responsavelId, `📌 NOVA DEMANDA${t.tipo === "URGENTE" ? " URGENTE" : ""} de ${nome(u)} para ${t.prazo.split("-").reverse().join("/")}: ${t.titulo}${regra ? ` (${descreverRecorrencia(regra)})` : ""} — veja em Tarefas.`, { tarefaId: t.id });
+  await avisar(u.id, t.responsavelId, `📌 NOVA DEMANDA${t.tipo === "URGENTE" ? " URGENTE" : t.tipo === "GERENCIAL" ? " GERENCIAL (reunião de gestão)" : ""} de ${nome(u)} para ${t.prazo.split("-").reverse().join("/")}: ${t.titulo}${regra ? ` (${descreverRecorrencia(regra)})` : ""} — veja em Tarefas.`, { tarefaId: t.id });
   return { ok: true, tarefa: criada };
 }
 
