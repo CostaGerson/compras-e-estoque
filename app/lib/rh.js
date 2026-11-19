@@ -160,8 +160,15 @@ export async function calendario(comp = mesAtual()) {
     select: { id: true, titulo: true, recorrenciaId: true, _count: { select: { anexos: true } } },
   });
   const PISTA = { FOLHA: /SAL[AÁ]RIO|FOLHA 5/, ADIANTAMENTO: /ADIANT/, INSS: /\bINSS\b/, FGTS: /\bFGTS\b/, IFOOD: /IFOOD|BENEF/ };
-  const anexado = (emp, cat) => titulos.some((t) => t._count.anexos > 0 && (t.recorrenciaId === recId[CHAVES[emp][cat]]
-    || (PISTA[cat].test(t.titulo.toUpperCase()) && (emp === "NORT") === /NORT/.test(t.titulo.toUpperCase()) && !/RESCIS/.test(t.titulo.toUpperCase()))));
+  const casa = (emp, cat) => (t) => t._count.anexos > 0 && (t.recorrenciaId === recId[CHAVES[emp][cat]]
+    || (PISTA[cat].test(t.titulo.toUpperCase()) && (emp === "NORT") === /NORT/.test(t.titulo.toUpperCase()) && !/RESCIS/.test(t.titulo.toUpperCase())));
+  const anexado = (emp, cat) => titulos.some(casa(emp, cat));
+  // v993 — anexos de cada obrigação (para baixar clicando no card): contas que receberam o envio + contas do mês que casam
+  const tituloIdsDe = (emp, cats) => [...new Set([...envios.filter((e) => e.empresa === emp && cats.includes(e.categoria) && e.tituloId).map((e) => e.tituloId),
+    ...cats.flatMap((c) => titulos.filter(casa(emp, c)).map((t) => t.id))])];
+  const todosIds = [...new Set(["MERIDIAN", "NORT"].flatMap((emp) => tituloIdsDe(emp, ["FOLHA", "ADIANTAMENTO", "INSS", "FGTS", "IFOOD"])))];
+  const anexosL = todosIds.length ? await prisma.finTituloAnexo.findMany({ where: { tituloId: { in: todosIds } }, orderBy: { createdAt: "asc" },
+    select: { id: true, tituloId: true, nome: true, tamanho: true, criadoPorNome: true, createdAt: true } }) : [];
   const enviado = (emp, c) => envios.some((e) => e.empresa === emp && e.categoria === c) || anexado(emp, c);
   const tem = (emp, cats) => cats.every((c) => enviado(emp, c));
   const [a, mm] = comp.split("-").map(Number);
@@ -186,6 +193,7 @@ export async function calendario(comp = mesAtual()) {
         faltam: cats.filter((c) => !enviado(emp, c)),
         status: feito ? "OK" : dias < 0 ? "ATRASADO" : dias <= 2 ? "VENCENDO" : "PENDENTE",
         enviados: envios.filter((e) => e.empresa === emp && cats.includes(e.categoria)).map((e) => ({ arquivo: e.arquivo, em: e.createdAt, por: e.criadoPorNome })),
+        anexos: (() => { const ids = tituloIdsDe(emp, cats); return anexosL.filter((x) => ids.includes(x.tituloId)); })(),   // v993
       });
     }
   }

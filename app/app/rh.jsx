@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Users2, Contact as IdCard, FileText, CalendarClock, ArrowLeft, Plus, Loader2, Search, UserPlus, UserMinus, Undo2,
-  Trash2, Download, Upload, Camera, CheckCircle2, AlertTriangle, Clock, Pencil, Receipt, UtensilsCrossed,
+  Trash2, Download, Upload, Camera, CheckCircle2, AlertTriangle, Clock, Pencil, Receipt, UtensilsCrossed, Paperclip,
 } from "lucide-react";
 import { DocumentoModal, Soltar, ModalContas as Modal, ValorContas as Valor, CoresContas as C } from "./contas";
 import { DEPTOS, REGIMES } from "@/lib/matriz";
@@ -109,7 +109,7 @@ export default function Rh({ user }) {
           {tela === "inicio" && d.completo !== false && <Acionaveis p={p} irPonto={() => setTela("ponto")} />}
           {tela === "matriz" && <MatrizPessoal user={user} d={d} onSalvo={ok} />}
           {tela === "carometro" && <Carometro user={user} d={d} p={p} onMudou={carregar} onMedalhas={(m) => setP((x) => ({ ...x, medalhas: m }))} recarregarPainel={() => carregarPainel(comp)} />}
-          {tela === "calendario" && <Calendario cal={d.calendario} onAnexar={(iniciais) => setDoc({ iniciais })} />}
+          {tela === "calendario" && <Calendario user={user} cal={d.calendario} onAnexar={(iniciais) => setDoc({ iniciais })} />}
           {tela === "ferias" && <PlanoFerias user={user} onMudou={() => { carregarPainel(comp); carregar(); }} />}
           {tela === "ponto" && <PontoTela user={user} p={p} comp={comp} setComp={setComp} recarregar={() => carregarPainel(comp)} />}
           {tela === "transmissao" && <Transmissao user={user} onMudou={() => { carregar(); carregarPainel(comp); }} />}
@@ -123,7 +123,8 @@ export default function Rh({ user }) {
 
 /* ---------------- calendário de obrigações ---------------- */
 const COR_ST = { OK: [C.green, C.greenSoft, "Enviado"], ATRASADO: [C.red, C.redSoft, "Atrasado"], VENCENDO: [C.yellow, C.yellowSoft, "Vence já"], PENDENTE: [C.blue, C.blueSoft, "Pendente"] };
-function Calendario({ cal, onAnexar }) {
+function Calendario({ user, cal, onAnexar }) {
+  const [ver, setVer] = useState(null);   // v993 — card com anexos: clicar abre a lista para baixar
   if (!cal) return null;
   const pend = cal.itens.filter((i) => i.status !== "OK");
   return (
@@ -138,7 +139,7 @@ function Calendario({ cal, onAnexar }) {
           const [c, bg, t] = COR_ST[i.status];
           return (
             <Soltar key={`${i.empresa}-${i.obrigacao}`} onArquivos={(fs) => onAnexar?.(fs)} dica="Solte para enviar">
-            <button onClick={() => onAnexar?.(null)} title="Clique para enviar o documento" className="w-full h-full text-left rounded-lg p-3 transition-shadow hover:shadow-md" style={{ background: bg }}>
+            <button onClick={() => (i.anexos?.length ? setVer(i) : onAnexar?.(null))} title={i.anexos?.length ? "Clique para ver e baixar os anexos" : "Clique para enviar o documento"} className="w-full h-full text-left rounded-lg p-3 transition-shadow hover:shadow-md" style={{ background: bg }}>
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold" style={{ color: C.sub }}>{i.empresa}</span>
                 <span className="text-[10px] font-bold flex items-center gap-1" style={{ color: c }}>
@@ -150,12 +151,26 @@ function Calendario({ cal, onAnexar }) {
                 até {dBR(i.prazo)}{i.status !== "OK" && (i.dias >= 0 ? ` · faltam ${i.dias} dia(s)` : ` · ${-i.dias} dia(s) de atraso`)}
                 {i.parcial && ` · falta ${i.faltam.join(" e ")}`}
               </div>
-              <div className="text-[10px] mt-1 flex items-center gap-1" style={{ color: c }}><Upload size={11} /> {i.status === "OK" ? "enviar outro" : "enviar documento"}</div>
+              <div className="text-[10px] mt-1 flex items-center gap-1" style={{ color: c }}>{i.anexos?.length ? <><Paperclip size={11} /> {i.anexos.length} anexo(s) · clique para baixar</> : <><Upload size={11} /> {i.status === "OK" ? "enviar outro" : "enviar documento"}</>}</div>
             </button>
             </Soltar>
           );
         })}
       </div>
+      {ver && <Modal titulo={`${ver.empresa} · ${ver.descricao}`} onClose={() => setVer(null)}>
+        <div className="flex flex-col gap-1.5">
+          {ver.anexos.map((a) => { const url = `/api/fin/titulos/${a.tituloId}/anexos?u=${user?.id}&anexo=${a.id}`;
+            return <div key={a.id} className="flex items-center gap-2 text-sm rounded-lg px-3 py-2" style={{ background: C.panel2 || "#F1F3F5" }}>
+              <FileText size={15} style={{ color: C.accent }} />
+              <a href={url} target="_blank" rel="noreferrer" className="flex-1 truncate" style={{ color: C.blue }} title="Abrir">{a.nome}</a>
+              <span className="text-[11px]" style={{ color: C.sub }}>{a.criadoPorNome || ""}{a.createdAt ? ` · ${new Date(a.createdAt).toLocaleDateString("pt-BR")}` : ""}</span>
+              <a href={`${url}&baixar=1`} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Download size={13} /> Baixar</a>
+            </div>; })}
+        </div>
+        <div className="flex justify-end mt-3">
+          <button onClick={() => { setVer(null); onAnexar?.(null); }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}><Upload size={13} /> Enviar outro documento</button>
+        </div>
+      </Modal>}
     </div>
   );
 }
@@ -565,7 +580,7 @@ function FinanceiroRH({ user, d, onSalvo, onAnexar }) {
           Folhas (fopag + líquidos), guias de INSS e FGTS, relatório de recarga do iFood (com o boleto em PDF ou o PIX), recibos, rescisões e outros: o sistema reconhece cada documento, acha a conta a pagar certa, atualiza e anexa.
         </div>
       </div>
-      <Calendario cal={d.calendario} onAnexar={onAnexar} />
+      <Calendario user={user} cal={d.calendario} onAnexar={onAnexar} />
       <div className="mt-4" />
       <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <div className="px-4 py-2.5 text-sm font-bold" style={{ background: C.panel2, color: C.navy }}>Documentos enviados · este mês e o anterior</div>
