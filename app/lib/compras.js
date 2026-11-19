@@ -411,6 +411,9 @@ export function montarLevantamento(itens) {
     // v524 — de onde vem a demanda: pedido, cliente e quanto de cada um
     const o = (c.origens[l.pedidoNumero] ||= { pedido: l.pedidoNumero, cliente: l.cliente || null, entrega: l.entrega || null, quantidade: 0 });
     o.quantidade += Number(l.quantidade) || 0;
+    // v996 — itens de origem (pedido + item) para dispensar compras direto na demanda consolidada
+    const oi = ((c.origensItens ||= {})[`${l.pedidoNumero}|${l.chave}`] ||= { pedido: l.pedidoNumero, chave: l.chave, cliente: l.cliente || null, avulsa: /^AV\d+$/.test(String(l.pedidoNumero)), quantidade: 0 });
+    oi.quantidade += Number(l.quantidade) || 0;
     if (l.equiparadoA) c.juntados.add(l.artigoId);
     if (l.valorUnitario) c.valorEstimado += l.quantidade * l.valorUnitario;
   }
@@ -418,6 +421,7 @@ export function montarLevantamento(itens) {
     compra: c.embalagem ? Math.ceil(r3(c.quantidade) / c.embalagem) : null,   // v405 — botão: grosas inteiras
     valorEstimado: Math.round(c.valorEstimado * 100) / 100,
     pedidos: [...c.pedidos], juntados: [...c.juntados].map((id) => arts[id]),
+    origensItens: Object.values(c.origensItens || {}).map((o) => ({ ...o, quantidade: r3(o.quantidade) })),
     origens: Object.values(c.origens).map((o) => ({ ...o, quantidade: r3(o.quantidade) })).sort((a, b) => String(a.entrega ? new Date(a.entrega).toISOString() : "9").localeCompare(String(b.entrega ? new Date(b.entrega).toISOString() : "9")) || String(a.pedido).localeCompare(String(b.pedido))) })).sort((a, b) => a.nome.localeCompare(b.nome));
   return { linhas, equiparacoes, consolidado };
 }

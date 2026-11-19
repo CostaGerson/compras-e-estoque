@@ -886,7 +886,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
       {aba === "consolidado" && d.consolidado.length > 0 && (
         <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2 }}>
-            <div className="flex-1">Artigo</div><div className="w-48">Fornecedor · cor · código</div><div className="w-28 text-right">Demanda</div><div className="w-24 text-right">Pedidos</div>{veValores && <div className="w-28 text-right">Estimado</div>}
+            <div className="flex-1">Artigo</div><div className="w-48">Fornecedor · cor · código</div><div className="w-28 text-right">Demanda</div><div className="w-24 text-right">Pedidos</div>{veValores && <div className="w-28 text-right">Estimado</div>}<div className="w-24" />
           </div>
           {d.consolidado.map((c) => (
             <div key={c.artigoId} className="flex px-4 py-2.5 text-sm items-center" style={{ borderTop: `1px solid ${C.line}` }}>
@@ -897,6 +897,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
               <div className="w-28 text-right font-bold" style={{ color: C.accent }}>{c.compra ? <>{c.compra} grosa(s)<div className="text-[11px] font-normal" style={{ color: C.sub }}>{qtdU(c.quantidade, c.unidade)} de {qtdU(c.compra * c.embalagem, c.unidade)}</div></> : qtdU(c.quantidade, c.unidade)}</div>
               <div className="w-24 text-right text-xs" style={{ color: C.sub }} title={c.pedidos.join(", ")}>{c.pedidos.length} ped · {c.itens} it</div>
               {veValores && <div className="w-28 text-right text-xs" style={{ color: C.sub }}>{c.valorEstimado ? brl(c.valorEstimado) : "—"}</div>}
+              <div className="w-24 text-right">{(c.origensItens || []).length > 0 && <BotaoDispensar origens={c.origensItens} user={user} onFeito={carregar} rotulo="Dispensar compras" />}</div>   {/* v996 */}
             </div>
           ))}
         </div>
