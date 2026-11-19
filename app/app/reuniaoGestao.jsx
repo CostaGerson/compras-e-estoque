@@ -677,7 +677,6 @@ function montarSlides(R) {
     const ls = k.linhas || [];
     const l = ls.find((x) => x.mes === rm) || {};
     const metaMes = Number(l.metaVendasValor) || 0, realMes = Number(l.vendas?.atual) || 0, pm = metaMes ? realMes / metaMes : null;
-    const metaAteMes = ls.filter((x) => x.mes <= rm).reduce((s0, x) => s0 + (Number(x.metaVendasValor) || 0), 0);
     const ult3 = ls.filter((x) => x.mes <= rm && x.mes > rm - 3).map((x) => Number(x.vendas?.atual) || 0);
     const media3 = ult3.length ? ult3.reduce((a, b) => a + b, 0) / ult3.length : 0;
     const projecao = A.real + media3 * A.rest;
@@ -691,9 +690,9 @@ function montarSlides(R) {
       <>
         <Cab g="RELATÓRIO COMERCIAL" t={`RESUMO EXECUTIVO · ${ra}`} />
         <div style={{ position: "absolute", left: 40, right: 40, top: 100, display: "flex", gap: 14 }}>
-          <C2 t="META ANUAL" v={mi(A.meta)} cor={N} s={`${pct(metaAteMes && A.meta ? metaAteMes / A.meta : null, 0)} da meta prevista até ${M3[rm - 1]}`} />
+          <C2 t="META ANUAL" v={mi(A.meta)} cor={N} s={`${mi(A.meta / 12)} por mês em média`} />
           <C2 t={`REALIZADO ATÉ ${M3[rm - 1]}`} v={mi(A.real)} cor={VD} s={`${pct(A.meta ? A.real / A.meta : null, 1)} da meta anual`} />
-          <C2 t="GAP PARA A META" v={mi(A.gap)} cor={L} s={metaAteMes ? `${A.real >= metaAteMes ? "à frente" : "atrás"} ${mi(Math.abs(A.real - metaAteMes))} da meta acumulada` : null} />
+          <C2 t="GAP PARA A META" v={mi(A.gap)} cor={L} s={A.meta ? `faltam ${pct(A.gap / A.meta, 1)} da meta anual` : null} />
           <C2 t="MTG · POR MÊS" v={A.rest ? mi(A.mtg) : "—"} cor={N} s={A.rest ? `nos ${A.rest} mês(es) em aberto` : "ano fechado"} />
         </div>
         <div style={{ position: "absolute", left: 40, right: 40, top: 262, display: "flex", gap: 14 }}>
@@ -746,7 +745,7 @@ function montarSlides(R) {
         <BarrasMeta rotulos={ls.map((l) => M3[l.mes - 1])} real={real} meta={meta} larg={846} alt={430} />
       </div>
       <div style={{ position: "absolute", right: 40, top: 100, width: 300, display: "flex", flexDirection: "column", gap: 10 }}>
-        <Caixa t={`ACUMULADO ATÉ ${M3[rm - 1]}`} v={mi(rAc)} cor={rAc >= mAc ? VD : L} sub={`${pct(mAc ? rAc / mAc : null, 1)} da meta acumulada (${mi(mAc)})`} />
+        <Caixa t={`ACUMULADO ATÉ ${M3[rm - 1]}`} v={mi(rAc)} cor={rAc >= mAc ? VD : L} sub={`${pct(mAc ? rAc / mAc : null, 1)} das metas mensais somadas (${mi(mAc)})`} />
         <Caixa t="MESES ACIMA DA META" v={`${acima} de ${at.length}`} cor={acima >= at.length / 2 ? VD : L} />
         <Caixa t="TENDÊNCIA" v={`${media3 >= media ? "▲" : "▼"} ${pct(media ? media3 / media - 1 : null, 1)}`} cor={media3 >= media ? VD : VM} sub={`últimos 3 meses ${mi(media3)}/mês × média do ano ${mi(media)}`} />
         <Caixa t="MELHOR · PIOR MÊS" v={`${melhor ? M3[melhor.m - 1] : "—"} · ${pior ? M3[pior.m - 1] : "—"}`} cor={AZ} sub={melhor ? `${mi(melhor.r)} · ${mi(pior.r)}` : null} />
