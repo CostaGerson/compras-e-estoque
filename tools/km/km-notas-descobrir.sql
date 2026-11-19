@@ -5,7 +5,7 @@ SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
 \pset format unaligned
 \pset tuples_only on
 WITH tabs AS (
-  SELECT t.table_schema s, t.table_name n
+  SELECT t.table_schema s, t.table_name n, t.table_type = 'VIEW' v   -- view: só colunas e definição (algumas chamam funções sem permissão)
     FROM information_schema.tables t
    WHERE t.table_type IN ('BASE TABLE', 'VIEW') AND t.table_schema NOT IN ('pg_catalog', 'information_schema')
      AND has_table_privilege(format('%I.%I', t.table_schema, t.table_name), 'SELECT')
@@ -13,11 +13,13 @@ WITH tabs AS (
           OR (EXISTS (SELECT 1 FROM information_schema.columns c WHERE c.table_schema = t.table_schema AND c.table_name = t.table_name AND c.column_name ~* 'pedid')
               AND EXISTS (SELECT 1 FROM information_schema.columns c WHERE c.table_schema = t.table_schema AND c.table_name = t.table_name AND c.column_name ~* '(nfsai|nfs|notaf|nota)')))
 )
-SELECT E'\n### ' || s || '.' || n
-       || '  (' || coalesce(substring(query_to_xml(format('select count(*) c from %I.%I', s, n), false, true, '')::text from '<c>(\d+)</c>'), '?') || ' linhas)'
+SELECT E'\n### ' || s || '.' || n || CASE WHEN v THEN '  (VIEW)' || E'\n' || (SELECT string_agg(c.column_name || ':' || c.data_type, ', ' ORDER BY c.ordinal_position)
+                      FROM information_schema.columns c WHERE c.table_schema = tabs.s AND c.table_name = tabs.n)
+       || E'\n' || coalesce(pg_get_viewdef(format('%I.%I', s, n)::regclass, true), '') ELSE
+       '  (' || coalesce(substring(query_to_xml(format('select count(*) c from %I.%I', s, n), false, true, '')::text from '<c>([0-9]+)</c>'), '?') || ' linhas)'
        || E'\n' || (SELECT string_agg(c.column_name || ':' || c.data_type, ', ' ORDER BY c.ordinal_position)
                       FROM information_schema.columns c WHERE c.table_schema = tabs.s AND c.table_name = tabs.n)
-       || E'\n' || coalesce(query_to_xml(format('select * from %I.%I limit 8', s, n), true, false, '')::text, '')
+       || E'\n' || coalesce(query_to_xml(format('select * from %I.%I limit 8', s, n), true, false, '')::text, '') END
   FROM tabs ORDER BY s, n;
 
 -- linhas que citam o pedido 26070012 em qualquer tabela com coluna de pedido (pelo id interno e pelo código)
