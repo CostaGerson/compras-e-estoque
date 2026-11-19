@@ -1961,6 +1961,7 @@ model Tarefa {
   reuniao          Json?                         // v655 — reunião de gestão: { tipo: "GESTAO", mes: "AAAA-MM", pautas: [{ id, texto, origem: FIXA|DECISAO|MANUAL, decisaoId?, autor }] }
   pcpChave         String?   @unique             // v752 — aviso de arte do PCP: a mesma chave não abre duas demandas
   aprovacao        Json?                         // v757 — demanda para o arte finalista: { etapa: EXECUCAO|AGUARDANDO|APROVADO|APROVACAO, solicitanteId, solicitanteNome, rodada, desdeArquivoId, motivo?, origemId?, aprovacaoId? }
+  colaboracao      Json?                         // v992 — origem: { pedido, colaboradores: [ids] } · tarefa do colaborador: { origemId, pedido, solicitanteId, solicitanteNome, resposta?, respondidoEm? }
   layout           Json?                         // v654 — { etapa: CRIACAO|APROVACAO, ppId, numero, cliente, vendedor, itens: [{ idx, descricao, codigo, arquivoId? }], origemId?, motivo? }
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt

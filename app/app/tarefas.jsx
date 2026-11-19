@@ -18,6 +18,7 @@ const C = {
   yellow: "#D99A00", yellowSoft: "#FFF6DD", red: "#D92D20", redSoft: "#FDECEA", navy: "#001E41", cinza: "#98A2B3", cinzaSoft: "#F2F4F7",
 };
 export const TIPO = { ROTINA: ["Rotina", C.cinza, C.cinzaSoft]   /* v646 — recorrente não tem cor própria: só o ícone */, URGENTE: ["Urgente", C.red, C.redSoft], PADRAO: ["Padrão", C.cinza, C.cinzaSoft] };
+export const OURO = { fundo: "#FFE38A", borda: "#D4A017", texto: "#8A6500" };   // v992 — tarefa de colaboração (amarelo ouro)
 export const STATUS_P = { DISPONIVEL: ["Disponível", C.green], OCUPADO: ["Ocupado", C.yellow], REUNIAO: ["Em reunião", C.navy], INATIVO: ["Inativo", C.cinza] };
 const api = async (url, method = "GET", body) => {
   const r = await fetch(url, method === "GET" ? undefined : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -236,7 +237,8 @@ export default function Tarefas({ user, natureza = "GERAL", projetoId = null, em
 }
 
 export function LinhaTarefa({ t, proj, user, H, agora, onAbrir, onAcao, compacta }) {
-  const [, cor] = TIPO[t.tipo] || TIPO.PADRAO;
+  const [, cor0] = TIPO[t.tipo] || TIPO.PADRAO;
+  const cor = t.colaboracao?.origemId ? OURO.borda : cor0;   // v992
   const meu = t.responsavelId === user.id;
   const rodando = !!t.sessaoAberta;
   const feitas = (t.subtarefas || []).filter((s) => s.feita).length;
@@ -246,7 +248,8 @@ export function LinhaTarefa({ t, proj, user, H, agora, onAbrir, onAcao, compacta
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-sm font-semibold truncate" style={{ color: C.text, textDecoration: t.status === "CONCLUIDA" ? "line-through" : "none" }}>{t.titulo}</span>
-          <ChipTipo tipo={t.tipo} />
+          {t.colaboracao?.origemId ? <span className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ background: OURO.fundo, color: OURO.texto }}>COLABORAÇÃO</span> : <ChipTipo tipo={t.tipo} />}
+          {t.colaboracao?.colaboradores?.length > 0 && <span className="text-[10px] font-semibold flex items-center gap-0.5" style={{ color: OURO.texto }} title="Com colaboradores"><Users2 size={11} /> {t.colaboracao.colaboradores.length}</span>}
           {!t.publica && <Lock size={12} style={{ color: C.sub }} title="Privada" />}
           {t.natureza === "PESSOAL" && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ background: "#F3E8FF", color: "#7E3AF2" }}>PESSOAL</span>}
           {proj && <span className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: C.sub }}><span className="rounded-[3px]" style={{ width: 10, height: 10, background: proj.cor }} />{proj.nome}</span>}
@@ -324,10 +327,14 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
     // v600 — período sem horário, evento com convidados e pessoas necessárias
     periodo: inicial.periodo || "", evento: !!inicial.evento, efetivo: inicial.efetivo || "", convidados: (inicial.convites || []).map((c) => c.usuarioId),
     // v655 — decisão: envolvidos marcam uma das opções
+    // v992 — colaboradores: cada um recebe uma tarefa amarelo ouro com o pedido de colaboração
+    colab: !!inicial.colaboracao?.colaboradores?.length, colabs: inicial.colaboracao?.colaboradores || [], pedidoColab: inicial.colaboracao?.pedido || "",
     decisao: !!inicial.decisao, opcoes: inicial.decisao?.opcoes?.length ? inicial.decisao.opcoes : ["", ""], envolvidos: inicial.decisao?.envolvidos || [],
   });
   const [buscaEnv, setBuscaEnv] = useState("");
   const [buscaConv, setBuscaConv] = useState("");
+  const [buscaColab, setBuscaColab] = useState("");   // v992
+  const ehColabFilha = !!inicial.colaboracao?.origemId;
   const [todos, setTodos] = useState(false);
   const [nova, setNova] = useState("");
   const [arqs, setArqs] = useState([]);
@@ -380,11 +387,13 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
     }
     if (f.decisao && (f.opcoes.filter((o) => o.trim()).length < 2 || !f.envolvidos.length)) { setErro("Decisão: informe pelo menos 2 opções e os envolvidos."); return; }
     if (f.multi && !recorrente && !(f.inicio && f.inicio < f.prazo)) { setErro("Início e fim: o início precisa ser antes do fim."); return; }   // v902
+    if (f.colab && f.colabs.length && !f.pedidoColab.trim()) { setErro("Colaboradores: descreva a colaboração necessária."); return; }   // v992
     setSt(true); setErro("");
     const t = { titulo: f.titulo, descricao: f.descricao, setor: f.setor, responsavelId: Number(f.responsavelId), prazo: f.prazo, inicio: f.multi && !recorrente ? f.inicio : null, tipo: recorrente ? (f.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : f.tipo,
       publica: publicaFinal, subtarefas: f.subtarefas, dependencias: f.dependencias.filter((id) => depsVal.some((t) => t.id === id)), recorrencia: recorrente ? f.rec : null, aplicarSerie: f.aplicarSerie,
       hora: f.hora || null, horaFim: f.horaFim || null, periodo: f.hora ? null : f.periodo || null, evento: f.evento, efetivo: f.evento && f.efetivo ? Number(f.efetivo) : null, convidados: f.evento ? f.convidados : [], lembreteMin: f.lembreteMin,
-      ...(f.decisao ? { decisao: { opcoes: f.opcoes.map((o) => o.trim()).filter(Boolean), envolvidos: f.envolvidos } } : {}), natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: projsOpc.some((p) => p.id === Number(f.projetoId)) ? Number(f.projetoId) : null };
+      ...(f.decisao ? { decisao: { opcoes: f.opcoes.map((o) => o.trim()).filter(Boolean), envolvidos: f.envolvidos } } : {}), ...(ehColabFilha || recorrente ? {} : { colaboracao: f.colab ? { pedido: f.pedidoColab.trim(), colaboradores: f.colabs.filter((id) => id !== respFinal) } : { colaboradores: [] } }),   // v992
+      natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: projsOpc.some((p) => p.id === Number(f.projetoId)) ? Number(f.projetoId) : null };
     try {
       const r = ed ? await api(`/api/tarefas/${inicial.id}`, "PATCH", { usuarioId: user.id, acao: "editar", tarefa: t }) : await api("/api/tarefas", "POST", { usuarioId: user.id, tarefa: t });
       const id = r.tarefa?.id || (ed ? inicial.id : null);
@@ -392,6 +401,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
       const falhas = [];
       for (const a of arqs) if (id) { try { await api(`/api/tarefas/${id}/arquivos`, "POST", { usuarioId: user.id, nome: a.name, mime: a.type, conteudo: await readB64(a) }); } catch (e) { falhas.push(`${a.name} (${e.message})`); } }
       if (falhas.length) alerta(`Demanda salva, mas não foi possível anexar: ${falhas.join(", ")}.`);
+      if (r.aviso) alerta(`Demanda salva, mas: ${r.aviso}`);   // v992
       onOk();
     } catch (e) { setSt(false); setErro(e.message); }
   };
@@ -399,7 +409,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   const respFinal = pessoal ? criador : Number(f.responsavelId);
   const depsVal = (publicas || []).filter((t) => t.publica || (!publicaFinal && t.responsavelId === respFinal));
   // v606 — diz o que falta em vez de só deixar o botão apagado
-  const faltando = [!f.titulo.trim() && "o que precisa ser feito (Demanda)", !f.responsavelId && "colaborador", !f.prazo && "data"].filter(Boolean);
+  const faltando = [!f.titulo.trim() && "o que precisa ser feito (Demanda)", !f.responsavelId && "responsável", !f.prazo && "data"].filter(Boolean);
   const depsSel = depsVal.filter((t) => f.dependencias.includes(t.id));
   const depsOpc = depsVal.filter((t) => !f.dependencias.includes(t.id) && buscaDep && `${t.titulo} ${t.responsavelNome} #${t.id}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(buscaDep.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))).slice(0, 8);
   return (
@@ -437,7 +447,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         <label className="text-xs" style={{ color: C.sub }}>Setor
           <select value={f.setor} onChange={(e) => { set("setor", e.target.value); set("responsavelId", ""); }} className={`${inp} mt-1`} style={inpS}>{SETORES_TAREFA.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
         </label>
-        <label className="text-xs" style={{ color: C.sub }}>Colaborador
+        <label className="text-xs" style={{ color: C.sub }}>Responsável
           <select value={f.responsavelId} disabled={pessoal} onChange={(e) => set("responsavelId", e.target.value)} className={`${inp} mt-1`} style={inpS}>
             <option value="">— escolha —</option>
             {lista.map((u) => <option key={u.id} value={u.id}>{u.nome}{u.id === user.id ? " (eu)" : ""}{todos ? ` · ${NOME_SETOR_TAREFA[u.setorTarefa]}` : ""}</option>)}
@@ -515,6 +525,30 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         </>}
       </div>
       </>}
+      {/* v992 — colaboradores: qualquer usuário do sistema; cada um recebe uma tarefa amarelo ouro, mensagem e e-mail */}
+      {!ehColabFilha && !recorrente && <div className="rounded-lg p-3 mb-3" style={{ background: f.colab ? OURO.fundo : C.panel2, border: f.colab ? `1px solid ${OURO.borda}` : "1px solid transparent" }}>
+        <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer" style={{ color: C.text }}>
+          <input type="checkbox" checked={f.colab} onChange={(e) => set("colab", e.target.checked)} /><Users2 size={14} style={{ color: OURO.texto }} /> Colaboradores
+        </label>
+        {f.colab && <>
+          <div className="text-[11px] mt-1" style={{ color: C.sub }}>Cada colaborador recebe uma tarefa amarelo ouro na agenda e um e-mail. Ao abrir, ele vê o que você pediu e responde com informações e anexos.</div>
+          <div className="text-xs mt-2 mb-1" style={{ color: C.sub }}>Colaboradores ({f.colabs.length})</div>
+          {f.colabs.length > 0 && <div className="flex flex-wrap gap-1 mb-1">
+            {f.colabs.map((id) => { const x = usuarios.find((u) => u.id === id); const c = (inicial.colaboracoes || []).find((c) => c.usuarioId === id);
+              const [cor, fundo, rot] = c?.status === "CONCLUIDA" ? ["#3F8A5F", "#E3F4EA", "respondeu"] : c ? [OURO.texto, "#fff", "aguardando"] : [C.text, "#fff", "novo"];
+              return <span key={id} className="text-[11px] rounded-full pl-2 pr-1 py-0.5 flex items-center gap-1" style={{ background: fundo, color: cor, border: `1px solid ${C.line}` }}>{x?.nome || c?.nome || `#${id}`} · {rot}
+                <button onClick={() => set("colabs", f.colabs.filter((y) => y !== id))}><X size={11} /></button></span>; })}
+          </div>}
+          <input value={buscaColab} onChange={(e) => setBuscaColab(e.target.value)} placeholder="Buscar qualquer usuário do sistema…" className="w-full rounded-lg px-2 py-1 text-xs outline-none" style={inpS} />
+          {buscaColab && <div className="rounded-lg mt-1" style={{ border: `1px solid ${C.line}`, background: "#fff", maxHeight: 180, overflowY: "auto" }}>
+            {usuarios.filter((x) => !f.colabs.includes(x.id) && x.id !== (pessoal ? criador : Number(f.responsavelId)) && String(x.nome).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(buscaColab.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))).slice(0, 10)
+              .map((x) => <button key={x.id} onClick={() => { set("colabs", [...f.colabs, x.id]); setBuscaColab(""); }} className="w-full text-left px-2 py-1.5 text-xs hover:bg-gray-50">{x.nome}{x.id === user.id ? " (eu)" : ""} <span style={{ color: C.sub }}>· {NOME_SETOR_TAREFA[x.setorTarefa] || ""}</span></button>)}
+          </div>}
+          <label className="block text-xs mt-2" style={{ color: C.sub }}>Colaboração necessária {f.colabs.length > 0 && <b style={{ color: C.red }}>*</b>}
+            <textarea value={f.pedidoColab} onChange={(e) => set("pedidoColab", e.target.value)} rows={3} placeholder="Descreva o que você precisa de cada colaborador (obrigatório)" className={`${inp} mt-1`} style={{ ...inpS, resize: "vertical", borderColor: f.colabs.length && !f.pedidoColab.trim() ? OURO.borda : C.line }} />
+          </label>
+        </>}
+      </div>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <div className="text-xs" style={{ color: C.sub }}>Status
           <div className="flex gap-1 mt-1">
@@ -533,7 +567,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         </div>}
       </div>
       {(atribuida || pessoal || !publicaFinal) && <div className="text-[11px] mb-3 -mt-1" style={{ color: C.sub }}>
-        {atribuida ? "Demanda para outra pessoa: sempre funcional e pública." : pessoal ? "Pessoal: sempre privada — só você enxerga." : "Privada: só o colaborador que recebe enxerga a demanda."}</div>}
+        {atribuida ? "Demanda para outra pessoa: sempre funcional e pública." : pessoal ? "Pessoal: sempre privada — só você enxerga." : "Privada: só o responsável que recebe enxerga a demanda."}</div>}
 
       {/* recorrência */}
       {/* v283 — recorrência também na edição: marcar uma avulsa como rotina, trocar a regra (vale desta em diante) ou deixar de repetir */}
@@ -737,7 +771,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
   const [sobreDet, setSobreDet] = useState(false);   // v652
   const tirarArq = async (a) => { if (!(await confirmar(`Excluir ${a.nome}?`))) return; try { await api(`/api/tarefas/${id}/arquivos`, "DELETE", { usuarioId: user.id, arquivoId: a.id }); carregar(); } catch (e) { alerta(e.message); } };
   // v561 — na agenda a demanda já abre na edição (quem pode editar); fechar a edição fecha tudo
-  const direto = editarDireto && t?.podeEditar && !t?.layout && !t?.decisao && !t?.reuniao && !t?.aprovacao;   // v757 — com aprovação abre no detalhe   // v655 — decisão e reunião abrem no detalhe   // v654 — tarefa de layout abre no detalhe
+  const direto = editarDireto && t?.podeEditar && !t?.layout && !t?.decisao && !t?.reuniao && !t?.aprovacao && !t?.colaboracao?.origemId;   // v992 — colaboração abre no detalhe (campo de resposta)   // v757 — com aprovação abre no detalhe   // v655 — decisão e reunião abrem no detalhe   // v654 — tarefa de layout abre no detalhe
   if ((editar || direto) && t) return <TarefaForm user={user} inicial={t} usuarios={usuarios} projetos={projetos} onClose={() => (direto ? onClose() : setEditar(false))} onOk={() => { setEditar(false); carregar(); onMudou?.(); if (direto) onClose(); }} />;
   const proj = t?.projetoId ? projetos.find((p) => p.id === t.projetoId) : null;
   const Linha = ({ k, children }) => <div className="flex items-center py-2 text-sm" style={{ borderBottom: "1px solid #F2F0F0" }}><div className="w-44 shrink-0" style={{ color: "#6D6E6F" }}>{k}</div><div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap" style={{ color: "#1E1F21" }}>{children}</div></div>;
@@ -750,7 +784,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
         {t.serieId && t.podeEditar && <Btn fundo={C.blueSoft} cor={C.blue} onClick={async () => (await confirmar("Encerrar a rotina? As próximas ocorrências em aberto são canceladas.")) && acao("encerrarSerie")}><Repeat size={12} /> Encerrar rotina</Btn>}
         {t.podeEditar && <Btn fundo={C.panel} cor={C.text} onClick={() => setEditar(true)} style={{ border: `1px solid ${C.line}` }}><Pencil size={12} /> Editar</Btn>}
         {meu && t.status !== "CONCLUIDA" && <Btn cor={rodando ? C.yellow : C.green} disabled={!rodando && t.bloqueada} onClick={() => acao(rodando ? "stop" : "play")}>{rodando ? <><Square size={11} fill="#fff" /> Encerrar</> : <><Play size={12} fill="#fff" /> Iniciar</>}</Btn>}
-        {t.status !== "CONCLUIDA" ? (meu || t.podeEditar) && !(t.aprovacao?.etapa === "APROVACAO" || (t.aprovacao?.etapa === "EXECUCAO" && meu && t.criadoPorId !== user.id)) && <Btn onClick={() => setConcluir(true)}><CheckCircle2 size={13} /> Concluir</Btn>
+        {t.status !== "CONCLUIDA" ? (meu || t.podeEditar) && !(t.colaboracao?.origemId && meu) && !(t.aprovacao?.etapa === "APROVACAO" || (t.aprovacao?.etapa === "EXECUCAO" && meu && t.criadoPorId !== user.id)) && <Btn onClick={() => setConcluir(true)}><CheckCircle2 size={13} /> Concluir</Btn>
           : t.podeEditar && <Btn fundo={C.panel2} cor={C.text} onClick={() => acao("reabrir")}><RotateCcw size={12} /> Reabrir</Btn>}
       </>}>
       {erro && <div className="p-3 rounded-lg text-sm" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
@@ -779,6 +813,8 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
         {t.descricao && <div className="text-sm whitespace-pre-wrap mb-3 p-3 rounded-lg" style={{ background: C.panel2 }}>{t.descricao}</div>}
         {t.layout && <LayoutTarefa t={t} user={user} onMudou={() => { carregar(); onMudou?.(); }} />}
         {t.aprovacao && !t.layout && <AprovacaoPainel t={t} user={user} onMudou={() => { carregar(); onMudou?.(); }} />}
+        {t.colaboracao?.origemId && <ColaboracaoPainel t={t} user={user} anexar={anexar} tirarArq={tirarArq} onMudou={() => { carregar(); onMudou?.(); }} />}
+        {t.colaboracoes?.length > 0 && <ColaboracoesOrigem t={t} user={user} />}
         {t.decisao && <DecisaoPainel t={t} user={user} acao={acao} />}
         {t.reuniao && <ReuniaoPainel t={t} user={user} acao={acao} />}
         <div className="flex items-center gap-3 mb-3 p-3 rounded-lg" style={{ border: `1px solid ${rodando ? C.yellow : C.line}`, background: rodando ? C.yellowSoft : C.panel }}>
@@ -796,7 +832,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
           <div className="text-xs font-semibold mb-1 flex items-center gap-1" style={{ color: C.sub }}><ListChecks size={13} /> Subtarefas {t.subtarefas.filter((s) => s.feita).length}/{t.subtarefas.length}</div>
           {t.subtarefas.map((s, i) => <label key={i} className="flex items-center gap-2 text-sm py-0.5"><input type="checkbox" checked={!!s.feita} disabled={!(meu || t.podeEditar)} onChange={(e) => acao("subtarefa", { indice: i, feita: e.target.checked })} /><span style={{ textDecoration: s.feita ? "line-through" : "none" }}>{s.texto}</span></label>)}
         </div>}
-        <div className="mb-3 rounded-lg" onDragOver={(e) => { if ((meu || t.podeEditar || t.podeAnexar) && e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setSobreDet(true); } }} onDragLeave={() => setSobreDet(false)}
+        {!t.colaboracao?.origemId && <div className="mb-3 rounded-lg" onDragOver={(e) => { if ((meu || t.podeEditar || t.podeAnexar) && e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setSobreDet(true); } }} onDragLeave={() => setSobreDet(false)}
           onDrop={(e) => { e.preventDefault(); setSobreDet(false); const fs = [...(e.dataTransfer?.files || [])]; if (fs.length && (meu || t.podeEditar || t.podeAnexar)) anexar(fs); }}
           style={{ outline: sobreDet ? `2px dashed ${C.accent}` : "none", background: sobreDet ? C.accentSoft : "transparent", padding: sobreDet ? 6 : 0 }}>
           <div className="text-xs font-semibold mb-1 flex items-center gap-2" style={{ color: C.sub }}><Paperclip size={13} /> Arquivos ({t.arquivos.length}){(meu || t.podeEditar || t.podeAnexar) && <span className="font-normal">· arraste arquivos aqui</span>}
@@ -804,8 +840,8 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
             {t.arquivos.length > 1 && <a href={`/api/tarefas/${t.id}/arquivos?u=${user.id}&zip=1`} className="ml-auto flex items-center gap-1 text-[11px] font-semibold" style={{ color: C.blue }} title="Baixa todos os arquivos da demanda num .zip"><Download size={12} /> baixar todos</a>}   {/* v788 — sugestão #69 */}
           </div>
           {t.arquivos.map((a) => <div key={a.id} className="flex items-center gap-2 text-xs py-0.5"><FileText size={12} style={{ color: C.accent }} /><a href={`/api/tarefas/${t.id}/arquivos?u=${user.id}&arquivo=${a.id}`} target="_blank" rel="noreferrer" draggable onDragStart={(e) => arrastarArquivo(e, a, `/api/tarefas/${t.id}/arquivos?u=${user.id}&arquivo=${a.id}`)} title="Clique para abrir ou arraste para a área de trabalho" className="flex-1 truncate" style={{ color: C.blue }}>{a.nome}</a>{t.aprovacao && !t.layout && t.aprovacao.etapa !== "APROVACAO" && <span className="text-[10px] px-1 rounded" style={{ background: C.panel2, color: C.sub }}>{a.criadoPorNome === t.responsavelNome ? "resposta" : "briefing"}</span>}<span style={{ color: C.sub }}>{a.criadoPorNome}</span><button onClick={() => tirarArq(a)} style={{ color: C.sub }}><Trash2 size={12} /></button></div>)}
-        </div>
-        {t.status === "CONCLUIDA" && <div className="rounded-lg p-3 text-sm mb-2" style={{ background: C.greenSoft }}><div className="text-[11px] font-semibold mb-1" style={{ color: C.green }}>CONCLUÍDA por {t.concluidaPorNome} em {dBR(t.concluidaEm)}</div>{t.retorno && <div className="whitespace-pre-wrap">{t.retorno}</div>}</div>}
+        </div>}
+        {t.status === "CONCLUIDA" && !t.colaboracao?.origemId && <div className="rounded-lg p-3 text-sm mb-2" style={{ background: C.greenSoft }}><div className="text-[11px] font-semibold mb-1" style={{ color: C.green }}>CONCLUÍDA por {t.concluidaPorNome} em {dBR(t.concluidaEm)}</div>{t.retorno && <div className="whitespace-pre-wrap">{t.retorno}</div>}</div>}
         {t.sessoes.length > 0 && <details className="text-xs" style={{ color: C.sub }}><summary className="cursor-pointer">Histórico de trabalho</summary>
           {t.sessoes.map((s) => <div key={s.id} className="py-0.5">{s.usuarioNome} · {new Date(s.inicio).toLocaleString("pt-BR")} → {s.fim ? new Date(s.fim).toLocaleTimeString("pt-BR") : "agora"} · {duracao(s.fim ? s.segundos : (agora - new Date(s.inicio)) / 1000)}</div>)}
         </details>}
@@ -816,6 +852,68 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
         </div>}
       </>}
     </Janela>
+  );
+}
+
+/* v992 — tarefa do colaborador: vê o que foi pedido e responde com informações e anexos */
+function ColaboracaoPainel({ t, user, anexar, tirarArq, onMudou }) {
+  const c = t.colaboracao || {};
+  const meu = t.responsavelId === user.id;
+  const [texto, setTexto] = useState(c.resposta || "");
+  const [editando, setEditando] = useState(!c.respondidoEm);
+  const [ocup, setOcup] = useState(false);
+  const [sobre, setSobre] = useState(false);
+  const o = t.colabOrigem;
+  const enviar = async () => {
+    if (!texto.trim() && !t.arquivos.length) return alerta("Escreva as informações ou anexe um arquivo.");
+    setOcup(true);
+    try { await api(`/api/tarefas/${t.id}`, "PATCH", { usuarioId: user.id, acao: "colaborar", texto }); setEditando(false); onMudou?.(); } catch (e) { alerta(e.message); }
+    setOcup(false);
+  };
+  const quando = (x) => (x ? new Date(x).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
+  return (
+    <div className="mb-3 rounded-xl p-3 text-sm" style={{ border: `2px solid ${OURO.borda}`, background: "#FFF8DC" }}>
+      <div className="font-bold flex items-center gap-1.5" style={{ color: OURO.texto }}><Users2 size={15} /> Colaboração</div>
+      <div className="text-xs mt-1" style={{ color: C.sub }}><b style={{ color: C.text }}>{c.solicitanteNome || t.criadoPorNome}</b> pediu sua colaboração{o ? <> em <b style={{ color: C.text }}>{o.titulo}</b> (responsável {o.responsavelNome} · {dBR(o.prazo)}{o.hora ? ` ${o.hora}` : ""})</> : null}.</div>
+      <div className="mt-2 rounded-lg p-2.5 whitespace-pre-wrap" style={{ background: "#fff", border: `1px solid ${OURO.fundo}` }}>
+        <div className="text-[11px] font-semibold mb-0.5" style={{ color: OURO.texto }}>O QUE FOI PEDIDO</div>{c.pedido}</div>
+      {o?.descricao && <details className="mt-1 text-xs" style={{ color: C.sub }}><summary className="cursor-pointer">Detalhes da tarefa de origem</summary><div className="whitespace-pre-wrap mt-1">{o.descricao}</div></details>}
+      <div className="text-[11px] font-semibold mt-3 mb-1" style={{ color: OURO.texto }}>SUA COLABORAÇÃO{c.respondidoEm ? ` · enviada em ${quando(c.respondidoEm)}` : ""}</div>
+      {meu && editando
+        ? <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={4} placeholder="Escreva as informações para quem pediu" className={inp} style={{ ...inpS, resize: "vertical" }} />
+        : <div className="rounded-lg p-2.5 whitespace-pre-wrap" style={{ background: "#fff", border: `1px solid ${C.line}`, color: c.resposta ? C.text : C.sub }}>{c.resposta || (c.respondidoEm ? "(só anexos)" : "Aguardando a resposta do colaborador.")}</div>}
+      <div className="mt-2 rounded-lg" onDragOver={(e) => { if (meu && e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setSobre(true); } }} onDragLeave={() => setSobre(false)}
+        onDrop={(e) => { e.preventDefault(); setSobre(false); const fs = [...(e.dataTransfer?.files || [])]; if (fs.length && meu) anexar(fs); }}
+        style={{ outline: sobre ? `2px dashed ${OURO.borda}` : "none", padding: sobre ? 6 : 0 }}>
+        <div className="text-xs font-semibold mb-1 flex items-center gap-2" style={{ color: C.sub }}><Paperclip size={13} /> Anexos ({t.arquivos.length})
+          {meu && <label className="text-[11px] font-semibold cursor-pointer" style={{ color: OURO.texto }}>+ anexar<input type="file" multiple className="hidden" onChange={(e) => { anexar([...e.target.files]); e.target.value = ""; }} /></label>}
+          {meu && <span className="font-normal">· arraste ou cole (Ctrl+V)</span>}</div>
+        {t.arquivos.map((a) => <div key={a.id} className="flex items-center gap-2 text-xs py-0.5"><FileText size={12} style={{ color: OURO.borda }} /><a href={`/api/tarefas/${t.id}/arquivos?u=${user.id}&arquivo=${a.id}`} target="_blank" rel="noreferrer" className="flex-1 truncate" style={{ color: C.blue }}>{a.nome}</a>{meu && <button onClick={() => tirarArq(a)} style={{ color: C.sub }}><Trash2 size={12} /></button>}</div>)}
+      </div>
+      {meu && <div className="flex justify-end gap-2 mt-2">
+        {editando ? <Btn cor={OURO.borda} disabled={ocup} onClick={enviar}>{ocup ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} {c.respondidoEm ? "Reenviar colaboração" : "Enviar colaboração"}</Btn>
+          : <Btn fundo={C.panel} cor={C.text} onClick={() => setEditando(true)} style={{ border: `1px solid ${C.line}` }}><Pencil size={12} /> Editar resposta</Btn>}
+      </div>}
+    </div>
+  );
+}
+/* v992 — na tarefa de origem: o que cada colaborador respondeu */
+function ColaboracoesOrigem({ t, user }) {
+  const quando = (x) => (x ? new Date(x).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
+  const n = t.colaboracoes.filter((c) => c.respondidoEm).length;
+  return (
+    <div className="mb-3 rounded-xl p-3 text-sm" style={{ border: `1px solid ${OURO.borda}`, background: "#FFFBEA" }}>
+      <div className="font-bold flex items-center gap-1.5" style={{ color: OURO.texto }}><Users2 size={15} /> Colaboradores · {n} de {t.colaboracoes.length} responderam</div>
+      {t.colaboracao?.pedido && <div className="text-xs mt-1 whitespace-pre-wrap" style={{ color: C.sub }}><b>Pedido:</b> {t.colaboracao.pedido}</div>}
+      <div className="flex flex-col gap-2 mt-2">
+        {t.colaboracoes.map((c) => <div key={c.id} className="rounded-lg p-2.5" style={{ background: "#fff", border: `1px solid ${C.line}`, borderLeft: `4px solid ${c.respondidoEm ? C.green : OURO.borda}` }}>
+          <div className="flex items-center gap-2 text-xs flex-wrap"><b className="text-sm" style={{ color: C.text }}>{c.nome}</b>
+            <span className="px-1.5 py-0.5 rounded font-semibold text-[11px]" style={c.respondidoEm ? { background: C.greenSoft, color: C.green } : { background: OURO.fundo, color: OURO.texto }}>{c.respondidoEm ? `respondeu em ${quando(c.respondidoEm)}` : "aguardando"}</span></div>
+          {c.resposta && <div className="text-sm whitespace-pre-wrap mt-1">{c.resposta}</div>}
+          {c.arquivos.length > 0 && <div className="flex flex-col gap-0.5 mt-1">{c.arquivos.map((a) => <a key={a.id} href={`/api/tarefas/${c.id}/arquivos?u=${user.id}&arquivo=${a.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs truncate" style={{ color: C.blue }}><FileText size={12} style={{ color: OURO.borda }} /> {a.nome}</a>)}</div>}
+        </div>)}
+      </div>
+    </div>
   );
 }
 
@@ -1008,7 +1106,7 @@ function AvatarMini({ foto, nome, size = 22 }) {
 }
 // v592 — tarefa de projeto fica com a cor do projeto (urgente ganha borda vermelha)
 // v600 — evento abaixo das pessoas necessárias fica amarelo
-const corCard = (t, proj) => t.evento && t.efetivo && !t.efetivoOk ? ["#FCE7A6", "#E5B53A"] : proj?.cor ? [`${proj.cor}40`, t.tipo === "URGENTE" ? "#E8384F" : proj.cor] : t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : [A.cardBranco, A.cardBrancoBorda];   // v646 — rotina sem azul
+const corCard = (t, proj) => t.colaboracao?.origemId ? [OURO.fundo, OURO.borda] : t.evento && t.efetivo && !t.efetivoOk ? ["#FCE7A6", "#E5B53A"] : proj?.cor ? [`${proj.cor}40`, t.tipo === "URGENTE" ? "#E8384F" : proj.cor] : t.tipo === "URGENTE" ? [A.cardVerm, A.cardVermBorda] : [A.cardBranco, A.cardBrancoBorda];   // v646 — rotina sem azul
 // v648 — ordem do dia: período (manhã antes de tarde), depois a ordem escolhida arrastando; sem ordem gravada, as com horário primeiro.
 //   As que têm horário ocupam as mesmas posições, mas reordenadas entre si de mais cedo para mais tarde.
 export function ordenarDia(l) {
@@ -1809,12 +1907,12 @@ export function Agenda({ user, pedidoModo, onModo }) {
                   {(() => { const c = colabs.find((x) => x.id === colab); return c ? <AvatarMini foto={fotos[c.id]} nome={c.nome} size={mobile ? 20 : 16} /> : <Users size={mobile ? 18 : 14} />; })()}
                   <span className="truncate" style={{ maxWidth: mobile ? 90 : 150 }}>{designadas && colab ? (colabs.find((x) => x.id === colab)?.nome || "Designadas").split(" ")[0] : "Designadas"}</span>
                 </button>
-                <button onClick={() => setMenuColab((v) => !v)} title="Escolher colaborador" className="px-1.5 flex items-center" style={{ borderLeft: `1px solid ${designadas ? A.azul : A.linha}` }}><ChevronDown size={14} /></button>
+                <button onClick={() => setMenuColab((v) => !v)} title="Escolher responsável" className="px-1.5 flex items-center" style={{ borderLeft: `1px solid ${designadas ? A.azul : A.linha}` }}><ChevronDown size={14} /></button>
                 {menuColab && <>
                   <div className="fixed inset-0 z-40" onClick={() => setMenuColab(false)} />
                   <div className="absolute right-0 top-full mt-1 z-50 rounded-lg py-1 shadow-lg" style={{ background: "#fff", border: `1px solid ${A.linha}`, minWidth: 210, maxHeight: 320, overflowY: "auto" }}>
                     {!colabs.length ? <div className="px-3 py-2 text-xs font-normal" style={{ color: A.sub }}>Nenhuma tarefa designada neste período.</div> : <>
-                      <button onClick={() => { setDesignadas(true); setColab(null); setMenuColab(false); }} className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2" style={{ color: A.texto, background: designadas && !colab ? A.azulSoft : "transparent" }}><Users size={14} /> Todos os colaboradores</button>
+                      <button onClick={() => { setDesignadas(true); setColab(null); setMenuColab(false); }} className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2" style={{ color: A.texto, background: designadas && !colab ? A.azulSoft : "transparent" }}><Users size={14} /> Todos os responsáveis</button>
                       {colabs.map((c) => <button key={c.id} onClick={() => { setDesignadas(true); setColab(c.id); setMenuColab(false); }} className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2" style={{ color: A.texto, background: designadas && colab === c.id ? A.azulSoft : "transparent" }}>
                         <AvatarMini foto={fotos[c.id]} nome={c.nome} size={18} /><span className="flex-1 truncate">{c.nome}</span>{c.n > 0 && <span style={{ color: A.sub }}>{c.n}</span>}</button>)}
                     </>}

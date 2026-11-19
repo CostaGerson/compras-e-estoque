@@ -46,6 +46,7 @@ const podeVer = (t, u, R) => (t.layout?.etapa === "CRIACAO" ? t.responsavelId ==
   : t.responsavelId === u.id || t.criadoPorId === u.id);
 const podeVerA = async (t, u) => podeVer(t, u, t.projetoId ? await projRestritos() : null) || (await lideradosDe(u.id)).includes(t.responsavelId)
   || ((await supervisorLayoutId()) === u.id && ehPers(t)) || doPedido(t, u)   // v791 — gestor vê tudo do liderado, inclusive as que ele cria para si
+  || (!!Number(t.colaboracao?.origemId) && (Number(t.colaboracao.solicitanteId) === u.id || await (async () => { const o = await prisma.tarefa.findUnique({ where: { id: Number(t.colaboracao.origemId) } }); return !!o && !o.colaboracao?.origemId && (await podeVerA(o, u)); })()))   // v992 — quem vê a origem vê a colaboração
   || ((t.evento || t.decisao) && !!(await prisma.tarefaConvite.findUnique({ where: { tarefaId_usuarioId: { tarefaId: t.id, usuarioId: u.id } } })));   // v655 — envolvido vê a decisão   // v600 — convidado vê o evento
 // v891 — #87: quem pediu o design (quem lançou o pedido, o vendedor, quem reprovou, o solicitante da aprovação) e o supervisor
 //   da personalização também editam, acrescentam informação e anexam — antes só o arte finalista (criador e responsável) podia
@@ -106,6 +107,7 @@ const resumo = (t, abertas = {}) => ({
   tempoTotal: t.tempoTotal, emAndamentoDesde: t.emAndamentoDesde, retorno: t.retorno, concluidaEm: t.concluidaEm, concluidaPorNome: t.concluidaPorNome,
   createdAt: t.createdAt, nArquivos: t._count?.arquivos ?? 0, sessaoAberta: abertas[t.id] || null,
   hora: t.hora || null, horaFim: t.horaFim || null, lembreteMin: t.lembreteMin ?? null, natureza: t.natureza || "FUNCIONAL", projetoId: t.projetoId || null, ordem: t.ordem ?? null,
+  colaboracao: t.colaboracao || null,   // v992 — colaboradores (origem) / pedido de colaboração (filha)
   periodo: t.periodo || null, evento: !!t.evento, efetivo: t.efetivo ?? null, layout: t.layout || null, aprovacao: t.aprovacao || null,   // v757 decisao: t.decisao || null, reuniao: t.reuniao || null,   // v654 · v655
 });
 
@@ -154,7 +156,8 @@ export async function listar(u, { de, ate, escopo, incluirConcluidas = true, pro
   const sup = (await supervisorLayoutId()) === u.id;   // v891
   if (sup && escopo !== "minhas" && escopo !== "criadas") where.OR = [...(where.OR || []), { titulo: { startsWith: "CRIAÇÃO DE LAYOUT" } }, ...(globalThis.__arteId ? [{ responsavelId: globalThis.__arteId }] : [])];   // v892
   const l = (await prisma.tarefa.findMany({ where, orderBy: [{ prazo: "asc" }, { hora: "asc" }, { id: "asc" }], take: 20000, include: { _count: { select: { arquivos: true } } } }))
-    .filter((t) => convIds.has(t.id) || podeVer(t, u, R) || lid.includes(t.responsavelId) || (sup && ehPers(t)));   // v791 — inclusive as que o liderado cria para si
+    .filter((t) => convIds.has(t.id) || podeVer(t, u, R) || lid.includes(t.responsavelId) || (sup && ehPers(t)))   // v791 — inclusive as que o liderado cria para si
+    .filter((t) => !t.colaboracao?.origemId || t.responsavelId === u.id || escopo === "criadas");   // v992 — a tarefa de colaboração fica só na agenda do colaborador
   return enriquecer(l, u);
 }
 
@@ -193,7 +196,8 @@ export async function detalhe(id, u) {
   const [r] = await enriquecer([{ ...t, _count: { arquivos: t.arquivos.length } }], u);
   const users = await prisma.usuario.findMany({ where: { id: { in: [...new Set(t.sessoes.map((s) => s.usuarioId))] } }, select: { id: true, nome: true } });
   const U = Object.fromEntries(users.map((x) => [x.id, x.nome]));
-  return { ...r, arquivos: t.arquivos, sessoes: t.sessoes.map((s) => ({ ...s, usuarioNome: U[s.usuarioId] || "?" })),
+  const colab = await (await import("@/lib/tarefaColaboracao")).dadosColaboracao(t).catch((e) => { console.log("colaboração/detalhe:", e.message); return {}; });   // v992
+  return { ...r, ...colab, arquivos: t.arquivos, sessoes: t.sessoes.map((s) => ({ ...s, usuarioNome: U[s.usuarioId] || "?" })),
     dependentes: (await prisma.tarefa.findMany({ where: { status: { not: "CANCELADA" }, modelo: false }, select: { id: true, titulo: true, dependencias: true, responsavelNome: true, publica: true, responsavelId: true, criadoPorId: true, projetoId: true } }))
       .filter((x) => (x.dependencias || []).includes(t.id) && podeVer(x, u, R)).map((x) => ({ id: x.id, titulo: x.titulo, responsavelNome: x.responsavelNome })) };
 }
@@ -259,10 +263,10 @@ export async function criar(b, u) {
   const t = await ajustarProjeto(regraNatureza(limpar(b), u.id), u.id);
   if (!t.titulo) return { error: "Escreva a demanda." };
   if (!t.setor) return { error: "Escolha o setor." };
-  if (!t.responsavelId) return { error: "Escolha o colaborador." };
+  if (!t.responsavelId) return { error: "Escolha o responsável." };
   if (!t.prazo) return { error: "Informe a data limite." };
   const resp = await prisma.usuario.findUnique({ where: { id: t.responsavelId }, select: { id: true, nome: true, sobrenome: true, ativo: true, setor: true } });
-  if (!resp?.ativo) return { error: "Colaborador inválido." };
+  if (!resp?.ativo) return { error: "Responsável inválido." };
   // v757 — demanda criada por outra pessoa para o arte finalista: passa pela aprovação de quem criou
   const comAprov = resp.setor === "ARTE" && resp.id !== u.id && !b.layout && !b.evento;
   const e = await validarDeps(t.dependencias, null, t); if (e) return { error: e };
@@ -277,6 +281,7 @@ export async function criar(b, u) {
     if (criada && t.dependencias.length) await prisma.tarefa.update({ where: { id: criada.id }, data: { dependencias: t.dependencias } });
   } else criada = await prisma.tarefa.create({ data: { ...base, ...(comAprov ? { aprovacao: { etapa: "EXECUCAO", solicitanteId: u.id, solicitanteNome: nome(u), rodada: 1, desdeArquivoId: 0 } } : {}) } });
   if (criada && t.evento) await sincronizarConvites(criada, b.convidados, u);
+  if (criada && !regra && b.colaboracao?.colaboradores?.length) { const rc = await (await import("@/lib/tarefaColaboracao")).sincronizarColaboradores(criada, b.colaboracao, u); if (rc.error) return { ok: true, tarefa: criada, aviso: rc.error }; }   // v992
   if (criada && b.decisao) await (await import("@/lib/decisoes")).salvarDecisao(criada, b.decisao, u);   // v655
   await avisar(u.id, t.responsavelId, `📌 NOVA DEMANDA${t.tipo === "URGENTE" ? " URGENTE" : ""} de ${nome(u)} para ${t.prazo.split("-").reverse().join("/")}: ${t.titulo}${regra ? ` (${descreverRecorrencia(regra)})` : ""} — veja em Tarefas.`, { tarefaId: t.id });
   return { ok: true, tarefa: criada };
@@ -289,14 +294,15 @@ export async function editar(id, b, u) {
   // v902 — mover só a data (arrastar na agenda) leva o início junto, mantendo a duração
   if (x.inicio && b.prazo && b.inicio === undefined) { const dd = Math.round((dUTC(b.prazo) - x.prazo) / 86400000); b = { ...b, inicio: iso(new Date(x.inicio.getTime() + dd * 86400000)) }; }
   const t = await ajustarProjeto(regraNatureza(limpar({ ...x, prazo: iso(x.prazo), inicio: x.inicio ? iso(x.inicio) : null, ...b }), x.criadoPorId), x.criadoPorId, x.projetoId);
-  if (!t.titulo || !t.setor || !t.responsavelId || !t.prazo) return { error: "Preencha setor, colaborador, demanda e data limite." };
+  if (!t.titulo || !t.setor || !t.responsavelId || !t.prazo) return { error: "Preencha setor, responsável, demanda e data limite." };
   const e = await validarDeps(t.dependencias, x.id, t); if (e) return { error: e };
   const resp = t.responsavelId !== x.responsavelId ? await prisma.usuario.findUnique({ where: { id: t.responsavelId }, select: { nome: true, sobrenome: true, ativo: true } }) : null;
-  if (resp && !resp.ativo) return { error: "Colaborador inválido." };
+  if (resp && !resp.ativo) return { error: "Responsável inválido." };
   const data = { ...t, prazo: dUTC(t.prazo), inicio: t.inicio && !x.serieId ? dUTC(t.inicio) : null, tipo: x.serieId ? (t.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : t.tipo, ...(resp ? { responsavelNome: nome(resp) } : {}) };
   let up = await prisma.tarefa.update({ where: { id: x.id }, data });
   if (b.convidados !== undefined || (!t.evento && !x.decisao)) await sincronizarConvites(up, t.evento ? b.convidados : [], u);
   if (b.decisao !== undefined || x.decisao) await (await import("@/lib/decisoes")).salvarDecisao(up, b.decisao !== undefined ? b.decisao : x.decisao, u);   // v655
+  if (b.colaboracao !== undefined && !x.colaboracao?.origemId) { const rc = await (await import("@/lib/tarefaColaboracao")).sincronizarColaboradores(up, b.colaboracao, u); if (rc.error) return rc; }   // v992
   if (b.recorrencia !== undefined) up = (await mudarRecorrencia(up, b.recorrencia)) || up;
   // v653 — recorrente: mudar o projeto ou os dados de uma muda a série e todas as demais em aberto
   //   (arrastar na agenda só muda dia/hora desta; o projeto vale também para as concluídas, que seguem no projeto)
@@ -359,6 +365,7 @@ export async function excluir(id, u) {
   if (!x) return { ok: true };
   if (!(x.criadoPorId === u.id || ehMaster(u))) return { error: "Só quem criou ou o master excluem." };
   await fecharSessoes({ tarefaId: x.id });
+  await (await import("@/lib/tarefaColaboracao")).cancelarColaboracoes(x.id);   // v992
   // v566 — vai para a lixeira por 30 dias (com dados e arquivos); depois some. Concluídas e passadas nunca são apagadas.
   await prisma.tarefa.update({ where: { id: x.id }, data: { status: "CANCELADA", excluidaEm: new Date(), excluidaPorNome: nome(u), statusAntes: x.status === "CANCELADA" ? null : x.status } });
   return { ok: true };
