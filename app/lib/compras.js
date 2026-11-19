@@ -970,7 +970,7 @@ export async function tirarDeCompras(where, db = prisma, { quem = null, motivo =
   for (const v of l) {
     if (v.status === "ENTREGUE" || v.liberadoEm || (v.status === "ESTOQUE" && v.reservaLiberada)) continue;
     if (v.picId && ["PIC", "OC", "NF"].includes(v.status)) {
-      const r = await ajustarPicDoItem(v, necessidade(v), {}, db).catch(() => null);
+      const r = await Promise.resolve().then(() => ajustarPicDoItem(v, necessidade(v), {}, db)).catch((e) => { console.log("compras/ajustar PIC:", e.message); return null; });
       if (r?.travadas?.length) travadas.push(...r.travadas);
     }
     if (ehAvulsa(v.pedidoNumero)) {
@@ -981,6 +981,28 @@ export async function tirarDeCompras(where, db = prisma, { quem = null, motivo =
     await db.compraItem.delete({ where: { id: v.id } }).catch(() => null);
     n++;
   }
+  // v1000 — sobra no PIC: linha que ainda cita este pedido/item (ex.: avulsa sem quantidade, que não mexe na quantidade da linha,
+  //   ou item já dispensado antes) perde a origem; sem nenhuma origem, a linha sai do PIC (OC enviada não muda)
+  try {
+    const alvo = l.length ? l.map((v) => ({ pedido: v.pedidoNumero, chave: v.chave })) : where.chave ? [{ pedido: where.pedidoNumero, chave: where.chave }] : [];
+    const ehDele = (o) => o && String(o.pedido) === String(where.pedidoNumero) && (!where.chave ? true : alvo.some((x) => String(x.chave) === String(o.chave)));
+    const pis = (await db.picItem.findMany({ where: { info: { path: ["pedidos"], array_contains: [{ pedido: String(where.pedidoNumero) }] } },
+      include: { ocItens: { select: { id: true, ocId: true, oc: { select: { numero: true, status: true } } } } } }).catch(() => []));
+    for (const pi of pis) {
+      const peds = Array.isArray(pi.info?.pedidos) ? pi.info.pedidos : [];
+      if (!peds.some(ehDele)) continue;
+      const ocs = (pi.ocItens || []).filter((o) => o.oc?.status !== "CANCELADA");
+      const trav = ocs.filter((o) => o.oc?.status !== "ABERTA");
+      if (trav.length) { travadas.push(...trav.map((o) => o.oc.numero)); continue; }
+      const resto = peds.filter((o) => !ehDele(o));
+      if (!resto.length) {
+        for (const o of ocs) { await db.ocItem.delete({ where: { id: o.id } }).catch(() => null); if (!(await db.ocItem.count({ where: { ocId: o.ocId } }).catch(() => 1))) await db.ordemCompra.update({ where: { id: o.ocId }, data: { status: "CANCELADA" } }).catch(() => null); }
+        await ajustarCotacoes(pi.id, 0, true, db).catch(() => null);
+        await db.picItem.delete({ where: { id: pi.id } }).catch(() => null);
+      } else await db.picItem.update({ where: { id: pi.id }, data: { info: { ...pi.info, pedidos: resto } } }).catch(() => null);
+      n++;
+    }
+  } catch (e) { console.log("compras/tirar do PIC:", e.message); }
   return { n, travadas: [...new Set(travadas)] };
 }
 

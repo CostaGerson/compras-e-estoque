@@ -6,6 +6,10 @@ import { itensDoPedido, sugerirFpps, demandaDoItem, faseCompraPcp, faseItemPcp, 
 
 // v419 — dispensar compras (pedido só para faturamento): POST { pedidoNumero, motivo, quem } · DELETE { pedidoNumero } reativa
 export async function POST(req) {
+  try { return await dispensar(req); }   // v1000 — erro volta com o motivo (antes a tela só dizia "Não consegui dispensar")
+  catch (e) { console.log("compras/dispensar:", e); return Response.json({ error: String(e?.message || e).split("\n").filter(Boolean).slice(-1)[0] }, { status: 500 }); }
+}
+async function dispensar(req) {
   const b = await req.json().catch(() => ({}));
   const n = String(b.pedidoNumero || "").trim();
   if (!n) return Response.json({ error: "Pedido?" }, { status: 400 });

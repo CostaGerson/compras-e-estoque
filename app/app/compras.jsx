@@ -78,7 +78,7 @@ export function BotaoDispensar({ origens, user, onFeito, rotulo = "Dispensar" })
     for (const o of alvo) {
       const r = await fetch("/api/compras/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: o.pedido, chave: o.chave, motivo: motivo || null, quem: nomeUser(user) }) }).catch(() => null);
       const x = r ? await r.json().catch(() => ({})) : {};
-      if (!r?.ok) erros.push(`${o.pedido} ${ch(o.chave)}`); else (x.travadas || []).forEach((t) => trav.add(t));
+      if (!r?.ok) erros.push(`${o.pedido} ${ch(o.chave)}${x.error ? ` (${x.error})` : !r ? " (sem conexão)" : ` (erro ${r.status})`}`); else (x.travadas || []).forEach((t) => trav.add(t));
     }
     setOcup(false); setAb(false); setMarc(new Set()); setMotivo("");
     if (erros.length) await alerta(`Não consegui dispensar: ${erros.join(", ")}`);
