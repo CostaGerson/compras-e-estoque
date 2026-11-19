@@ -125,7 +125,7 @@ const MENU = [
     { key: "compras", label: "Compras", icon: ShoppingCart, desc: "Pedidos por item com a FPP base, levantamento, PIC e ordens de compra", filhos: [
       { key: "comprasPedidos", label: "Sincronização de pedidos", icon: ClipboardList, desc: "Pedidos do KM em lista: situação no PCP, itens com FPP e ligação de cada item à FPP base" },
       { key: "comprasAvulsas", label: "Compras avulsas", icon: ShoppingCart, desc: "Demandas de compra avulsa (operação ou complemento de pedido): lançar, editar e marcar comprada" },   // v468
-      { key: "levantamento", label: "Levantamento e estoque", icon: Layers, desc: "Demandas registradas, equiparações, cruzamento com o estoque (autorizar ou reprovar) e atendidos pelo estoque" },
+      { key: "levantamento", label: "Levantamento", icon: Layers, desc: "Demandas registradas, equiparações, cruzamento com o estoque (autorizar ou reprovar) e atendidos pelo estoque" },
       { key: "pic", label: "PIC", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Itens que o estoque não atende: fornecedor e valor de cada artigo e geração das OCs" },
       { key: "comprasCotacoes", label: "Cotações", icon: FileText, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Cotações enviadas aos fornecedores, respostas e aplicação do preço no PIC" },   // v478
       { key: "oc", label: "Ordens de compra", icon: ShoppingCart, perfis: ["FINANCEIRO", "COMPRAS"], desc: "PICs consolidados por fornecedor" },

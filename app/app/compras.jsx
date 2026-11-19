@@ -85,8 +85,8 @@ export function BotaoDispensar({ origens, user, onFeito, rotulo = "Dispensar" })
   }
   return (
     <>
-      <button onClick={(e) => { e.stopPropagation(); setMarc(new Set(l.length === 1 ? [k(l[0])] : [])); setAb(true); }} title="Tirar esta demanda de compras (o item do pedido vai para o PCP sem compra de material)"
-        className="text-[11px] px-2 py-0.5 rounded-md whitespace-nowrap" style={{ border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>{rotulo}</button>
+      <button onClick={(e) => { e.stopPropagation(); setMarc(new Set(l.length === 1 ? [k(l[0])] : [])); setAb(true); }} title="Dispensar compras: tirar esta demanda de compras (o item do pedido vai para o PCP sem compra de material)"
+        aria-label={rotulo} className="inline-flex items-center justify-center rounded-full text-[11px] font-black shrink-0 align-middle" style={{ width: 20, height: 20, background: "#F5B700", color: "#fff" }}>D</button>   {/* v998 — sempre um "D" amarelo */}
       {ab && (
         <Modal titulo="Dispensar compras" onClose={() => setAb(false)}>
           <div className="text-xs mb-2" style={{ color: C.sub }}>A demanda sai de compras em qualquer fase (levantamento, PIC, cotação e OC ainda não enviada). Item de pedido vai para o PCP; linha de compra avulsa é cancelada.</div>
@@ -201,7 +201,7 @@ function BuscarFpp({ cliente, onClose, onEscolher }) {
 // ---------- Compras › Pedidos ----------
 // v415 — fases de compras na guia superior (troca de tela entre as fases)
 export const FASES_COMPRAS = [
-  ["comprasPedidos", "Sincronização de pedidos", ClipboardList], ["levantamento", "Levantamento e estoque", Layers],   // v483 — cruzamento e atendidos dentro do Levantamento
+  ["comprasPedidos", "Sincronização de pedidos", ClipboardList], ["levantamento", "Levantamento", Layers],   // v483 — cruzamento e atendidos dentro do Levantamento
   ["pic", "PIC diário", ClipboardList], ["comprasCotacoes", "Cotações", FileText], ["oc", "Ordens de compra", ShoppingCart],
 ];
 export function FasesCompras({ atual, fases, ir }) {
@@ -886,7 +886,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
       {aba === "consolidado" && d.consolidado.length > 0 && (
         <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="flex px-4 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2 }}>
-            <div className="flex-1">Artigo</div><div className="w-48">Fornecedor · cor · código</div><div className="w-28 text-right">Demanda</div><div className="w-24 text-right">Pedidos</div>{veValores && <div className="w-28 text-right">Estimado</div>}<div className="w-24" />
+            <div className="flex-1">Artigo</div><div className="w-48">Fornecedor · cor · código</div><div className="w-28 text-right">Demanda</div><div className="w-24 text-right">Pedidos</div>{veValores && <div className="w-28 text-right">Estimado</div>}<div className="w-8" />
           </div>
           {d.consolidado.map((c) => (
             <div key={c.artigoId} className="flex px-4 py-2.5 text-sm items-center" style={{ borderTop: `1px solid ${C.line}` }}>
@@ -897,7 +897,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
               <div className="w-28 text-right font-bold" style={{ color: C.accent }}>{c.compra ? <>{c.compra} grosa(s)<div className="text-[11px] font-normal" style={{ color: C.sub }}>{qtdU(c.quantidade, c.unidade)} de {qtdU(c.compra * c.embalagem, c.unidade)}</div></> : qtdU(c.quantidade, c.unidade)}</div>
               <div className="w-24 text-right text-xs" style={{ color: C.sub }} title={c.pedidos.join(", ")}>{c.pedidos.length} ped · {c.itens} it</div>
               {veValores && <div className="w-28 text-right text-xs" style={{ color: C.sub }}>{c.valorEstimado ? brl(c.valorEstimado) : "—"}</div>}
-              <div className="w-24 text-right">{(c.origensItens || []).length > 0 && <BotaoDispensar origens={c.origensItens} user={user} onFeito={carregar} rotulo="Dispensar compras" />}</div>   {/* v996 */}
+              <div className="w-8 text-right">{(c.origensItens || []).length > 0 && <BotaoDispensar origens={c.origensItens} user={user} onFeito={carregar} rotulo="Dispensar compras" />}</div>   {/* v996 */}
             </div>
           ))}
         </div>
