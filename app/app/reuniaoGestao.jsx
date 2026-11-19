@@ -393,11 +393,12 @@ const Obs = (p) => {
   );
 };
 // v1008 — tabela no visual do sistema: cabeçalho claro, linhas finas, cantos arredondados
-function Tab({ cols, linhas, rodape, larg, fs = 12 }) {
+function Tab({ cols, linhas, rodape, larg, fs = 12, colW }) {
   const th = (c) => ({ background: "#EEF2F8", color: c.cor || N, padding: "7px 10px", textAlign: c.r ? "right" : "left", fontWeight: 700, whiteSpace: "nowrap", fontSize: fs - 1, letterSpacing: 0.3, textTransform: "uppercase", borderBottom: `1px solid #DCE3EE` });
   return (
     <div style={{ border: `1px solid ${LN}`, borderRadius: 10, overflow: "hidden", width: larg || "100%", background: "#fff" }}>
-      <table style={{ borderCollapse: "collapse", width: "100%", fontSize: fs }}>
+      <table style={{ borderCollapse: "collapse", width: "100%", fontSize: fs, tableLayout: colW ? "fixed" : "auto" }}>
+        {colW && <colgroup>{colW.map((w, k) => <col key={k} style={{ width: w }} />)}</colgroup>}
         <thead><tr>{cols.map((c, k) => <th key={k} style={th(c)}>{c.t}</th>)}</tr></thead>
         <tbody>{linhas.map((l, k) => <tr key={k} style={{ background: l._cor || (l._b ? "#F3F6FB" : k % 2 ? "#FAFBFD" : "#fff") }}>{l.c.map((v, q) => <td key={q} style={{ padding: "5px 10px", borderBottom: `1px solid #EEF1F5`, textAlign: cols[q]?.r ? "right" : "left", fontWeight: l._b ? 700 : 400, whiteSpace: "nowrap", color: l._fg?.[q] || (q === 0 ? N : "#1F2733"), fontVariantNumeric: "tabular-nums" }}>{v}</td>)}</tr>)}</tbody>
         {rodape && <tfoot>{rodape.map((l, k) => <tr key={k} style={{ background: "#EEF2F8", fontWeight: 700, color: N }}>{l.map((v, q) => <td key={q} style={{ padding: "6px 10px", textAlign: cols[q]?.r ? "right" : "left", whiteSpace: "nowrap", borderTop: k ? "none" : `1px solid #DCE3EE`, fontVariantNumeric: "tabular-nums" }}>{v}</td>)}</tr>)}</tfoot>}
@@ -409,7 +410,7 @@ function Tab({ cols, linhas, rodape, larg, fs = 12 }) {
 const Caixa = ({ t, v, cor = L, sub }) => (
   <div style={{ border: `1px solid ${LN}`, borderTop: `4px solid ${cor}`, borderRadius: 10, background: "#fff", padding: "10px 14px", minWidth: 170, boxShadow: "0 1px 2px rgba(16,24,40,.04)" }}>
     <div style={{ fontSize: 11, fontWeight: 700, color: CZ, letterSpacing: 0.6, textTransform: "uppercase" }}>{t}</div>
-    <div style={{ fontWeight: 800, fontSize: 20, color: N, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>{v}</div>
+    <div style={{ fontWeight: 800, fontSize: String(v ?? "").length > 15 ? 16 : String(v ?? "").length > 12 ? 18 : 20, color: N, marginTop: 4, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{v}</div>
     {sub && <div style={{ fontSize: 11, color: CZ, marginTop: 2 }}>{sub}</div>}
   </div>
 );
@@ -650,13 +651,15 @@ function montarSlides(R) {
         <div style={{ position: "absolute", left: 40, right: 290, top: 100, display: "flex", flexDirection: "column", gap: 14 }}>
           {(a.tributos || []).map((g) => (
             <div key={g.grupo} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+              {/* v1010 — total do grupo no rodapé da própria tabela (colunas alinhadas entre os grupos) */}
               <div style={{ flex: 1 }}><Tab cols={[{ t: g.label }, { t: "Saldo", r: 1 }, { t: "Parcela", r: 1 }, { t: "Situação" }]}
-                linhas={(g.itens || []).map((i) => ({ c: [i.descricao, brl(i.calculo?.saldo ?? i.valor), i.parcelaMensal ? brl(i.parcelaMensal) : "—", i.parcelado ? `parcelado · ${i.calculo?.parcelasRestantes ?? "?"} restantes` : i.exigivel ? "exigível" : "não exigível"] }))} /></div>
-              <div style={{ width: 160 }}><Caixa t="TOTAL" v={brl(g.total)} cor={AZ} /></div>
+                linhas={(g.itens || []).map((i) => ({ c: [i.descricao, brl(i.calculo?.saldo ?? i.valor), i.parcelaMensal ? brl(i.parcelaMensal) : "—", i.parcelado ? `parcelado · ${i.calculo?.parcelasRestantes ?? "?"} restantes` : i.exigivel ? "exigível" : "não exigível"] }))}
+                rodape={[["TOTAL", brl(g.total), brl((g.itens || []).reduce((s0, i) => s0 + (Number(i.parcelaMensal) || 0), 0)), ""]]} colW={["46%", "18%", "16%", "20%"]} /></div>
             </div>))}
         </div>
         <div style={{ position: "absolute", right: 40, top: 100, width: 230, display: "flex", flexDirection: "column", gap: 12 }}>
           <Caixa t="TOTAL IMPOSTOS" v={brl(a.totais?.tributos)} cor={N} />
+          <Caixa t="PARCELAS POR MÊS" v={brl((a.tributos || []).flatMap((g) => g.itens || []).reduce((s0, i) => s0 + (Number(i.parcelaMensal) || 0), 0))} cor={AZ} />
           <Caixa t="ALAVANCAGEM TOTAL" v={brl(a.totais?.alavancagem)} cor={L} sub="todos os grupos" />
         </div>
         <Obs {...p} chave="div.trib" />
@@ -665,11 +668,11 @@ function montarSlides(R) {
   });
   // comercial
   add("RELATÓRIO COMERCIAL", "Performance de vendas", () => (
-    <div style={{ position: "absolute", inset: 0, background: N, padding: 60 }}>
-      <img src="/meridian-logo.svg" alt="" style={{ height: 40, margin: "60px auto 0", display: "block" }} />
-      <div style={{ color: L, letterSpacing: 4, fontWeight: 700, fontSize: 14, marginTop: 120 }}>RELATÓRIO COMERCIAL</div>
-      <div style={{ color: "#fff", fontWeight: 800, fontSize: 40, marginTop: 12 }}>Performance de Vendas</div>
-      <div style={{ color: "#B9C4D6", fontSize: 18, marginTop: 10 }}>{M3[rm - 1]} {ra} · MERIDIAN</div>
+    // v1010 — mesmo padrão da capa e do encerramento: logo grande no centro e texto em maiúsculas espaçadas
+    <div style={{ position: "absolute", inset: 0, background: N, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 90 }} />
+      <div style={{ color: L, letterSpacing: 6, fontSize: 15, fontWeight: 700, marginTop: 110 }}>RELATÓRIO COMERCIAL</div>
+      <div style={{ color: "#fff", letterSpacing: 6, fontSize: 18, marginTop: 14 }}>PERFORMANCE DE VENDAS · {MES} · {ra}</div>
     </div>));
   addD(["kpi"], "RELATÓRIO COMERCIAL", "Resumo executivo", (p) => {
     const k = p.D?.kpi; if (!p.D || !k || k._erro) return <><Cab g="RELATÓRIO COMERCIAL" t={`RESUMO EXECUTIVO · ${ra}`} /><Sem x={p.D ? k : null} /></>;
