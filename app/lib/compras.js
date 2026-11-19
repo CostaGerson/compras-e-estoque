@@ -1,6 +1,6 @@
 // v404 — Compras: FPP base de cada item de pedido, demanda de matéria-prima e levantamento.
 import { prisma } from "./prisma";
-import { elasticoCalc, faixaCalc, botaoUnit, nomeFaixaCompra, obsBotao, ehPecaAberta, ehRevenda } from "./fppAv";   // v410 · v512
+import { elasticoCalc, faixaCalc, botaoUnit, nomeFaixaCompra, faixaRefletivaDaMontada, obsBotao, ehPecaAberta, ehRevenda } from "./fppAv";   // v410 · v512
 
 export const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
 const vazio = (v) => v == null || String(v).trim() === "";
@@ -157,9 +157,10 @@ export function materiaisDaFpp(fpp, params = [], corSel = null) {
     if (a.chave === "FAIXA") {
       const c = faixaCalc(get, v, e.faixaTipo);
       if (c.consumo > 0) {
-        const nome = e.faixaTipo ? nomeFaixaCompra(e.faixaTipo, e.faixaCor) : nomeAv(a.prefixo, v);
+        // v997 — montada: a demanda é da faixa refletiva (simples, mesma largura) — o tactel sai em demanda própria logo abaixo
+        const nome = c.montada ? faixaRefletivaDaMontada(e.faixaTipo) : e.faixaTipo ? nomeFaixaCompra(e.faixaTipo, e.faixaCor) : nomeAv(a.prefixo, v);
         out.push({ papel: a.chave, ref: { campo: "aviamentosDet", chave: a.chave }, categoria: "AVIAMENTO", unidade: "M", nome, det,
-          consumoPorPeca: c.consumo, valorUnitario: (c.montada ? c.metroFaixa : c.metro) || null, base: `${String(r3(c.consumo)).replace(".", ",")} m/peça · ${String(v).toUpperCase()}`, obs: det.obs || null });
+          consumoPorPeca: c.consumo, valorUnitario: (c.montada ? c.metroFaixa : c.metro) || null, base: `${String(r3(c.consumo)).replace(".", ",")} m/peça · ${String(v).toUpperCase()}${c.montada ? ` · refletiva da ${String(e.faixaTipo).toUpperCase()}` : ""}`, obs: det.obs || null });
         // v506 — faixa montada: o tactel entra como material próprio, com o mesmo consumo
         if (c.montada) out.push({ papel: "FAIXA_TACTEL", ref: { campo: "aviamentosDet", chave: a.chave }, categoria: "AVIAMENTO", unidade: "M", nome: `TACTEL ${String(e.faixaCor || "").toUpperCase()} P/ FAIXA`.replace(/\s+/g, " ").trim(), det,
           consumoPorPeca: c.consumo, valorUnitario: c.metroTactel || null, base: `${String(r3(c.consumo)).replace(".", ",")} m/peça · tactel da faixa montada`, obs: det.obs || null });

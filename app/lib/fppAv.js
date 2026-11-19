@@ -59,6 +59,8 @@ export function botaoUnit(get, tipo) {
   return v > 0 ? v : n(get("CONST", "BOTAO_UNIT", "valor"));
 }
 
+// v997 — faixa montada: a compra é da faixa refletiva simples (mesma largura) + o tactel na cor; um é costurado no outro
+export const faixaRefletivaDaMontada = (tipo) => { const m = String(tipo || "").toUpperCase().match(/TACTEL\s+(\d+(?:,\d+)?\s*CM)/); return m ? `FAIXA SIMPLES ${m[1].replace(/\s+/g, "")}` : "FAIXA SIMPLES"; };
 export const nomeFaixaCompra = (tipo, cor) => [String(tipo || "").trim().toUpperCase(), faixaPedeCor(tipo) && cor ? String(cor).toUpperCase() : ""].filter(Boolean).join(" ");
 export const fmtNum = (v, d = 2) => (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: Math.max(d, 4) });
 
