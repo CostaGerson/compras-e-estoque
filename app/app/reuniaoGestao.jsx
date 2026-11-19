@@ -4,7 +4,7 @@
 //   e podem ser incluídas aqui ou na tarefa (é o mesmo registro). A reunião de um mês apresenta os números do mês anterior,
 //   lidos na hora do sistema (KPIs, análises de corte/expedição, endividamento, DRE, fluxo e painel). Textos e observações
 //   são editados direto na tela e ficam salvos na reunião.
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Maximize2, X, Plus, Loader2, Landmark, Eye, EyeOff, ExternalLink, Type, Heading1, Heading2, Link2, ImagePlus, Trash2, GripVertical, FilePlus2, Save, Copy } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { Acervo } from "./acervo";
@@ -412,11 +412,36 @@ const Obs = (p) => {
     </div>
   );
 };
+// v1013 — conteúdo que não cabe na área do slide (muitos contratos, tabela larga) diminui até caber, sem cortar nem passar por cima da observação
+const useLayoutIso = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+function Caber({ maxH = 520, children, style, largura = true }) {
+  const fora = useRef(null), dentro = useRef(null);
+  const [k, setK] = useState(1);
+  const [h, setH] = useState(null);
+  useLayoutIso(() => {
+    const el = dentro.current, box = fora.current; if (!el || !box) return;
+    const medir = () => { const w = el.scrollWidth, hh = el.scrollHeight, W0 = box.clientWidth || w; const nk = Math.max(0.5, Math.min(1, largura ? W0 / Math.max(1, w) : 1, maxH / Math.max(1, hh))); if (Math.abs(nk - k) > 0.005) setK(nk); const nh = hh * nk; if (h == null || Math.abs(nh - h) > 1) setH(nh); };
+    medir(); const ro = new ResizeObserver(medir); ro.observe(el); return () => ro.disconnect();
+  });
+  return (
+    <div ref={fora} style={{ ...style, height: h ?? "auto", overflow: "visible" }}>
+      <div ref={dentro} style={{ width: largura && k < 1 ? `${100 / k}%` : "100%", transform: `scale(${k})`, transformOrigin: "0 0" }}>{children}</div>
+    </div>
+  );
+}
+// número, moeda, % e datas alinham à direita (título junto); texto à esquerda
+const ehNum = (v) => /^\s*(-?R\$\s?-?[\d.,]+|-?[\d.,]+\s*%?|[▲▼]?\s?-?[\d.,]+%|—|-)\s*$/.test(String(v ?? "")) && String(v ?? "").trim() !== "";
 // v1008 — tabela no visual do sistema: cabeçalho claro, linhas finas, cantos arredondados
-function Tab({ cols, linhas, rodape, larg, fs = 12, colW }) {
+function Tab({ cols: cols0, linhas, rodape, larg, fs = 12, colW }) {
+  // v1013 — título da coluna sempre no mesmo alinhamento do conteúdo
+  const cols = cols0.map((c, q) => {
+    if (c.r != null || q === 0) return c;
+    const vs = linhas.map((l) => l.c[q]).filter((v) => v != null && String(v).trim() !== "" && String(v).trim() !== "—");
+    return vs.length && vs.filter(ehNum).length / vs.length >= 0.6 ? { ...c, r: 1 } : c;
+  });
   const th = (c) => ({ background: "#EEF2F8", color: c.cor || N, padding: "7px 10px", textAlign: c.r ? "right" : "left", fontWeight: 700, whiteSpace: "nowrap", fontSize: fs - 1, letterSpacing: 0.3, textTransform: "uppercase", borderBottom: `1px solid #DCE3EE` });
   return (
-    <div style={{ border: `1px solid ${LN}`, borderRadius: 10, overflow: "hidden", width: larg || "100%", background: "#fff" }}>
+    <div style={{ border: `1px solid ${LN}`, borderRadius: 10, overflow: "hidden", width: larg || "max-content", minWidth: larg ? undefined : "100%", background: "#fff" }}>
       <table style={{ borderCollapse: "collapse", width: "100%", fontSize: fs, tableLayout: colW ? "fixed" : "auto" }}>
         {colW && <colgroup>{colW.map((w, k) => <col key={k} style={{ width: w }} />)}</colgroup>}
         <thead><tr>{cols.map((c, k) => <th key={k} style={th(c)}>{c.t}</th>)}</tr></thead>
@@ -565,7 +590,7 @@ function montarSlides(R) {
       <>
         <Cab g="PESSOAS E PROCESSOS" t={nome} />
         {!p.D || !x || x._erro ? <Sem x={p.D ? x : null} /> : !a ? <div style={{ position: "absolute", left: 40, top: 120, color: CZ, fontSize: 15 }}>Análise de {onde} de {MES.toLowerCase()} ainda não lançada (Operação › Análises operacionais).</div> : (
-          <div style={{ position: "absolute", left: 40, right: 40, top: 96, display: "flex", gap: 24 }}>
+          <Caber maxH={530} style={{ position: "absolute", left: 40, right: 40, top: 96 }}><div style={{ display: "flex", gap: 24 }}>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
               {grade ? <>
                 <Tab cols={[{ t: "PEÇA" }, { t: "QTD", r: 1 }, { t: "CONCENTRAÇÃO", r: 1 }]} linhas={(c.linhas || []).filter((k) => k.qtd).map((k) => ({ c: [k.n, num(k.qtd), pct(k.concentracao, 0)] }))} rodape={[["TOTAL", num(c.pecas), "100%"]]} />
@@ -585,7 +610,7 @@ function montarSlides(R) {
               {a.causas && <div style={{ fontSize: 12 }}><b style={{ color: N }}>Causas:</b> {a.causas}</div>}
               {a.providencias && <div style={{ fontSize: 12 }}><b style={{ color: N }}>Providências:</b> {a.providencias}</div>}
             </div>
-          </div>)}
+          </div></Caber>)}
         <Obs {...p} chave={setor} />
       </>
     );
@@ -598,7 +623,7 @@ function montarSlides(R) {
       <>
         <Cab g="PESSOAS E PROCESSOS" t="ANALISE LOGÍSTICA" />
         {!m ? <div style={{ position: "absolute", left: 40, top: 120, color: CZ, fontSize: 15 }}>Sem análise da logística para {MES.toLowerCase()}/{ra}.</div> : (
-          <div style={{ position: "absolute", left: 40, right: 40, top: 96, display: "flex", gap: 24 }}>
+          <Caber maxH={530} style={{ position: "absolute", left: 40, right: 40, top: 96 }}><div style={{ display: "flex", gap: 24 }}>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
               <Tab cols={[{ t: "CONTA" }, { t: "VALOR", r: 1 }, { t: "R$ / PÇ", r: 1 }, { t: "ENTRA NO CUSTO" }]}
                 linhas={(x.contas || []).filter((k) => m.valores?.[k.k]).map((k) => ({ c: [k.n, brl(m.valores[k.k]), m.pecas ? brl(m.valores[k.k] / m.pecas) : "—", k.entra ? "sim" : "não (informativo)"] }))}
@@ -612,7 +637,7 @@ function montarSlides(R) {
                 { c: ["Frete entrega / pç", brl(m.freteEntregaPeca)] }, { c: [`Média ${(md.meses || []).length} meses / pç`, brl(md.porPeca)], _b: 1 },
                 { c: ["Lançamentos identificados", pct(m.pctIdentificado, 0)], _fg: [null, m.identificado ? VD : VM] }]} />
             </div>
-          </div>)}
+          </div></Caber>)}
         <Obs {...p} chave="log" />
       </>
     );
@@ -649,7 +674,8 @@ function montarSlides(R) {
     return (
       <>
         <Cab g="KPIS" t={titulo} />
-        <div style={{ position: "absolute", left: 40, top: 96, right: 250 }}><Tab cols={cols} linhas={linhas} rodape={rod} fs={tipo === "rec" ? 11 : 12} /></div>
+        <Caber maxH={530} style={{ position: "absolute", left: 40, top: 96, right: 250 }}><Tab cols={cols} linhas={linhas} rodape={rod} fs={tipo === "rec" ? 11 : 12}
+          colW={tipo === "fat" ? ["6%", "15%", "15%", "15%", "10%", "10%", "13%", "16%"] : undefined} /></Caber>
         <div style={{ position: "absolute", right: 40, top: 96, width: 190, display: "flex", flexDirection: "column", gap: 12 }}>
           <Caixa t="META" v={brl(metaTot, 0)} /><Caixa t="REALIZADO" v={brl(gap?.real, 0)} cor={VD} sub={metaTot ? `${pct(gap.real / metaTot, 1)} da meta · até ${M3[rm - 1]}` : `até ${M3[rm - 1]}`} />
           <Caixa t="GAP" v={brl(gap?.gap, 0)} cor={N} /><Caixa t="MTG" v={gap?.rest ? brl(gap?.mtg, 0) : "—"} sub={gap?.rest ? `por mês nos ${gap.rest} mês(es) em aberto` : "ano fechado"} />
@@ -672,7 +698,7 @@ function montarSlides(R) {
       <>
         <Cab g="KPIS" t={titulo} />
         {/* v1008 — contratos em grade de 3 colunas; totais alinhados no topo, à direita */}
-        <div style={{ position: "absolute", left: 40, right: 290, top: 100, display: "grid", gridTemplateColumns: `repeat(${itens.length > 6 ? 4 : 3}, 1fr)`, gap: 12, alignContent: "start" }}>
+        <Caber maxH={520} largura={false} style={{ position: "absolute", left: 40, right: 290, top: 100 }}><div style={{ display: "grid", gridTemplateColumns: `repeat(${itens.length <= 3 ? 3 : itens.length <= 8 ? 4 : 5}, 1fr)`, gap: 12, alignContent: "start" }}>
           {itens.map((c) => (
             <div key={c.id} style={{ border: `1px solid ${LN}`, borderRadius: 10, overflow: "hidden", background: "#fff", fontSize: 11 }}>
               <div style={{ background: "#EEF2F8", color: N, fontWeight: 800, padding: "6px 10px", fontSize: 11.5, letterSpacing: 0.3, borderBottom: "1px solid #DCE3EE", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.nome}</div>
@@ -682,7 +708,7 @@ function montarSlides(R) {
               </div>
             </div>))}
           {!itens.length && <div style={{ color: CZ }}>Nenhum contrato neste grupo.</div>}
-        </div>
+        </div></Caber>
         <div style={{ position: "absolute", right: 40, top: 100, width: 230, display: "flex", flexDirection: "column", gap: 12 }}>
           <Caixa t={`TOTAL ${titulo.split(" - ")[1] || ""}`} v={brl(total)} cor={N} sub={`${itens.length} contrato(s)`} />
           <Caixa t="PARCELAS POR MÊS" v={brl(itens.reduce((s0, c) => s0 + (Number(c.parcela ?? c.mensal) || 0), 0))} cor={AZ} />
@@ -701,7 +727,7 @@ function montarSlides(R) {
     return (
       <>
         <Cab g="KPIS" t="ENDIVIDAMENTO - TRIBUTÁRIO" />
-        <div style={{ position: "absolute", left: 40, right: 290, top: 100, display: "flex", flexDirection: "column", gap: 14 }}>
+        <Caber maxH={530} style={{ position: "absolute", left: 40, right: 290, top: 100 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {(a.tributos || []).map((g) => (
             <div key={g.grupo} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
               {/* v1010 — total do grupo no rodapé da própria tabela (colunas alinhadas entre os grupos) */}
@@ -709,7 +735,7 @@ function montarSlides(R) {
                 linhas={(g.itens || []).map((i) => ({ c: [i.descricao, brl(i.calculo?.saldo ?? i.valor), i.parcelaMensal ? brl(i.parcelaMensal) : "—", i.parcelado ? `parcelado · ${i.calculo?.parcelasRestantes ?? "?"} restantes` : i.exigivel ? "exigível" : "não exigível"] }))}
                 rodape={[["TOTAL", brl(g.total), brl((g.itens || []).reduce((s0, i) => s0 + (Number(i.parcelaMensal) || 0), 0)), ""]]} colW={["46%", "18%", "16%", "20%"]} /></div>
             </div>))}
-        </div>
+        </div></Caber>
         <div style={{ position: "absolute", right: 40, top: 100, width: 230, display: "flex", flexDirection: "column", gap: 12 }}>
           <Caixa t="TOTAL IMPOSTOS" v={brl(a.totais?.tributos)} cor={N} />
           <Caixa t="PARCELAS POR MÊS" v={brl((a.tributos || []).flatMap((g) => g.itens || []).reduce((s0, i) => s0 + (Number(i.parcelaMensal) || 0), 0))} cor={AZ} />
@@ -837,9 +863,9 @@ function montarSlides(R) {
     const top = c.top || [];
     const tot = Number(c.total) || 0, top5 = top.slice(0, 5).reduce((s0, x) => s0 + (Number(x.valor) || 0), 0);
     return (<><Cab g="RELATÓRIO COMERCIAL" t={`CLIENTES · ${MES}/${ra} · FATURAMENTO POR CLIENTE`} />
-      <div style={{ position: "absolute", left: 40, right: 290, top: 100, display: "flex", gap: 16 }}>
+      <Caber maxH={530} style={{ position: "absolute", left: 40, right: 290, top: 100 }}><div style={{ display: "flex", gap: 16 }}>
         {[top.slice(0, Math.ceil(top.length / 2)), top.slice(Math.ceil(top.length / 2))].map((col, q) => <div key={q} style={{ flex: 1 }}><Tab cols={[{ t: "Cliente" }, { t: "Valor", r: 1 }, { t: "%", r: 1 }]} linhas={col.map((x) => ({ c: [String(x.cliente || "").slice(0, 34), brl(x.valor), tot ? pct((Number(x.valor) || 0) / tot, 1) : "—"] }))} fs={12} /></div>)}
-      </div>
+      </div></Caber>
       <div style={{ position: "absolute", right: 40, top: 100, width: 230, display: "flex", flexDirection: "column", gap: 12 }}>
         <Caixa t="FATURADO NO MÊS" v={brl(tot)} cor={L} sub={`${c.clientes || top.length} cliente(s)`} />
         <Caixa t="CONCENTRAÇÃO TOP 5" v={tot ? pct(top5 / tot, 1) : "—"} cor={tot && top5 / tot > 0.6 ? VM : AZ} sub={tot && top5 / tot > 0.6 ? "dependência alta de poucos clientes" : "do faturamento do mês"} />
@@ -857,11 +883,11 @@ function montarSlides(R) {
     return (
       <>
         <Cab g="FINANCEIRO" t="DRE MES" />
-        <div style={{ position: "absolute", left: 40, top: 96, width: 560 }}><Tab cols={[{ t: "OPERAÇÃO" }, { t: "VALOR", r: 1 }]} linhas={linhasO.map(([l, v, b]) => ({ c: [l, brl(v)], _b: b, _cor: b ? "#DCE6F5" : undefined, _fg: [null, v < 0 ? VM : VD] }))} fs={13} /></div>
-        <div style={{ position: "absolute", left: 640, top: 96, right: 40 }}>
+        <Caber maxH={530} style={{ position: "absolute", left: 40, top: 96, width: 560 }}><Tab cols={[{ t: "OPERAÇÃO" }, { t: "VALOR", r: 1 }]} linhas={linhasO.map(([l, v, b]) => ({ c: [l, brl(v)], _b: b, _cor: b ? "#DCE6F5" : undefined, _fg: [null, v < 0 ? VM : VD] }))} fs={13} /></Caber>
+        <Caber maxH={530} style={{ position: "absolute", left: 640, top: 96, right: 40 }}>
           <Tab cols={[{ t: "NEGÓCIO · RECURSOS EXTERNOS" }, { t: "ENTRADA", r: 1 }, { t: "PAGAMENTO", r: 1 }]} linhas={ex.map((x) => ({ c: [x.n, brl(x.entrada), brl(x.pagamento)] }))}
             rodape={[["TOTAL", brl(d.entradaExterna), brl(d.pagamentoExterno)], ["RESULTADO RECURSOS EXTERNOS", "", brl(d.resultadoExterno)], ["SALDO FINAL", "", brl(d.saldoFinal)]]} fs={13} />
-        </div>
+        </Caber>
         <Obs {...p} chave="fin.dre" />
       </>
     );
@@ -880,7 +906,7 @@ function montarSlides(R) {
     return (
       <>
         <Cab g="FINANCEIRO" t="FLUXO DE CAIXA MES (REALIZADO)" />
-        <div style={{ position: "absolute", left: 40, right: 40, top: 96, display: "flex", gap: 16 }}><div style={{ flex: 1 }}>{T(ls.slice(0, meio))}</div><div style={{ flex: 1 }}>{T(ls.slice(meio))}</div></div>
+        <Caber maxH={500} style={{ position: "absolute", left: 40, right: 40, top: 96 }}><div style={{ display: "flex", gap: 16 }}><div style={{ flex: 1 }}>{T(ls.slice(0, meio))}</div><div style={{ flex: 1 }}>{T(ls.slice(meio))}</div></div></Caber>
         <div style={{ position: "absolute", left: 40, top: 610, fontSize: 14 }}><b>Total do mês:</b> entradas <b style={{ color: VD }}>{brl(tE)}</b> · saídas <b style={{ color: VM }}>{brl(tS)}</b> · resultado <b>{brl(tE + tS)}</b> (sem transferências entre contas)</div>
         <Obs {...p} chave="fin.fluxo" />
       </>
