@@ -70,7 +70,10 @@ function Reuniao({ user, irMatriz, mesInicial }) {
       s(`/api/kpi?u=${u}&ano=${ra}`), s(`/api/kpi/clientes?u=${u}&ano=${ra}&mes=${rm}&kpi=faturamentoValor`), s(`/api/fin/dre?u=${u}&competencia=${R.ref}`),
       s(`/api/fin/alavancagem?u=${u}`), s(`/api/fin/painel?u=${u}&competencia=${R.mes}`), s(`/api/producao/analises?u=${u}&setor=CORTE&competencia=${R.ref}`),
       s(`/api/producao/analises?u=${u}&setor=EXPEDICAO&competencia=${R.ref}`), s(`/api/fin/lancamentos?u=${u}&competencia=${R.ref}`),
-    ]).then(([kpi, cli, dre, alav, painel, corte, exp, lanc]) => setD({ kpi, cli, dre, alav, painel, corte, exp, lanc, ra, rm }));
+      // v1012 — demais análises operacionais (sem sublimação e DTF)
+      s(`/api/producao/analises?u=${u}&setor=SILK&competencia=${R.ref}`), s(`/api/producao/analises?u=${u}&setor=BORDADO&competencia=${R.ref}`),
+      s(`/api/producao/analises?u=${u}&setor=COSTURA&competencia=${R.ref}`), s(`/api/producao/analises?u=${u}&setor=LOGISTICA`),
+    ]).then(([kpi, cli, dre, alav, painel, corte, exp, lanc, silk, bordado, costura, log]) => setD({ kpi, cli, dre, alav, painel, corte, exp, lanc, silk, bordado, costura, log, ra, rm }));
   }, [R?.ref]);
   const post = async (corpo) => { const r = await fetch("/api/reuniao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, tarefaId: R.tarefa.id, ...corpo }) }); const x = await r.json().catch(() => ({})); if (!r.ok || x.error) throw new Error(x.error || `Erro ${r.status}`); return x; };
   const salvar = (k, v) => {
@@ -95,7 +98,18 @@ function Reuniao({ user, irMatriz, mesInicial }) {
   // ordem: a estrutura salva; sem ela, os slides padrão com as páginas em branco depois do slide onde foram criadas
   const ordem = useMemo(() => {
     const porChave = Object.fromEntries(base.map((x) => [x.chave, x]));
-    if (estrutura) return estrutura.filter((s) => (s.pagina ? paginas.some((p) => p.id === s.pagina) : porChave[s.base]));
+    if (estrutura) {
+      // v1012 — slide padrão novo (que não existia quando a estrutura foi salva) entra depois do slide padrão anterior; os excluídos ficam de fora
+      const l = estrutura.filter((s) => !s.excluido && (s.pagina ? paginas.some((p) => p.id === s.pagina) : porChave[s.base]));
+      const conhecidos = new Set(estrutura.filter((s) => s.base).map((s) => s.base));
+      base.forEach((x, k) => {
+        if (conhecidos.has(x.chave)) return;
+        let pos = l.length;
+        for (let q = k - 1; q >= 0; q--) { const at = l.findIndex((s) => s.base === base[q].chave && !s.dup); if (at >= 0) { pos = at + 1; while (l[pos] && l[pos].pagina) pos++; break; } }
+        l.splice(pos, 0, { id: x.chave, base: x.chave });
+      });
+      return l;
+    }
     const out = [];
     const extra = (ch) => paginas.filter((pg) => pg.apos === ch).forEach((pg) => { out.push({ id: `PG|${pg.id}`, pagina: pg.id }); extra(`PG|${pg.id}`); });
     for (const x of base) { out.push({ id: x.chave, base: x.chave }); extra(x.chave); }
@@ -111,7 +125,11 @@ function Reuniao({ user, irMatriz, mesInicial }) {
     const b = base.find((x) => x.chave === s.base);
     return { ...b, ...s, deps: b.deps || [], dup: s.dup };
   }), [ordem, base, paginas]);
-  const gravarEstrutura = async (l) => { setEstrutura(l); try { await post({ estrutura: l }); } catch (e) { alerta(`Não salvou a ordem dos slides: ${e.message}`); } };
+  const excluidos = (estrutura || []).filter((s) => s.excluido);
+  const gravarEstrutura = async (l0, extraExcl = [], semExcluidos = false) => {
+    const l = [...l0, ...(semExcluidos ? [] : excluidos.filter((x) => !l0.some((y) => y.id === x.id))), ...extraExcl];
+    setEstrutura(l); try { await post({ estrutura: l }); } catch (e) { alerta(`Não salvou a ordem dos slides: ${e.message}`); }
+  };
   const materializar = () => ordem.map((s) => ({ ...s }));
   const novoId = (p) => `${p}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
   const novaPagina = () => {
@@ -143,7 +161,7 @@ function Reuniao({ user, irMatriz, mesInicial }) {
     if (!(await confirmar(`Excluir o slide "${s.t}" desta apresentação?${s.pagina ? " O conteúdo da página é apagado." : " Os números continuam no sistema; o slide só sai desta reunião."}`))) return;
     const l = materializar().filter((_, q) => q !== k);
     if (s.pagina) gravarPaginas(paginas.filter((p) => p.id !== s.pagina));
-    gravarEstrutura(l); setI(Math.max(0, Math.min(k, l.length - 1)));
+    gravarEstrutura(l, !s.pagina && !s.dup ? [{ id: s.id, base: s.base, excluido: true }] : []); setI(Math.max(0, Math.min(k, l.length - 1)));
   };
   const mover = (de, para) => { if (de === para || de == null) return; const l = materializar(); const [x] = l.splice(de, 1); l.splice(para, 0, x); gravarEstrutura(l); setI(para); };
   // dados de cada slide: os congelados na versão salva; slide novo usa os do sistema
@@ -157,7 +175,7 @@ function Reuniao({ user, irMatriz, mesInicial }) {
     setSalvando(true);
     try {
       clearTimeout(timer.current); const t = pend.current; pend.current = {};
-      const est = materializar();
+      const est = [...materializar(), ...excluidos];
       const novo = {};
       for (const s of slides) novo[s.id] = snap[s.id] || { dados: Object.fromEntries((s.deps || []).map((d) => [d, D[d]])), em: new Date().toISOString() };
       const x = await post({ textos: t, estrutura: est, paginas, snapshot: empacotar(novo) });
@@ -230,6 +248,7 @@ function Reuniao({ user, irMatriz, mesInicial }) {
             <div className="ml-auto flex items-center gap-3">
               <button onClick={() => duplicar(ii)} className="flex items-center gap-1 text-xs font-semibold" style={{ color: N }}><Copy size={12} /> duplicar</button>
               <button onClick={() => excluir(ii)} className="flex items-center gap-1 text-xs font-semibold" style={{ color: VM }}><Trash2 size={12} /> excluir</button>
+              {excluidos.length > 0 && <button onClick={() => gravarEstrutura(materializar(), [], true)} title={excluidos.map((x) => x.base).join("\n")} className="text-xs" style={{ color: CZ }}>restaurar excluídos ({excluidos.length})</button>}
             </div>
           </div>
           <div ref={faixa} onMouseMove={naFaixa} onMouseLeave={() => { rolar.current = 0; }} className="flex gap-2 mt-2 overflow-x-auto pb-2" style={{ scrollbarWidth: "thin" }}>
@@ -276,7 +295,8 @@ function desempacotar(x) {
   for (const [id, c] of Object.entries(ss)) out[id] = { dados: Object.fromEntries(Object.entries(c.refs || {}).map(([d, k]) => [d, pool[k]])), em: c.em };
   return out;
 }
-const ROTULO_FONTE = { kpi: "KPIs", cli: "Clientes do mês", dre: "DRE", alav: "Endividamento", painel: "Painel do mês", corte: "Análise de corte", exp: "Análise de expedição", lanc: "Fluxo de caixa" };
+const ROTULO_FONTE = { kpi: "KPIs", cli: "Clientes do mês", dre: "DRE", alav: "Endividamento", painel: "Painel do mês", corte: "Análise de corte", exp: "Análise de expedição", lanc: "Fluxo de caixa",
+  silk: "Análise de silk", bordado: "Análise de bordado", costura: "Análise de costura", log: "Análise da logística" };
 // números que mudaram entre a versão salva e o sistema agora (strings e datas não contam)
 function diferencas(a, b, rot, cam = "", out = []) {
   if (out.length > 60) return out;
@@ -536,24 +556,30 @@ function montarSlides(R) {
       </div>
       <div style={{ position: "absolute", left: 60, right: 60, top: 120 }}><Txt {...p} k="pp.tema.texto" ph="Texto do tema…" linhas={18} style={{ fontSize: 16 }} /></div>
     </>));
-  for (const [setor, nome] of [["corte", "ANALISE CORTE"], ["exp", "ANALISE EXPEDIÇÃO"]]) addD([setor], "PESSOAS E PROCESSOS", nome.toLowerCase().replace("analise", "Análise"), (p) => {
+  // v1012 — análises operacionais na ordem do processo: corte, silk, bordado, costura, expedição e logística (sublimação e DTF ficam de fora)
+  for (const [setor, nome, onde] of [["corte", "ANALISE CORTE", "corte"], ["silk", "ANALISE SILK", "silk"], ["bordado", "ANALISE BORDADO", "bordado"], ["costura", "ANALISE COSTURA", "costura"], ["exp", "ANALISE EXPEDIÇÃO", "expedição"]]) addD([setor], "PESSOAS E PROCESSOS", nome.toLowerCase().replace("analise", "Análise").replace(/ ([a-zç]+)$/, (m) => m.toLowerCase()), (p) => {
     const x = p.D?.[setor];
     const c = x?.calc, a = x?.analise;
+    const grade = !!c?.colunas;   // silk: peças × nº de cores
     return (
       <>
         <Cab g="PESSOAS E PROCESSOS" t={nome} />
-        {!p.D || !x || x._erro ? <Sem x={p.D ? x : null} /> : !a ? <div style={{ position: "absolute", left: 40, top: 120, color: CZ }}>Análise de {nome.toLowerCase().slice(8)} de {MES.toLowerCase()} ainda não lançada (Operação › Análises operacionais).</div> : (
+        {!p.D || !x || x._erro ? <Sem x={p.D ? x : null} /> : !a ? <div style={{ position: "absolute", left: 40, top: 120, color: CZ, fontSize: 15 }}>Análise de {onde} de {MES.toLowerCase()} ainda não lançada (Operação › Análises operacionais).</div> : (
           <div style={{ position: "absolute", left: 40, right: 40, top: 96, display: "flex", gap: 24 }}>
-            <div style={{ flex: 1 }}>
-              <Tab cols={[{ t: "PEÇA" }, { t: "QTD", r: 1 }, { t: "CONCENTRAÇÃO", r: 1 }, { t: "MERCADO", r: 1 }, { t: "VALOR INTERNO", r: 1 }]}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
+              {grade ? <>
+                <Tab cols={[{ t: "PEÇA" }, { t: "QTD", r: 1 }, { t: "CONCENTRAÇÃO", r: 1 }]} linhas={(c.linhas || []).filter((k) => k.qtd).map((k) => ({ c: [k.n, num(k.qtd), pct(k.concentracao, 0)] }))} rodape={[["TOTAL", num(c.pecas), "100%"]]} />
+                <Tab cols={[{ t: "CORES" }, { t: "QTD", r: 1 }, { t: "CONCENTRAÇÃO", r: 1 }, { t: "MERCADO", r: 1 }, { t: "VALOR INTERNO", r: 1 }]} linhas={(c.colunas || []).filter((k) => k.qtd).map((k) => ({ c: [k.n, num(k.qtd), pct(k.concentracao, 0), brl(k.mercado), brl(k.valorInterno)] }))} />
+              </> : <Tab cols={[{ t: "PEÇA" }, { t: "QTD", r: 1 }, { t: "CONCENTRAÇÃO", r: 1 }, { t: "MERCADO", r: 1 }, { t: "VALOR INTERNO", r: 1 }]}
                 linhas={(c.categorias || []).filter((k) => k.qtd).map((k) => ({ c: [k.n, num(k.qtd), pct(k.concentracao, 0), brl(k.mercado), brl(k.valorInterno)] }))}
-                rodape={[["TOTAL", num(c.pecas), "100%", "", ""]]} />
-              <div style={{ fontSize: 12, color: CZ, marginTop: 8 }}>Histórico: {(x.serie || []).map((s) => `${s.competencia.slice(5)}/${s.competencia.slice(2, 4)} ${brl(s.incorrido)}/pç`).join(" · ")}</div>
+                rodape={[["TOTAL", num(c.pecas), "100%", "", ""]]} />}
+              <div style={{ fontSize: 12, color: CZ }}>Histórico: {(x.serie || []).map((s) => `${s.competencia.slice(5)}/${s.competencia.slice(2, 4)} ${brl(s.incorrido)}/pç`).join(" · ")}</div>
             </div>
             <div style={{ width: 330, display: "flex", flexDirection: "column", gap: 10 }}>
               <Tab cols={[{ t: "CUSTO INTERNO" }, { t: "", r: 1 }]} linhas={[
                 { c: ["Pessoal", brl(c.pessoal)] }, { c: ["Freelancer", brl(c.freelancer)] }, { c: ["Insumo", brl(c.insumo)] }, { c: ["Custo total", brl(c.custoTotal)], _b: 1 },
-                { c: ["Peças processadas", num(c.pecas)] }, { c: ["Custo incorrido / pç", brl(c.incorrido)], _b: 1 }, { c: ["Estimado / pç", brl(c.estimado)] },
+                { c: [grade ? "Peças personalizadas" : "Peças processadas", num(c.pecas)] }, ...(grade && c.unidades ? [{ c: ["Unidades (peça × cor)", num(c.unidades)] }, { c: ["Custo por unidade", brl(c.custoUnid)] }] : []),
+                { c: ["Custo incorrido / pç", brl(c.incorrido)], _b: 1 }, { c: ["Estimado / pç", brl(c.estimado)] },
                 { c: ["Terceirizado / pç", brl(c.mediaTerc)] }, { c: ["Resultado", pct(c.resultado, 0)], _fg: [null, c.resultado > 1 ? VM : VD] },
                 { c: ["Impacto no resultado", brl(c.impacto)], _fg: [null, c.impacto < 0 ? VM : VD], _b: 1 }]} />
               {a.causas && <div style={{ fontSize: 12 }}><b style={{ color: N }}>Causas:</b> {a.causas}</div>}
@@ -561,6 +587,33 @@ function montarSlides(R) {
             </div>
           </div>)}
         <Obs {...p} chave={setor} />
+      </>
+    );
+  });
+  addD(["log"], "PESSOAS E PROCESSOS", "Análise logística", (p) => {
+    const x = p.D?.log;
+    if (!p.D || !x || x._erro) return <><Cab g="PESSOAS E PROCESSOS" t="ANALISE LOGÍSTICA" /><Sem x={p.D ? x : null} /></>;
+    const m = (x.meses || []).find((k) => k.comp === R.ref), md = x.media || {};
+    return (
+      <>
+        <Cab g="PESSOAS E PROCESSOS" t="ANALISE LOGÍSTICA" />
+        {!m ? <div style={{ position: "absolute", left: 40, top: 120, color: CZ, fontSize: 15 }}>Sem análise da logística para {MES.toLowerCase()}/{ra}.</div> : (
+          <div style={{ position: "absolute", left: 40, right: 40, top: 96, display: "flex", gap: 24 }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
+              <Tab cols={[{ t: "CONTA" }, { t: "VALOR", r: 1 }, { t: "R$ / PÇ", r: 1 }, { t: "ENTRA NO CUSTO" }]}
+                linhas={(x.contas || []).filter((k) => m.valores?.[k.k]).map((k) => ({ c: [k.n, brl(m.valores[k.k]), m.pecas ? brl(m.valores[k.k] / m.pecas) : "—", k.entra ? "sim" : "não (informativo)"] }))}
+                rodape={[["CUSTO (sem frete entrega)", brl(m.outros), m.pecas ? brl(m.outros / m.pecas) : "—", ""]]} />
+              <div style={{ fontSize: 12, color: CZ }}>Histórico: {(x.meses || []).filter((k) => k.pecas).map((k) => `${k.comp.slice(5)}/${k.comp.slice(2, 4)} ${brl(k.porPeca)}/pç`).join(" · ")}</div>
+            </div>
+            <div style={{ width: 330, display: "flex", flexDirection: "column", gap: 10 }}>
+              <Tab cols={[{ t: "CUSTO LOGÍSTICO" }, { t: "", r: 1 }]} linhas={[
+                { c: ["Pessoal (Matriz)", brl(m.pessoal)] }, { c: ["Demais custos", brl(m.outros)] }, { c: ["Custo total", brl(m.custo)], _b: 1 },
+                { c: ["Peças (expedição)", num(m.pecas)] }, { c: ["Custo / pç", brl(m.porPeca)], _b: 1 }, { c: ["Cobrado na FPP / pç", brl(m.fppPeca)] },
+                { c: ["Frete entrega / pç", brl(m.freteEntregaPeca)] }, { c: [`Média ${(md.meses || []).length} meses / pç`, brl(md.porPeca)], _b: 1 },
+                { c: ["Lançamentos identificados", pct(m.pctIdentificado, 0)], _fg: [null, m.identificado ? VD : VM] }]} />
+            </div>
+          </div>)}
+        <Obs {...p} chave="log" />
       </>
     );
   });

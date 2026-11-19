@@ -65,7 +65,7 @@ export async function POST(req) {
   }
   // v1008 — estrutura (ordem, cópias e excluídos) e versão salva
   let estrutura = A2.estrutura || null;
-  if (Array.isArray(b.estrutura)) estrutura = b.estrutura.slice(0, 200).map((x) => ({ id: String(x.id || "").slice(0, 160), ...(x.base ? { base: String(x.base).slice(0, 160) } : {}), ...(x.pagina ? { pagina: String(x.pagina).slice(0, 40) } : {}), ...(x.dup ? { dup: true, pre: String(x.pre || "").slice(0, 40) } : {}) })).filter((x) => x.id && (x.base || x.pagina));
+  if (Array.isArray(b.estrutura)) estrutura = b.estrutura.slice(0, 200).map((x) => ({ id: String(x.id || "").slice(0, 160), ...(x.base ? { base: String(x.base).slice(0, 160) } : {}), ...(x.pagina ? { pagina: String(x.pagina).slice(0, 40) } : {}), ...(x.dup ? { dup: true, pre: String(x.pre || "").slice(0, 40) } : {}), ...(x.excluido ? { excluido: true } : {}) })).filter((x) => x.id && (x.base || x.pagina));
   let salvoEm = null;
   if (b.snapshot && typeof b.snapshot === "object") {
     const valor = JSON.stringify({ em: new Date().toISOString(), por: nome, slides: b.snapshot });
