@@ -109,13 +109,25 @@ const ext = (mime) => ({ "image/png": ".png", "image/jpeg": ".jpg", "image/webp"
 const subpasta = (r) => `${r.pedidoNumero || "SEM PEDIDO"}${r.cliente ? ` - ${String(r.cliente).slice(0, 60)}` : ""}`.replace(/[\\/:*?"<>|]/g, "-").trim();
 
 // envia os pendentes (no máximo `max` por vez); arquivo da tarefa enviado passa a apontar para o Drive
-export async function enviarPendentes(max = 8) {
+export async function enviarPendentes(max = 3) {
   const cfg = await configDrive();
   if (!cfg.url) return { enviados: 0, semConfig: true };
   const l = await prisma.arteArquivo.findMany({ where: { status: { in: ["PENDENTE", "ERRO"] }, tentativas: { lt: 5 }, excluidoEm: null }, orderBy: { id: "asc" }, take: max });
   let enviados = 0;
   for (const r of l) {
     try {
+      // v1005 — nunca carrega na memória arquivo acima do limite (um arquivo de centenas de MB derrubava o servidor)
+      if ((Number(r.tamanho) || 0) > LIMITE_DRIVE) { await prisma.arteArquivo.update({ where: { id: r.id }, data: { status: "LOCAL", erro: "Acima de 35 MB: fica guardado no servidor." } }); continue; }
+      if (r.origem === "TAREFA") {
+        const a0 = await prisma.$queryRawUnsafe(`SELECT left("conteudo", 80) AS ini, length("conteudo") AS len FROM "TarefaArquivo" WHERE "id" = $1`, r.arquivoId || 0).catch(() => []);
+        const ini = a0[0]?.ini || "";
+        const { tokenDe, lerMeta } = await import("@/lib/arquivos");
+        const tk = tokenDe(ini);
+        const tamReal = tk ? Number((await lerMeta(tk))?.tamanho) || 0 : Math.floor((Number(a0[0]?.len) || 0) * 0.75);
+        if (tamReal > LIMITE_DRIVE) { await prisma.arteArquivo.update({ where: { id: r.id }, data: { status: "LOCAL", tamanho: tamReal, erro: "Acima de 35 MB: fica guardado no servidor." } }); continue; }
+      }
+      // conta a tentativa antes de ler: se algo derrubar o processo, o mesmo arquivo não fica derrubando para sempre
+      await prisma.arteArquivo.update({ where: { id: r.id }, data: { tentativas: { increment: 1 } } });
       const c = await conteudoDe(r);
       if (c.sumiu) { await prisma.arteArquivo.update({ where: { id: r.id }, data: { status: "ERRO", erro: "Arquivo de origem não existe mais.", tentativas: 5 } }); continue; }
       if (c.jaNoDrive) { await prisma.arteArquivo.update({ where: { id: r.id }, data: { status: "ENVIADO", driveId: c.jaNoDrive, enviadoEm: new Date(), erro: null } }); continue; }
@@ -139,7 +151,8 @@ export async function enviarPendentes(max = 8) {
       }
       enviados++;
     } catch (e) {
-      await prisma.arteArquivo.update({ where: { id: r.id }, data: { status: "ERRO", erro: String(e.message || e).slice(0, 300), tentativas: { increment: 1 } } }).catch(() => null);
+      await prisma.arteArquivo.update({ where: { id: r.id }, data: { status: "ERRO", erro: String(e.message || e).slice(0, 300) } }).catch(() => null);
+      if (/401|403|login|Segredo|não configurado/i.test(String(e.message))) break;   // acesso negado: não adianta tentar os outros agora
     }
   }
   return { enviados };
@@ -154,7 +167,7 @@ export async function sincronizarArtes() {
 }
 export function agendarArtes() {
   const ir = () => sincronizarArtes().catch((e) => console.log("[artes]", e.message));
-  setTimeout(ir, 90 * 1000); setInterval(ir, 5 * 60 * 1000);
+  setTimeout(ir, 5 * 60 * 1000); setInterval(ir, 5 * 60 * 1000);
 }
 
 // lista para a guia (sem conteúdo)
