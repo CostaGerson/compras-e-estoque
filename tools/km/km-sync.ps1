@@ -50,6 +50,7 @@ if ($Configurar) {
   Copy-Item -Force (Join-Path $PSScriptRoot "km-pedidos.sql") (Join-Path $pasta "km-pedidos.sql")
   Copy-Item -Force (Join-Path $PSScriptRoot "km-clientes.sql") (Join-Path $pasta "km-clientes.sql")
   Copy-Item -Force (Join-Path $PSScriptRoot "km-produtos.sql") (Join-Path $pasta "km-produtos.sql")
+  Copy-Item -Force (Join-Path $PSScriptRoot "km-montagem.sql") (Join-Path $pasta "km-montagem.sql")
   Write-Host "Configurado em $cfgArq"
   exit 0
 }
@@ -62,6 +63,7 @@ if ($Instalar) {
   Copy-Item -Force (Join-Path $PSScriptRoot "km-pedidos.sql") (Join-Path $pasta "km-pedidos.sql")
   Copy-Item -Force (Join-Path $PSScriptRoot "km-clientes.sql") (Join-Path $pasta "km-clientes.sql")
   Copy-Item -Force (Join-Path $PSScriptRoot "km-produtos.sql") (Join-Path $pasta "km-produtos.sql")
+  Copy-Item -Force (Join-Path $PSScriptRoot "km-montagem.sql") (Join-Path $pasta "km-montagem.sql")
   if ($Minutos -lt 1) { $Minutos = 1 }
   # lancador .vbs: roda o PowerShell sem abrir/piscar janela
   $vbs = Join-Path $pasta "km-sync.vbs"
@@ -171,7 +173,15 @@ try {
   if ($cod -ne 0) { Log "ERRO: psql terminou com codigo $cod"; exit 1 }
 } finally { Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue }
 
-$bytes = [IO.File]::ReadAllBytes($saida)
+# v1022 - Monta notas (NF x pedido, parcial ou total); se falhar, segue so com os pedidos
+$txtSaida = [IO.File]::ReadAllText($saida, [Text.Encoding]::UTF8)
+$saidaM = Join-Path $pasta "km_montagem.json"
+if (RodarSql "km-montagem.sql" $saidaM) {
+  $m = ([IO.File]::ReadAllText($saidaM, [Text.Encoding]::UTF8)).Trim()
+  $t0 = $txtSaida.TrimStart()
+  if ($m.StartsWith("[") -and $t0.StartsWith("{")) { $txtSaida = '{"montagem":' + $m + ',' + $t0.Substring(1) }
+} else { Log "aviso: Monta notas nao lido (segue sem)" }
+$bytes = (New-Object Text.UTF8Encoding $false).GetBytes($txtSaida)
 $url = $c.url.TrimEnd("/") + "/api/km/sync" + $(if ($Previa) { "?previa=1" } else { "" })
 try {
   $w = Invoke-WebRequest -UseBasicParsing -Uri $url -Method Post -Body $bytes -ContentType "application/json; charset=utf-8" -Headers @{ "x-km-token" = (Abrir $c.token) } -TimeoutSec 300

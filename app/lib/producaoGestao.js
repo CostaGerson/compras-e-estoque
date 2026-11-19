@@ -56,8 +56,13 @@ function resumoPedido(p, hoje) {
   const critica = parcial && (saldoPecas == null ? saldoValor > 0 : saldoPecas > 0) && p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA"
     ? `Faturamento parcial: o saldo (${saldoPecas != null ? `${saldoPecas} peça(s), ` : ""}${saldoValor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}) não está no PCP do Maycon`
     : semNf ? `${semNf} peça(s) concluída(s) na expedição sem NF casada` : null;
+  // v1022 — NFs que o KM liga ao pedido (livsaida ou Monta notas): soma da parte do pedido; parcial quando não cobre o total
+  const nk = (Array.isArray(p.kmNfs) ? p.kmNfs : []).filter((n) => n?.numero && !n.cancelada);
+  const nkSoma = r2(nk.reduce((a, n) => a + (Number(n.valor) || 0), 0));
+  const nfKm = nk.length ? { nums: nk.map((n) => n.numero).join(", "), soma: nkSoma, pecas: nk.reduce((a, n) => a + (Number(n.pecas) || 0), 0) || null,
+    total: Number(p.total) > 0 && nkSoma >= Number(p.total) * 0.98, falta: r2(Math.max(0, (Number(p.total) || 0) - nkSoma)) } : null;
   return {
-    faturar, critica, parcial, pecasConcluidas: concl, pecasFaturadas: fatPecas, pecasSemNf: semNf,
+    nfKm, faturar, critica, parcial, pecasConcluidas: concl, pecasFaturadas: fatPecas, pecasSemNf: semNf,
     numero: p.numero, lancamento: p.emissao ? iso(p.emissao) : p.createdAt ? iso(p.createdAt) : null,   // v731 — data de lançamento (emissão do pedido)
     cliente: p.cliente, oc: p.oc || null, vendedor: p.vendedor || null, total: r2(p.total),
     aFaturar: p.vlEntregar != null ? r2(p.vlEntregar) : r2(p.total),
@@ -73,7 +78,7 @@ function resumoPedido(p, hoje) {
 
 const CAMPOS_LISTA = { semNota: true, numero: true, cliente: true, oc: true, vendedor: true, total: true, vlEntregar: true, itens: true, despacho: true, cronoPrazo: true,
   cronoFimProgramado: true, entregaPrevista: true, cronoItens: true, cronoSituacao: true, cronoCompras: true, createdAt: true, emissao: true,
-  cronoConcluido: true, nfsFaturadas: true, qtEntregar: true, faturamentoPendente: true, fonte: true, tipoPedido: true, interno: true };   // v794 interno   // v450 · v618 fonte
+  cronoConcluido: true, nfsFaturadas: true, qtEntregar: true, faturamentoPendente: true, fonte: true, tipoPedido: true, interno: true, kmNfs: true };   // v794 interno   // v450 · v618 fonte
 
 // v738 — pedidos com tarefa de layout em aberto (criação ou aprovação) → { numero: { etapa, com, desde, texto } }
 export async function layoutsPendentes() {
@@ -198,7 +203,7 @@ export async function detalhePedido(numero) {
     }
   }
   const nfs = Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length ? p.nfsFaturadas.map((n) => ({ numero: n.numero, emissao: n.emissao ? iso(n.emissao) : null, valor: r2(n.valor), pecas: n.pecas || null }))
-    : Array.isArray(p.kmNfs) ? p.kmNfs.map((n) => ({ numero: n.numero, emissao: n.emissao ? String(n.emissao).slice(0, 10) : null, valor: r2(n.valor), pecas: null })) : [];
+    : Array.isArray(p.kmNfs) ? p.kmNfs.map((n) => ({ numero: n.numero, emissao: n.emissao ? String(n.emissao).slice(0, 10) : null, valor: r2(n.valor), pecas: n.pecas || null })) : [];
   let fin = null; try { fin = await (await import("@/lib/faturamentoCasamento")).financeiroPedido(p); } catch (e) { console.log("producao/financeiro:", e.message); }   // v555
   const comentarios = await prisma.pedidoComentario.findMany({ where: { pedidoNumero: p.numero }, orderBy: { createdAt: "asc" } });
   const pecasTotal = itens.reduce((s, i) => s + (Number(i.qtd) || 0), 0);

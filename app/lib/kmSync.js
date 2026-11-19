@@ -96,7 +96,14 @@ export function mapearPedido(k) {
     qtEntregar: faturadoKm || canceladoKm ? 0 : Math.round(qtSaldo),
     vlEntregar: faturadoKm || canceladoKm ? 0 : r2(k.valor_a_entregar),
     ultFaturamento: isoD(k.ult_faturamento), excluido: canceladoKm, faturadoKm, situacao: st || null,
-    nfs: (k.nfs || []).map((x) => ({ numero: String(x.numero || "").replace(/^0+(?=\d)/, ""), emissao: isoD(x.emissao), valor: r2(x.valor) })).filter((x) => x.numero),
+    nfs: (() => {   // v1022 — NFs ligadas pelo livsaida + as do Monta notas (valor = itens deste pedido na NF; parte quando a NF junta outros pedidos)
+      const m = new Map();
+      for (const x of k.nfs || []) { const numero = String(x.numero || "").replace(/^0+(?=\d)/, ""); if (numero) m.set(numero, { numero, emissao: isoD(x.emissao), valor: r2(x.valor) }); }
+      for (const x of k.montagem || []) { const numero = String(x.numero || "").replace(/^0+(?=\d)/, ""); if (!numero) continue;
+        const parte = r2(x.valorNf) > r2(x.valor) + 0.05;
+        m.set(numero, { numero, emissao: isoD(x.emissao), valor: r2(x.valor), pecas: Number(x.pecas) || 0, valorNf: r2(x.valorNf), montagem: true, ...(parte ? { parte: true } : {}) }); }
+      return [...m.values()].sort((a2, b2) => String(a2.emissao || "").localeCompare(String(b2.emissao || "")));
+    })(),
   };
   return { pv, pp, extra };
 }
@@ -123,7 +130,11 @@ export async function revisarFaturadosKm() {
 }
 
 // ---------- aplica um lote vindo do agente ----------
-export async function sincronizarKm(pedidos, { previa = false, nfs, nfsDesde } = {}) {
+export async function sincronizarKm(pedidos, { previa = false, nfs, nfsDesde, montagem } = {}) {
+  // v1022 — Monta notas: NF × pedido vindo do KM; vai para cada pedido (k.montagem) antes do hash, para atualizar quando muda
+  const porPed = {};
+  for (const x of Array.isArray(montagem) ? montagem : []) { const n = String(x?.pedido || "").trim(); if (n) (porPed[n] ||= []).push(x); }
+  if (Object.keys(porPed).length) pedidos = (Array.isArray(pedidos) ? pedidos : []).map((k) => (k && porPed[String(k.numero || "").trim()] ? { ...k, montagem: porPed[String(k.numero).trim()] } : k));
   if (!previa) { try { await revisarFaturadosKm(); } catch (e) { console.log("km/revisao:", e.message); } }
   const excl = await (await import("@/lib/pedidoLixeira")).numerosExcluidos();   // v552 — pedido na lixeira não volta pelo KM
   const lista = (Array.isArray(pedidos) ? pedidos : []).filter((k) => k && k.numero && !excl.has(String(k.numero).trim()));
@@ -204,6 +215,7 @@ export async function sincronizarKm(pedidos, { previa = false, nfs, nfsDesde } =
     await prisma.kmPedido.upsert({ where: { numero: p.numero }, create: { numero: p.numero, hash: p.hash }, update: { hash: p.hash } });
   }
   try { const { efetivarFaturamentos } = await import("@/lib/pedidos"); res.faturados += (await efetivarFaturamentos()).length; } catch (e) { res.erros.push(`efetivar: ${e.message}`); }
+  try { const { faturarPelasNfsKm } = await import("@/lib/pedidos"); const f = await faturarPelasNfsKm(); res.faturadosNfKm = f.length; res.faturados += f.length; } catch (e) { res.erros.push(`NF do KM: ${e.message}`); }   // v1022
   // v408 — NFs emitidas no KM sem XML/PDF no sistema: crítica no movimento fiscal + mensagem
   try { Object.assign(res, await (await import("@/lib/kmNfs")).processarNfsKm(lista, { nfs, nfsDesde })); } catch (e) { res.erros.push(`nfs do KM: ${e.message}`); }
   await prisma.kmSyncLog.create({ data: { recebidos: res.recebidos, novos: res.novos, atualizados: res.atualizados, iguais: res.iguais, entradas: res.entradas,

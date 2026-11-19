@@ -21,7 +21,7 @@ export async function POST(req) {
   let b; try { b = await req.json(); } catch { return Response.json({ error: "JSON inválido." }, { status: 400 }); }
   const previa = new URL(req.url).searchParams.get("previa") === "1";
   try {
-    const r = await sincronizarKm(b?.pedidos, { previa, nfs: b?.nfs, nfsDesde: b?.nfsDesde });
+    const r = await sincronizarKm(b?.pedidos, { previa, nfs: b?.nfs, nfsDesde: b?.nfsDesde, montagem: b?.montagem });
     if (!previa) try { await (await import("@/lib/pedidoIdentico")).avisarPedidosIdenticos(); } catch (e) { console.log("pedido idêntico:", e.message); }   // v866
     return Response.json({ ok: true, previa, ...r });
   } catch (e) {

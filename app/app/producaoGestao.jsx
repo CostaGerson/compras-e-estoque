@@ -56,6 +56,11 @@ const ChipFase = ({ f }) => <Chip cor={FASE_COR[f] || C.sub} fundo={C.panel2}>{F
 const FASES_UI = ["DESIGN", "COMPRAS", "PROGRAMAR", "CORTE", "PERSONALIZACAO", "COSTURA", "EXPEDICAO", "CONCLUIDO"];
 const STATUS_OPC = [["EM DIA", "Em dia"], ["ATRASADO", "Atrasado"], ["A_FATURAR", "A faturar"], ["NF_SEM_CONTAS", "NF sem contas"], ["SEM_NOTA", "Sem nota"], ["CRITICA", "Com crítica"]];
 const statusDe = (p) => [p.status, p.faturar, p.critica || p.criticaPrazo ? "CRITICA" : null].filter(Boolean);
+// v1022 — NF já emitida no KM (livsaida ou Monta notas): total ou parcial
+const brlK = (v) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const ChipNfKm = ({ n }) => (!n ? null : n.total
+  ? <span title={`NF ${n.nums} no KM · ${brlK(n.soma)}`}><Chip cor={C.green} fundo={C.greenSoft || "#E7F6EC"}>NF no KM</Chip></span>
+  : <span title={`NF ${n.nums} no KM · ${brlK(n.soma)}${n.pecas ? ` · ${n.pecas} pç` : ""} · falta ${brlK(n.falta)}`}><Chip cor={C.navy} fundo={C.panel2}>Parcial · falta {brlK(n.falta)}</Chip></span>);
 const ChipStatusOpc = ({ v }) => (v === "EM DIA" || v === "ATRASADO" ? <ChipStatus s={v} /> : v === "CRITICA" ? <span className="inline-flex items-center gap-1 text-xs" style={{ color: C.red }}><AlertTriangle size={13} /> Com crítica</span> : <ChipFaturar f={v} />);
 
 export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, componentes = {}, veVal = false }) {
@@ -240,7 +245,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
                     <td className="px-3 py-2 whitespace-nowrap" style={{ color: p.criticaPrazo ? C.red : C.text, fontWeight: p.criticaPrazo ? 700 : 400 }} title={p.criticaPrazo || ""}>
                       <span className="inline-flex items-center gap-1">{dBR(p.previsto)}{p.criticaPrazo && <AlertTriangle size={13} />}</span></td>
                     <td className="px-3 py-2"><ChipFase f={p.fase} />{p.layout && <div className="text-[10px] mt-0.5" style={{ color: "#7E3AF2" }}>{p.layout.texto}</div>}</td>
-                    <td className="px-3 py-2"><div className="flex items-center gap-1 flex-wrap"><ChipStatus s={p.status} /><ChipFaturar f={p.faturar} />{p.critica && <span title={p.critica}><AlertTriangle size={14} style={{ color: C.red }} /></span>}</div></td>
+                    <td className="px-3 py-2"><div className="flex items-center gap-1 flex-wrap"><ChipStatus s={p.status} /><ChipFaturar f={p.faturar} /><ChipNfKm n={p.nfKm} />{p.critica && <span title={p.critica}><AlertTriangle size={14} style={{ color: C.red }} /></span>}</div></td>
                     <td className="px-2 py-2 text-right whitespace-nowrap"><button onClick={(e) => { e.stopPropagation(); setCasar(p.numero); }} title="Casar NF de venda com este pedido" className="p-1.5 rounded" style={{ color: p.pecasSemNf || p.faturar === "A_FATURAR" ? C.accent : C.sub }}><Link2 size={15} /></button><button onClick={(e) => { e.stopPropagation(); excluir(p); }} title="Excluir pedido (lixeira)" className="p-1.5 rounded" style={{ color: C.sub }}><Trash2 size={15} /></button></td>
                   </tr>
                 ))}

@@ -514,7 +514,8 @@ export async function faturarPelasNfsItens() {
 // v556 — casamento NF ↔ pedido só MANUAL (movimento fiscal / Produção): as regras automáticas ficam desligadas
 export const CASAMENTO_AUTOMATICO = process.env.CASAMENTO_AUTOMATICO === "1";
 export async function faturarPelasNfs() {
-  if (!CASAMENTO_AUTOMATICO) { await efetivarFaturamentos().catch((e) => console.log("pedidos/efetivar:", e.message)); return []; }
+  // v1022 — casamento por valor segue manual; mas a NF que o próprio KM liga ao pedido (livsaida ou Monta notas) fatura sozinha
+  if (!CASAMENTO_AUTOMATICO) { await efetivarFaturamentos().catch((e) => console.log("pedidos/efetivar:", e.message)); return await faturarPelasNfsKm().catch((e) => { console.log("pedidos/faturar km:", e.message); return []; }); }
   // v372 — primeiro pelos itens das NFs (faturamento total ou parcial); depois a regra antiga por valor para as NFs sem XML
   await efetivarFaturamentos().catch((e) => console.log("pedidos/efetivar:", e.message));   // v391 — pendentes com contas já lançadas
   const porItens = await faturarPelasNfsItens().catch((e) => { console.log("pedidos/faturar itens:", e.message); return []; });
@@ -556,8 +557,8 @@ export async function faturarPelasNfsKm() {
   const feitos = [];
   for (const p of and) {
     const m = new Map();
-    for (const n of Array.isArray(p.kmNfs) ? p.kmNfs : []) if (n?.numero && !n.cancelada) m.set(semZ(n.numero), { numero: semZ(n.numero), emissao: n.emissao ? String(n.emissao).slice(0, 10) : null, valor: Number(n.valor) || 0 });
-    for (const n of km.filter((x) => x.pedido === p.numero)) m.set(semZ(n.numero), { numero: semZ(n.numero), emissao: n.emissao ? n.emissao.toISOString().slice(0, 10) : null, valor: Number(n.valor) || 0 });
+    for (const n of Array.isArray(p.kmNfs) ? p.kmNfs : []) if (n?.numero && !n.cancelada) m.set(semZ(n.numero), { numero: semZ(n.numero), emissao: n.emissao ? String(n.emissao).slice(0, 10) : null, valor: Number(n.valor) || 0, montagem: !!n.montagem });
+    for (const n of km.filter((x) => x.pedido === p.numero && !m.get(semZ(x.numero))?.montagem)) m.set(semZ(n.numero), { numero: semZ(n.numero), emissao: n.emissao ? n.emissao.toISOString().slice(0, 10) : null, valor: Number(n.valor) || 0 });
     const nfs = [...m.values()];
     if (!nfs.length) continue;
     const soma = r2(nfs.reduce((a, n) => a + n.valor, 0));
