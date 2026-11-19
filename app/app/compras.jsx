@@ -1,7 +1,7 @@
 "use client";
 // v404 — Compras: pedidos do KM desmembrados em itens → FPP base → demanda de matéria-prima → Levantamento
 import React, { useEffect, useMemo, useState } from "react";
-import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle, Boxes, CheckCircle2, ShoppingCart, KeyRound, Copy, Undo2, ClipboardList, PackageCheck, Paperclip, ImagePlus, Trash2 } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle, Boxes, CheckCircle2, ShoppingCart, KeyRound, Copy, Undo2, ClipboardList, PackageCheck, Paperclip, ImagePlus, Trash2, Send, Clock, MessageSquare } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";
 import { ImportarNfs } from "./adm";   // v494 — NF subida pela OC passa pelo mesmo lançamento do movimento fiscal   // v424 — popups do sistema
 
@@ -59,6 +59,19 @@ function Modal({ titulo, onClose, children, largo }) {
   );
 }
 
+// v1002 — guias no padrão do Financeiro (texto + ícone, sublinhado laranja na ativa)
+function Guias({ abas, atual, onChange, direita }) {
+  return (
+    <div className="flex items-center gap-1 mb-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+      {abas.map(([k, t, I]) => { const ativo = atual === k; return (
+        <button key={k} onClick={() => onChange(k)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium"
+          style={{ color: ativo ? C.accent : C.sub, borderBottom: ativo ? `2px solid ${C.accent}` : "2px solid transparent", marginBottom: -1 }}>
+          {I && <I size={15} />} {t}
+        </button>); })}
+      {direita && <div className="ml-auto flex items-center gap-2 pb-1">{direita}</div>}
+    </div>
+  );
+}
 // v999 — PIC, cotação e OC: nº do pedido sempre com o nome do cliente
 const rotOrigem = (x) => `Ped. ${x.pedido}${x.cliente ? ` · ${String(x.cliente).trim()}` : ""}`;
 // v913 — dispensar compras em qualquer fase (PIC, cotação, OC): escolhe os pedidos/linhas de origem da demanda
@@ -1432,11 +1445,9 @@ export function OrdensCompra({ user, fases, ir }) {
   return (
     <div className="w-full">
       <FasesCompras atual="oc" fases={fases} ir={ir} />
-      <div className="flex items-center gap-2 mb-3">
-        {[["ativas", "Em andamento"], ["baixadas", `Baixadas (${(l || []).filter((o) => o.status === "RECEBIDA").length})`], ["todas", "Todas"]].map(([k, t]) => <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{t}</button>)}
-        <span className="text-sm ml-auto" style={{ color: C.sub }}>Total: <b style={{ color: C.navy }}>{brl(vis.reduce((s0, o) => s0 + o.total, 0))}</b></span>
-        <button onClick={carregar} className="p-2 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
-      </div>
+      <Guias abas={[["ativas", "Em andamento", Clock], ["baixadas", `Baixadas (${(l || []).filter((o) => o.status === "RECEBIDA").length})`, PackageCheck], ["todas", "Todas", Layers]]} atual={filtro} onChange={setFiltro}
+        direita={<><span className="text-sm" style={{ color: C.sub }}>Total: <b style={{ color: C.navy }}>{brl(vis.reduce((s0, o) => s0 + o.total, 0))}</b></span>
+          <button onClick={carregar} title="Atualizar" className="p-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button></>} />
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {l && !vis.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma OC. Elas são geradas no PIC, uma por fornecedor.</div>}
       {vis.map((o) => {
@@ -1753,7 +1764,7 @@ export function Cotacoes({ user, fases, ir }) {
   // menor preço de cada artigo entre as cotações (para comparar fornecedores)
   const melhor = useMemo(() => { const m = {}; for (const c of l || []) for (const i of c.itens) if (i.valorUnitario != null && !i.naoTem) { const k = `${i.nome}|${i.det}|${i.unidade}`; if (!m[k] || i.valorUnitario < m[k].v) m[k] = { v: i.valorUnitario, f: c.fornecedorNome, n: c.numero }; } return m; }, [l]);
   const ehOc = (c) => c.status === "OC" || c.status === "APLICADA";
-  const ABAS = [["GERADA", "Geradas"], ["ENVIADA", "Enviadas"], ["RESPONDIDA", "Respondidas"], ["OC", "Com OC"], ["todas", "Todas"]];
+  const ABAS = [["GERADA", "Geradas", FileText], ["ENVIADA", "Enviadas", Send], ["RESPONDIDA", "Respondidas", MessageSquare], ["OC", "Com OC", ShoppingCart], ["todas", "Todas", Layers]];
   const conta = (k) => (l || []).filter((c) => (k === "OC" ? ehOc(c) : c.status === k)).length;
   const vis = (l || []).filter((c) => filtro === "todas" || (filtro === "OC" ? ehOc(c) : c.status === filtro));
   const inp = "px-2 py-1 rounded text-sm outline-none";
@@ -1761,10 +1772,8 @@ export function Cotacoes({ user, fases, ir }) {
     <div className="w-full">
       <FasesCompras atual="comprasCotacoes" fases={fases} ir={ir} />
       <p className="text-sm mb-3" style={{ color: C.sub }}>Todas as cotações geradas no <b>PIC</b>, uma por fornecedor: <b>geradas</b>, <b>enviadas</b> (ao copiar, baixar ou abrir no WhatsApp), <b>respondidas</b> (quando você registra o valor) e <b>com OC</b>. Na respondida, <b>Gerar OC</b> pede o valor negociado, o prazo e a forma de recebimento. O menor preço entre as cotações de cada artigo aparece em verde.</p>
-      <div className="flex items-center gap-2 mb-3">
-        {ABAS.map(([k, t0]) => [k, k === "todas" ? t0 : `${t0} (${conta(k)})`]).map(([k, t]) => <button key={k} onClick={() => setFiltro(k)} className="px-3 py-1.5 rounded-md text-sm font-medium" style={{ background: filtro === k ? C.accent : C.panel, color: filtro === k ? "#fff" : C.sub, border: `1px solid ${filtro === k ? C.accent : C.line}` }}>{t}</button>)}
-        <button onClick={carregar} className="p-2 rounded-md ml-auto" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>
-      </div>
+      <Guias abas={ABAS.map(([k, t0, I]) => [k, k === "todas" ? t0 : `${t0} (${conta(k)})`, I])} atual={filtro} onChange={setFiltro}
+        direita={<button onClick={carregar} title="Atualizar" className="p-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>} />
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {l && !vis.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma cotação aqui. Gere pelo PIC (botão Gerar cotação).</div>}
       {card && <CotacaoModal cot={card} onClose={() => { setCard(null); carregar(); }} />}
