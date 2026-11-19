@@ -203,23 +203,24 @@ export async function gravarLayoutAprovado(tarefaId) {
         const { paraDisco } = await import("@/lib/arquivos");
         const foto = arqs.find((a) => ehImg(a.mime, a.nome));
         const novos = [];
+        const b64De = async (c) => (/^(arq|gdrive):/.test(String(c || "")) ? (await (await import("@/lib/arquivos")).lerBase64(c)) || "" : c);   // v1003 — disco/Drive viram o conteúdo
         for (const a of arqs) {
           if (a === foto) continue;
           const nome = `Layout aprovado · ${a.nome}`;
           if (jaTem.has(nome)) continue;
-          novos.push({ nome, mime: a.mime, base64: await paraDisco(`data:${a.mime || "application/octet-stream"};base64,${a.conteudo}`, { nome: a.nome, mime: a.mime }) });   // grande vai direto para o disco
+          novos.push({ nome, mime: a.mime, base64: await paraDisco(`data:${a.mime || "application/octet-stream"};base64,${await b64De(a.conteudo)}`, { nome: a.nome, mime: a.mime }) });   // grande vai direto para o disco
         }
         // v919 — imagem grande vira foto em versão leve (o original segue nos anexos do item)
-        let fotoUrl = foto && !String(foto.conteudo || "").startsWith("arq:") ? `data:${foto.mime || "image/png"};base64,${foto.conteudo}` : null;
+        let fotoUrl = foto && !/^(arq|gdrive):/.test(String(foto.conteudo || "")) ? `data:${foto.mime || "image/png"};base64,${foto.conteudo}` : null;
         if (foto) {
           try {
             const { precisaPrevia, previa } = await import("@/lib/imgPrevia");
             const { lerBase64 } = await import("@/lib/arquivos");
-            if (precisaPrevia(foto.mime, foto.nome, foto.tamanho) || String(foto.conteudo || "").startsWith("arq:")) {
+            if (precisaPrevia(foto.mime, foto.nome, foto.tamanho) || /^(arq|gdrive):/.test(String(foto.conteudo || ""))) {
               const out = await previa(`tarefaArquivo|${foto.id}|${foto.tamanho}`, async () => Buffer.from(await lerBase64(foto.conteudo), "base64"));
               fotoUrl = `data:image/webp;base64,${out.toString("base64")}`;
               const nome = `Layout aprovado · ${foto.nome}`;
-              if (!jaTem.has(nome)) novos.unshift({ nome, mime: foto.mime, base64: await paraDisco(`data:${foto.mime || "application/octet-stream"};base64,${foto.conteudo}`, { nome: foto.nome, mime: foto.mime }) });
+              if (!jaTem.has(nome)) novos.unshift({ nome, mime: foto.mime, base64: await paraDisco(`data:${foto.mime || "application/octet-stream"};base64,${await b64De(foto.conteudo)}`, { nome: foto.nome, mime: foto.mime }) });
             }
           } catch (e) { console.log("layout/prévia da foto:", e.message); }
         }

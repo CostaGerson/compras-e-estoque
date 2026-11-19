@@ -2762,3 +2762,35 @@ model NortMov {
   createdAt   DateTime @default(now())
   @@index([itemId])
 }
+
+// v1003 — Dados › Artes e layouts: layouts, artes de personalização e mockups do designer, guardados no Google Drive
+//   (pasta da empresa, via Apps Script). Origem: TAREFA (arquivos das tarefas de layout/arte), PP_ITEM (layout do item do pedido) ou MANUAL.
+model ArteArquivo {
+  id            Int       @id @default(autoincrement())
+  chave         String    @unique                 // TAREFA|<arquivoId> · PP_ITEM|<itemId>|<md5> · MANUAL|<aleatório>
+  origem        String                            // TAREFA | PP_ITEM | MANUAL
+  tipo          String    @default("LAYOUT")      // LAYOUT | ARTE | MOCKUP | OUTRO
+  nome          String
+  mime          String?
+  tamanho       Int       @default(0)
+  hash          String?
+  pedidoNumero  String?
+  cliente       String?
+  item          String?
+  tarefaId      Int?
+  arquivoId     Int?
+  ppItemId      Int?
+  conteudo      String?                           // só o envio manual, até subir ao Drive
+  driveId       String?
+  driveLink     String?
+  status        String    @default("PENDENTE")    // PENDENTE | ENVIADO | ERRO | LOCAL (grande demais: fica no servidor)
+  erro          String?
+  tentativas    Int       @default(0)
+  criadoPorNome String?
+  enviadoEm     DateTime?
+  excluidoEm    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([pedidoNumero])
+  @@index([status])
+}

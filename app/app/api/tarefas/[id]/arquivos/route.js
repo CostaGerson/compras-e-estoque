@@ -3,10 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { usuarioAtivo, anexar, detalhe } from "@/lib/tarefas";
 import { ehMaster } from "@/lib/acesso";
 import { zipSync } from "fflate";
-import { respostaAnexo, tokenDe, DIR } from "@/lib/arquivos";   // v872 — arquivo grande (e-mail) fica em disco
+import { respostaAnexo, tokenDe, driveDe, lerBase64, DIR } from "@/lib/arquivos";   // v872 — arquivo grande (e-mail) fica em disco
 import { readFile } from "fs/promises";
 import path from "path";
-const bytes = async (c) => (tokenDe(c) ? new Uint8Array(await readFile(path.join(DIR, `${tokenDe(c)}.bin`))) : new Uint8Array(Buffer.from(c, "base64")));
+const bytes = async (c) => (tokenDe(c) ? new Uint8Array(await readFile(path.join(DIR, `${tokenDe(c)}.bin`))) : driveDe(c) ? new Uint8Array(Buffer.from((await lerBase64(c)) || "", "base64")) : new Uint8Array(Buffer.from(c, "base64")));   // v1003 — Google Drive
 
 // GET ?u=&arquivo=id → baixa o arquivo (quem vê a demanda)
 export async function GET(req, { params }) {

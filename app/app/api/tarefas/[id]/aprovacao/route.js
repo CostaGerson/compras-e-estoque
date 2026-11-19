@@ -1,4 +1,5 @@
 // v757 — demanda com aprovação (arte finalista): GET ?u= → arquivos da rodada · POST { usuarioId, acao: enviar|aprovar|reprovar, motivo }
+const lerB64 = async (c) => (await import("@/lib/arquivos")).lerBase64(c);   // v1003 — disco e Google Drive
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { usuarioAtivo } from "@/lib/tarefas";
@@ -19,7 +20,7 @@ export async function GET(req, { params }) {
     if (sp.get("arquivo")) {
       const a = await prisma.tarefaArquivo.findUnique({ where: { id: Number(sp.get("arquivo")) || 0 } });
       if (!a || !ids.has(a.tarefaId)) return new Response("Não encontrado.", { status: 404 });
-      return new Response(Buffer.from(a.conteudo, "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });
+      return new Response(Buffer.from((await lerB64(a.conteudo)) || "", "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });
     }
     const v = vs.find((x) => x.tarefaId === Number(sp.get("versao")));
     if (!v) return new Response("Não encontrado.", { status: 404 });
@@ -28,7 +29,7 @@ export async function GET(req, { params }) {
     for (const x of l) {
       let n = String(x.nome || `arquivo-${x.id}`).replace(/[\\/:*?"<>|]/g, "_");
       if (usados[n.toLowerCase()]) { const i = n.lastIndexOf("."); n = i > 0 ? `${n.slice(0, i)} (${x.id})${n.slice(i)}` : `${n} (${x.id})`; }
-      usados[n.toLowerCase()] = 1; arqs[n] = [new Uint8Array(Buffer.from(x.conteudo, "base64")), { level: 0 }];
+      usados[n.toLowerCase()] = 1; arqs[n] = [new Uint8Array(Buffer.from((await lerB64(x.conteudo)) || "", "base64")), { level: 0 }];
     }
     return new Response(Buffer.from(zipSync(arqs)), { headers: { "Cache-Control": "no-store", "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="demanda-${Number(A_ORIG(t))}-V${v.versao}.zip"` } });
   }

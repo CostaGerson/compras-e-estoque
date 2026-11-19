@@ -9,6 +9,8 @@ import {
   Bell, Inbox, LogOut, Send, AlertTriangle, Briefcase, Landmark, Compass, Factory, Truck, Building2, Tags, ChevronDown,
 } from "lucide-react";
 import { ThO, BuscaLista, SEL_BRANCO } from "./listaPadrao";   // v994
+import ArtesLayouts from "./artesLayouts";   // v1003
+import { Image as ImageIco } from "lucide-react";
 import Comercial from "./comercial";
 import Financeiro, { DadosFinanceiros } from "./financeiro";
 import Gestao from "./gestao";
@@ -158,6 +160,7 @@ const MENU = [
     { key: "freelancers", label: "Freelancers", icon: Users2, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Quem presta serviço por diária: setor, PIX e capacidade" },
     { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Facções e serviços: PIX, endereço e capacidade" },
     { key: "vendedores", label: "Vendedores", icon: Users2, desc: "Vendedores comissionados: dados, PIX e fechamento da comissão (mensal ou spot)" },   // v747
+    { key: "artes", label: "Artes e layouts", icon: ImageIco, desc: "Layouts, artes de personalização e mockups do designer, guardados no Google Drive (uma pasta por pedido)" },   // v1003
     { key: "destinatarios", label: "Destinatários", icon: IcoRota, desc: "Locais das demandas de rota (fora dos cadastros de fornecedores, terceirizados e clientes)" },
     { key: "notasfiscais", label: "Notas fiscais", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Registro geral das NFs de entrada e de saída, com filtros" },
     { key: "dadosfin", label: "Dados financeiros", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Plano de contas, palavras-chave e senhas de PDF" },
@@ -198,6 +201,7 @@ const PODE = {
   anCorte: (u) => gerencial(u), anPersonalizacao: (u) => gerencial(u), anSilk: (u) => gerencial(u), anBordado: (u) => gerencial(u), anCostura: (u) => gerencial(u), anExpedicao: (u) => gerencial(u), anLogistica: (u) => gerencial(u), anSublimacao: (u) => gerencial(u), anDtf: (u) => gerencial(u),
   rota: () => true,
   destinatarios: () => true,   // v430
+  artes: () => true,   // v1003
   empresa: (u) => gerencial(u) || T(u, "FINANCEIRO", "ADMINISTRATIVO"),   // v780
   documentacao: (u) => gerencial(u) || T(u, "FINANCEIRO", "ADMINISTRATIVO"),   // v780
   vendedores: (u) => gerencial(u) || lancaPP(u) || T(u, "FINANCEIRO", "ADMINISTRATIVO", "COMERCIAL"),   // v747
@@ -465,6 +469,7 @@ export default function Home() {
           {view === "demandas" && pode("demandas") && <DemandasAdm user={user} master={master} />}
           {view === "rota" && pode("rota") && <Rotas user={user} nova={rotaInicial} />}
           {view === "destinatarios" && pode("destinatarios") && <Destinatarios user={user} />}
+          {view === "artes" && pode("artes") && <ArtesLayouts user={user} />}   {/* v1003 */}
           {view === "empresa" && pode("empresa") && <EmpresaMeridian user={user} />}
           {view === "documentacao" && pode("documentacao") && <Acervo user={user} area="ADM" />}
           {view === "pedidos" && <Pedidos tab={tab} setTab={setTab} money={money} />}

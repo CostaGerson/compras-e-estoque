@@ -13,6 +13,8 @@ const okTok = (t) => /^[A-Za-z0-9_-]{24,64}$/.test(String(t || ""));
 const cam = (t) => path.join(DIR, `${t}.bin`), meta = (t) => path.join(DIR, `${t}.json`);
 
 // "arq:TOKEN" (puro ou dentro de data URL) → TOKEN
+// v1003 — arquivo guardado no Google Drive (Artes e layouts): "gdrive:<id>" (puro ou dentro de data URL)
+export const driveDe = (s) => { const m = String(s || "").match(/(?:^|,)gdrive:([A-Za-z0-9_-]{10,120})$/); return m ? m[1] : null; };
 export const tokenDe = (s) => { const m = String(s || "").match(/(?:^|,)arq:([A-Za-z0-9_-]{24,64})$/); return m ? m[1] : null; };
 
 export async function iniciar({ nome, mime, tamanho, quem }) {
@@ -55,7 +57,7 @@ export async function resposta(t, { nome, mime, baixar = false } = {}) {
 // v868 — base64 grande (acima de 8 MB) vai para o disco e vira "arq:<token>"; o resto fica como está
 export const GRANDE = 8 * 1024 * 1024;
 export async function paraDisco(b64, { nome, mime, quem } = {}) {
-  if (!b64 || tokenDe(b64)) return b64;
+  if (!b64 || tokenDe(b64) || driveDe(b64)) return b64;
   const raw = String(b64).replace(/^data:[^,]+,/, "");
   if (raw.length * 0.75 <= GRANDE) return b64;
   const buf = Buffer.from(raw, "base64");
@@ -83,6 +85,12 @@ export async function enxugarItensPp(ppId, db) {
 export async function respostaAnexo(b64, { nome, mime } = {}) {
   const t = tokenDe(b64);
   if (t) return resposta(t, { nome, mime });
+  const g = driveDe(b64);
+  if (g) {   // v1003 — vem do Google Drive
+    const r = await (await import("@/lib/artesDrive")).lerDoDrive(g).catch((e) => ({ error: e.message }));
+    if (!r?.base64) return new Response(`Não foi possível ler o arquivo no Google Drive${r?.error ? `: ${r.error}` : ""}.`, { status: 502 });
+    return new Response(Buffer.from(r.base64, "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": mime || r.mime || "application/octet-stream", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(nome || r.nome || "arquivo")}` } });
+  }
   const s = String(b64 || "");
   const mm = s.match(/^data:([^;,]+)[^,]*,/);
   return new Response(Buffer.from(s.replace(/^data:[^,]+,/, ""), "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": mime || mm?.[1] || "application/octet-stream", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(nome || "arquivo")}` } });
@@ -91,6 +99,8 @@ export async function respostaAnexo(b64, { nome, mime } = {}) {
 // v903 — base64 de um anexo, venha ele do banco ou do disco ("arq:<token>")
 export async function lerBase64(s) {
   if (!s) return null;
+  const g = driveDe(s);
+  if (g) { try { return (await (await import("@/lib/artesDrive")).lerDoDrive(g))?.base64 || null; } catch { return null; } }   // v1003
   const t = tokenDe(s);
   if (!t) return String(s).replace(/^data:[^,]+,/, "");
   try { return (await fs.readFile(cam(t))).toString("base64"); } catch { return null; }
