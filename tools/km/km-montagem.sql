@@ -1,14 +1,16 @@
--- v1022 — "Monta notas" do KM: NF de saída × pedido (fatitabe = itens montados em cada NF). SÓ LEITURA.
--- Uma NF pode juntar vários pedidos e um pedido pode sair em várias NFs (parcial). Valor = itens do pedido naquela NF.
+-- v1024 — "Monta notas" do KM: NF de saída × pedido. SÓ LEITURA.
+-- O usuário de consulta não lê fatitabe (itens montados); as views do KM leem (rodam com o dono):
+--   v_notas_pedido          → pedido × nota (NF montada a partir do pedido)
+--   v_itens_faturamento_bi  → itens de cada NF (produto, quantidade, valor)
+-- Valor do pedido na NF = itens da NF cujo produto está no pedido (limitado ao valor da NF). Uma NF pode juntar vários pedidos.
 SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY;
 SELECT coalesce(json_agg(x), '[]'::json) FROM (
-  SELECT sp.ncodigopedid::text AS pedido, ls.nnumeronfsai::text AS numero, ls.demissenfsai AS emissao, ls.nnvalornfsai AS "valorNf",
-         round(sum(coalesce(fa.nquatiditabe, 0)), 0) AS pecas,
-         round(sum(coalesce(fa.nquatiditabe, 0) * coalesce(si.nprecoitped, 0) * (1 - coalesce(si.npctdesitped, 0) / 100.0)) - sum(coalesce(fa.ndesconitabe, 0)), 2) AS valor
-    FROM fatitabe fa
-    JOIN livsaida ls ON ls.nnumerogrupo = fa.nnumerogrupo AND ls.nnumeroempre = fa.nnumeroempre AND ls.nnumerosaida = fa.nnumerosaida
-    JOIN solpedid sp ON sp.nnumeropedid = fa.nnumeropedid
-    LEFT JOIN solitped si ON si.nnumeropedid = fa.nnumeropedid AND si.nnumeroitped = fa.nnumeroitped
-   WHERE coalesce(ls.cnfcancnfsai, 'N') <> 'S' AND ls.demissenfsai >= current_date - 150
-   GROUP BY sp.ncodigopedid, ls.nnumeronfsai, ls.demissenfsai, ls.nnvalornfsai
+  SELECT vp.codigo_pedido::text AS pedido, vp.nota::text AS numero, coalesce(ls.demissenfsai, vp.dataemissao) AS emissao, ls.nnvalornfsai AS "valorNf",
+         round(coalesce((SELECT sum(i.quantidade) FROM v_itens_faturamento_bi i WHERE i.id_nota = ls.nnumerosaida
+                           AND i.id_produto IN (SELECT si.nnumeroprodu FROM solitped si WHERE si.nnumeropedid = vp.pedido_km_id)), 0), 0) AS pecas,
+         round(least(coalesce(ls.nnvalornfsai, 0), coalesce((SELECT sum(coalesce(i.valor_total, 0) - coalesce(i.valor_desconto, 0)) FROM v_itens_faturamento_bi i WHERE i.id_nota = ls.nnumerosaida
+                           AND i.id_produto IN (SELECT si.nnumeroprodu FROM solitped si WHERE si.nnumeropedid = vp.pedido_km_id)), 0)), 2) AS valor,
+         (SELECT count(DISTINCT v2.codigo_pedido) FROM (SELECT DISTINCT codigo_pedido, nota FROM v_notas_pedido) v2 WHERE v2.nota = vp.nota) AS "pedidosNaNota"
+    FROM (SELECT DISTINCT pedido_km_id, codigo_pedido, nota, dataemissao FROM v_notas_pedido WHERE situacao_nf = 'AUTORIZADA' AND dataemissao >= current_date - 150) vp
+    JOIN livsaida ls ON ls.nnumeronfsai = vp.nota AND coalesce(ls.cnfcancnfsai, 'N') <> 'S' AND ls.demissenfsai >= current_date - 160
 ) x;

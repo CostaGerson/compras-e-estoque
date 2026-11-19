@@ -100,8 +100,10 @@ export function mapearPedido(k) {
       const m = new Map();
       for (const x of k.nfs || []) { const numero = String(x.numero || "").replace(/^0+(?=\d)/, ""); if (numero) m.set(numero, { numero, emissao: isoD(x.emissao), valor: r2(x.valor) }); }
       for (const x of k.montagem || []) { const numero = String(x.numero || "").replace(/^0+(?=\d)/, ""); if (!numero) continue;
-        const parte = r2(x.valorNf) > r2(x.valor) + 0.05;
-        m.set(numero, { numero, emissao: isoD(x.emissao), valor: r2(x.valor), pecas: Number(x.pecas) || 0, valorNf: r2(x.valorNf), montagem: true, ...(parte ? { parte: true } : {}) }); }
+        const so1 = Number(x.pedidosNaNota) === 1;   // v1024 — NF só deste pedido: vale a NF inteira
+        const val = so1 ? r2(x.valorNf) : r2(x.valor);
+        const parte = !so1 && r2(x.valorNf) > val + 0.05;
+        m.set(numero, { numero, emissao: isoD(x.emissao), valor: val, pecas: Number(x.pecas) || 0, valorNf: r2(x.valorNf), montagem: true, ...(parte ? { parte: true } : {}) }); }
       return [...m.values()].sort((a2, b2) => String(a2.emissao || "").localeCompare(String(b2.emissao || "")));
     })(),
   };
