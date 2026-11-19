@@ -226,7 +226,7 @@ function Reuniao({ user, irMatriz, mesInicial }) {
     <div>
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <Landmark size={18} style={{ color: N }} />
-        <span className="px-2 py-0.5 rounded text-sm font-bold" style={{ background: L, color: "#fff" }}>{MESES[Number(R.mes.slice(5)) - 1]} {R.mes.slice(0, 4)}</span>
+        <span className="px-2 py-0.5 rounded text-sm font-bold" style={{ background: N, color: "#fff" }}>{MESES[Number(R.mes.slice(5)) - 1]} {R.mes.slice(0, 4)}</span>
         <div className="text-base font-bold" style={{ color: N }}>{R.tarefa.titulo}</div>
         <span className="text-xs" style={{ color: CZ }}>· {dBR(R.dataReuniao)} {R.tarefa.hora || ""} · apresenta os números de <b>{MESES[rm - 1].toLowerCase()}/{ra}</b></span>
         <div className="flex-1" />
@@ -287,7 +287,8 @@ function MesesReuniao({ user, onAbrir }) {
   if (erro) return <div className="text-sm" style={{ color: VM }}>{erro}</div>;
   if (!x || !ano) return <Loader2 size={18} className="animate-spin" style={{ color: CZ }} />;
   const atual = x.hoje.slice(0, 7);
-  const anos = [...new Set([Number(atual.slice(0, 4)), ...Object.keys(x.meses).map((m) => Number(m.slice(0, 4)))])].sort();
+  const INICIO = "2026-11";   // v1016 — reuniões no sistema começam em nov/2026
+  const anos = [...new Set([Number(atual.slice(0, 4)), ...Object.keys(x.meses).filter((m) => m >= INICIO).map((m) => Number(m.slice(0, 4)))])].sort();
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
@@ -298,16 +299,17 @@ function MesesReuniao({ user, onAbrir }) {
         <span className="text-sm font-bold" style={{ color: N, minWidth: 44, textAlign: "center" }}>{ano}</span>
         <button disabled={ano >= anos[anos.length - 1] + 1} onClick={() => setAno(ano + 1)} className="px-2 py-1 rounded text-sm" style={{ border: `1px solid ${LN}`, opacity: ano >= anos[anos.length - 1] + 1 ? 0.4 : 1 }}>›</button>
       </div>
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))" }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 220px))" }}>
         {MESES.map((nome, k) => {
           const m = `${ano}-${String(k + 1).padStart(2, "0")}`, r = x.meses[m];
+          if (m < INICIO) return null;
           const futuro = m > atual, passadoSem = m < atual && !r, eAtual = m === atual;
           const ref = k === 0 ? `${MESES[11]} ${ano - 1}` : `${MESES[k - 1]} ${ano}`;
           const ativo = !futuro && !passadoSem;
           return (
             <button key={m} disabled={passadoSem} onClick={() => onAbrir(m)} title={passadoSem ? "Não houve reunião registrada neste mês" : futuro ? "Reunião ainda não trabalhada" : `Abrir a reunião de ${nome.toLowerCase()}`}
               className="text-left rounded-xl p-4 transition-transform hover:-translate-y-0.5"
-              style={{ background: ativo ? (eAtual ? L : N) : "#fff", color: ativo ? "#fff" : N, border: `1px solid ${ativo ? "transparent" : LN}`, opacity: futuro ? 0.45 : passadoSem ? 0.3 : 1, cursor: passadoSem ? "default" : "pointer", boxShadow: eAtual ? "0 6px 18px rgba(234,88,12,.25)" : "none" }}>
+              style={{ background: eAtual ? N : ativo ? "#e8eef7" : "#fff", color: eAtual ? "#fff" : N, border: `1px solid ${eAtual ? N : "#c9d6e8"}`, opacity: futuro ? 0.5 : passadoSem ? 0.3 : 1, cursor: passadoSem ? "default" : "pointer", boxShadow: eAtual ? "0 4px 14px rgba(15,35,70,.18)" : "none" }}>
               <div className="text-[11px] font-semibold uppercase" style={{ opacity: 0.8 }}>Reunião</div>
               <div className="text-lg font-bold leading-tight">{nome}</div>
               <div className="text-xs mt-1" style={{ opacity: 0.85 }}>números de {ref.toLowerCase()}</div>
