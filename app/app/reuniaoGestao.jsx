@@ -598,15 +598,20 @@ function montarSlides(R) {
               </> : <Tab cols={[{ t: "PEÇA" }, { t: "QTD", r: 1 }, { t: "CONCENTRAÇÃO", r: 1 }, { t: "MERCADO", r: 1 }, { t: "VALOR INTERNO", r: 1 }]}
                 linhas={(c.categorias || []).filter((k) => k.qtd).map((k) => ({ c: [k.n, num(k.qtd), pct(k.concentracao, 0), brl(k.mercado), brl(k.valorInterno)] }))}
                 rodape={[["TOTAL", num(c.pecas), "100%", "", ""]]} />}
-              <div style={{ fontSize: 12, color: CZ }}>Histórico: {(x.serie || []).map((s) => `${s.competencia.slice(5)}/${s.competencia.slice(2, 4)} ${brl(s.incorrido)}/pç`).join(" · ")}</div>
+              <div style={{ fontSize: 12, color: CZ }}>Histórico: {(x.serie || []).map((s) => `${s.competencia.slice(5)}/${s.competencia.slice(2, 4)} ${grade && s.custoUnid ? `${brl(s.custoUnid)}/cor` : `${brl(s.incorrido)}/pç`}`).join(" · ")}</div>
             </div>
             <div style={{ width: 330, display: "flex", flexDirection: "column", gap: 10 }}>
               <Tab cols={[{ t: "CUSTO INTERNO" }, { t: "", r: 1 }]} linhas={[
                 { c: ["Pessoal", brl(c.pessoal)] }, { c: ["Freelancer", brl(c.freelancer)] }, { c: ["Insumo", brl(c.insumo)] }, { c: ["Custo total", brl(c.custoTotal)], _b: 1 },
-                { c: [grade ? "Peças personalizadas" : "Peças processadas", num(c.pecas)] }, ...(grade && c.unidades ? [{ c: ["Unidades (peça × cor)", num(c.unidades)] }, { c: ["Custo por unidade", brl(c.custoUnid)] }] : []),
-                { c: ["Custo incorrido / pç", brl(c.incorrido)], _b: 1 }, { c: ["Estimado / pç", brl(c.estimado)] },
-                { c: ["Terceirizado / pç", brl(c.mediaTerc)] }, { c: ["Resultado", pct(c.resultado, 0)], _fg: [null, c.resultado > 1 ? VM : VD] },
-                { c: ["Impacto no resultado", brl(c.impacto)], _fg: [null, c.impacto < 0 ? VM : VD], _b: 1 }]} />
+                ...(grade && c.unidades ? [   // v1014 — silk: métricas por cor (cor × peça), não por peça
+                  { c: ["Peças personalizadas", num(c.pecas)] }, { c: ["Cores aplicadas (cor × peça)", num(c.unidades)] },
+                  { c: ["Custo incorrido / cor", brl(c.custoUnid)], _b: 1 }, { c: ["Mercado / cor", brl(c.mercadoUnid)] },
+                  { c: ["Custo ÷ mercado", pct(c.mercadoUnid ? c.custoUnid / c.mercadoUnid : 0, 0)], _fg: [null, c.custoUnid > c.mercadoUnid ? VM : VD] },
+                  { c: ["Impacto no resultado", brl(c.economiaTerc)], _fg: [null, c.economiaTerc < 0 ? VM : VD], _b: 1 }] : [
+                  { c: [grade ? "Peças personalizadas" : "Peças processadas", num(c.pecas)] },
+                  { c: ["Custo incorrido / pç", brl(c.incorrido)], _b: 1 }, { c: ["Estimado / pç", brl(c.estimado)] },
+                  { c: ["Terceirizado / pç", brl(c.mediaTerc)] }, { c: ["Resultado", pct(c.resultado, 0)], _fg: [null, c.resultado > 1 ? VM : VD] },
+                  { c: ["Impacto no resultado", brl(c.impacto)], _fg: [null, c.impacto < 0 ? VM : VD], _b: 1 }])]} />
               {a.causas && <div style={{ fontSize: 12 }}><b style={{ color: N }}>Causas:</b> {a.causas}</div>}
               {a.providencias && <div style={{ fontSize: 12 }}><b style={{ color: N }}>Providências:</b> {a.providencias}</div>}
             </div>
