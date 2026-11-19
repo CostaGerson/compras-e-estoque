@@ -11,7 +11,7 @@
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Produtos     (v595: manda o cadastro de itens do KM agora)
 # v521: clientes do KM vao sozinhos de hora em hora e quando alguem clica "Buscar do KM" na tela Clientes
 # v595: itens (produtos) do KM vao sozinhos de hora em hora (minuto 10)
-param([switch]$Configurar, [switch]$Previa, [switch]$Instalar, [switch]$Desinstalar, [int]$Minutos = 1, [switch]$Silencioso, [switch]$Clientes, [switch]$Produtos, [switch]$Tributario)
+param([switch]$Configurar, [switch]$Previa, [switch]$Instalar, [switch]$Desinstalar, [int]$Minutos = 1, [switch]$Silencioso, [switch]$Clientes, [switch]$Produtos, [switch]$Tributario, [switch]$Notas)
 $ErrorActionPreference = "Stop"
 
 $pasta  = Join-Path $env:LOCALAPPDATA "km-sync"
@@ -144,6 +144,13 @@ if ($Produtos) { EnviarProdutos ([bool]$Previa); exit 0 }
 if ($Tributario) {
   $arq = Join-Path ([Environment]::GetFolderPath("Desktop")) "km-tributario.txt"
   if (RodarSql "km-tributario-descobrir.sql" $arq) { Write-Host "Pronto: $arq  (mande esse arquivo para o Claude)"; Start-Process notepad.exe $arq }
+  exit 0
+}
+
+# v1017 - descobrir onde o KM guarda o "Monta notas" (NF ligada a pedidos, parcial ou total). SO LEITURA. Gera km-notas.txt na Area de Trabalho.
+if ($Notas) {
+  $arq = Join-Path ([Environment]::GetFolderPath("Desktop")) "km-notas.txt"
+  if (RodarSql "km-notas-descobrir.sql" $arq) { Write-Host "Pronto: $arq  (mande esse arquivo para o Claude)"; Start-Process notepad.exe $arq }
   exit 0
 }
 

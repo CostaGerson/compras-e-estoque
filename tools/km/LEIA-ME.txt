@@ -31,4 +31,5 @@ v595 - ITENS (produtos) do KM (solprodu + ultimo detalhe de producao)
 v630 - DESCOBRIR a parte fiscal do KM (naturezas de operacao, CFOP, NCM, tributacao) - SO LEITURA
   cd C:\projetos\compras-e-estoque ; git pull ; cd tools\km
   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Tributario
+  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Notas        (v1017: descobre o "Monta notas" do KM; gera km-notas.txt na Area de Trabalho)
   -> gera km-tributario.txt na Area de Trabalho; mande esse arquivo para o Claude montar a importacao.
