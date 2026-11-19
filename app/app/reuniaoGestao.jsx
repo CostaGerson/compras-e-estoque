@@ -681,8 +681,9 @@ function montarSlides(R) {
             <div style={{ width: 330, display: "flex", flexDirection: "column", gap: 10 }}>
               <Tab cols={[{ t: "CUSTO LOGÍSTICO" }, { t: "", r: 1 }]} linhas={[
                 { c: ["Pessoal (Matriz)", brl(m.pessoal)] }, { c: ["Demais custos", brl(m.outros)] }, { c: ["Custo total", brl(m.custo)], _b: 1 },
-                { c: ["Peças (expedição)", num(m.pecas)] }, { c: ["Custo / pç", brl(m.porPeca)], _b: 1 }, { c: ["Cobrado na FPP / pç", brl(m.fppPeca)] },
-                { c: ["Frete entrega / pç", brl(m.freteEntregaPeca)] }, { c: [`Média ${(md.meses || []).length} meses / pç`, brl(md.porPeca)], _b: 1 },
+                { c: ["Peças (expedição)", num(m.pecas)] }, { c: ["Custo / pç", brl(m.porPeca)], _b: 1 },
+                { c: [`Cobrado na FPP / pç (média ${(md.meses || []).length} meses)`, brl(md.porPeca)], _b: 1, _fg: [null, md.porPeca != null && m.porPeca > md.porPeca ? VM : VD] },   // v1020 — é a média que vai para a FPP
+                { c: ["Frete entrega / pç (à parte na FPP)", brl(m.freteEntregaPeca)] },
                 { c: ["Lançamentos identificados", pct(m.pctIdentificado, 0)], _fg: [null, m.identificado ? VD : VM] }]} />
             </div>
           </div></Caber>)}
