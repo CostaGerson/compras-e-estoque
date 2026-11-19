@@ -32,9 +32,14 @@ export async function GET(req) {
     mes: m, ref: ant(ano, mes), dataReuniao: dataReuniao(ano, mes),
     tarefa: { id: t.id, titulo: t.titulo, prazo: t.prazo, hora: t.hora, status: t.status, pautas: R.pautas || [] },
     apresentacao: R.apresentacao || { textos: {} },
+    snapshot: await lerSnap(t.id),   // v1008 — versão salva: números congelados por slide
     meses: [...new Set(todas.map((x) => x.reuniao?.mes).filter(Boolean))],
   });
 }
+
+// v1008 — números congelados de cada slide ficam fora da tarefa (a lista de tarefas não carrega isso)
+const KS = (id) => `REUNIAO|SNAP|${id}`;
+async function lerSnap(id) { const c = await prisma.finConfig.findUnique({ where: { chave: KS(id) } }).catch(() => null); try { return c ? JSON.parse(c.valor) : null; } catch { return null; } }
 
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
@@ -58,6 +63,16 @@ export async function POST(req) {
         x: n(e.x, -200, 1280), y: n(e.y, -200, 720), w: n(e.w, 20, 1280), h: n(e.h, 16, 720), texto: String(e.texto ?? "").slice(0, 8000), url: String(e.url || "").slice(0, 1000),
         arquivoId: Number(e.arquivoId) || null })) })).filter((pg) => pg.id);
   }
-  await prisma.tarefa.update({ where: { id: t.id }, data: { reuniao: { ...atual, apresentacao: { ...A2, textos: { ...(A2.textos || {}), ...Object.fromEntries(Object.entries(b.textos || {}).map(([k, v]) => [String(k).slice(0, 60), String(v ?? "").slice(0, 20000)])) }, paginas, atualizadoPor: nome, atualizadoEm: new Date().toISOString() } } } });
-  return Response.json({ ok: true });
+  // v1008 — estrutura (ordem, cópias e excluídos) e versão salva
+  let estrutura = A2.estrutura || null;
+  if (Array.isArray(b.estrutura)) estrutura = b.estrutura.slice(0, 200).map((x) => ({ id: String(x.id || "").slice(0, 160), ...(x.base ? { base: String(x.base).slice(0, 160) } : {}), ...(x.pagina ? { pagina: String(x.pagina).slice(0, 40) } : {}), ...(x.dup ? { dup: true, pre: String(x.pre || "").slice(0, 40) } : {}) })).filter((x) => x.id && (x.base || x.pagina));
+  let salvoEm = null;
+  if (b.snapshot && typeof b.snapshot === "object") {
+    const valor = JSON.stringify({ em: new Date().toISOString(), por: nome, slides: b.snapshot });
+    if (valor.length > 15e6) return Response.json({ error: "Versão grande demais para salvar." }, { status: 400 });
+    await prisma.finConfig.upsert({ where: { chave: KS(t.id) }, create: { chave: KS(t.id), valor }, update: { valor } });
+    salvoEm = new Date().toISOString();
+  }
+  await prisma.tarefa.update({ where: { id: t.id }, data: { reuniao: { ...atual, apresentacao: { ...A2, ...(estrutura ? { estrutura } : {}), textos: { ...(A2.textos || {}), ...Object.fromEntries(Object.entries(b.textos || {}).map(([k, v]) => [String(k).slice(0, 60), String(v ?? "").slice(0, 20000)])) }, paginas, atualizadoPor: nome, atualizadoEm: new Date().toISOString() } } } });
+  return Response.json({ ok: true, salvoEm });
 }
