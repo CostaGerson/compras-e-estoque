@@ -1162,6 +1162,32 @@ model FinTituloAnexo {
   @@index([hash])
 }
 
+// v1027 — comprovantes enviados pelo celular (atalho "Enviar ao ERP" do iPhone)
+// PENDENTE = guardado, aguardando confirmação (linha amarela no contas a pagar); BAIXADO = virou anexo da conta.
+// Rejeitado é apagado.
+model FinComprovanteEnvio {
+  id           Int       @id @default(autoincrement())
+  status       String    @default("PENDENTE")
+  usuarioId    Int?
+  enviadoPor   String?
+  nome         String
+  mime         String
+  tamanho      Int       @default(0)
+  conteudo     String    // base64 (vazio depois da baixa: o arquivo fica no anexo da conta)
+  hashArquivo  String
+  hashChave    String?
+  dados        Json      // leitura: tipo, data, valor, favorecido, documento…
+  tituloId     Int?      // conta sugerida (pendente) ou baixada
+  motivo       String?
+  resolvidoPor String?
+  resolvidoEm  DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([status])
+  @@index([hashArquivo])
+  @@index([hashChave])
+}
+
 // v139: lixeira de contas — a conta excluída fica 30 dias aqui (cópia completa, com anexos) antes de sumir de vez
 model FinLixeira {
   id              Int      @id @default(autoincrement())

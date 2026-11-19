@@ -12,6 +12,7 @@
     "fast-xml-parser": "4.4.1",
     "fflate": "0.8.2",
     "sharp": "0.33.5",
+    "heic-convert": "2.1.0",
     "jspdf": "2.5.1",
     "lucide-react": "0.408.0",
     "next": "14.2.5",

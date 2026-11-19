@@ -166,7 +166,7 @@ export async function analisarComprovantes(comps) {
 }
 
 // separa uma página do PDF (o comprovante) em um PDF próprio
-async function paginaPdf(b64, pagina) {
+export async function paginaPdf(b64, pagina) {
   const { PDFDocument } = await import("pdf-lib");
   const src = await PDFDocument.load(Buffer.from(b64, "base64"), { ignoreEncryption: true });
   const out = await PDFDocument.create();
@@ -205,10 +205,13 @@ export async function baixarComprovantes(itens, arquivos, { quem } = {}) {
       usados.add(id);
       const a = porNome[it.arquivo];
       if (a?.conteudo) {
+        // v1027 — comprovante pelo celular pode ser foto (JPEG): vai como está
+        const mime = a.mime || "application/pdf", pdf = mime === "application/pdf";
         let conteudo = a.conteudo;
-        try { conteudo = await paginaPdf(a.conteudo, Number(it.pagina) || 1); } catch { /* sem separar: vai o relatório inteiro */ }
-        const nome = `COMPROVANTE ${it.tipo} ${it.data.split("-").reverse().join("-")} ${String(it.favorecido || "").slice(0, 40)}.pdf`.replace(/[\\/:*?"<>|]/g, "");
-        await prisma.finTituloAnexo.create({ data: { tituloId: id, nome, mime: "application/pdf", tamanho: Math.floor(conteudo.length * 3 / 4), conteudo, hash: h, criadoPorNome: quem || null } });
+        if (pdf && !a.separado) { try { conteudo = await paginaPdf(a.conteudo, Number(it.pagina) || 1); } catch { /* sem separar: vai o relatório inteiro */ } }
+        const ext = pdf ? "pdf" : mime === "image/png" ? "png" : "jpg";
+        const nome = `COMPROVANTE ${it.tipo} ${it.data.split("-").reverse().join("-")} ${String(it.favorecido || "").slice(0, 40)}.${ext}`.replace(/[\\/:*?"<>|]/g, "");
+        await prisma.finTituloAnexo.create({ data: { tituloId: id, nome, mime, tamanho: Math.floor(conteudo.length * 3 / 4), conteudo, hash: h, criadoPorNome: quem || null } });
       }
       r.baixadas++;
       r.linhas.push(`${t.titulo}: baixada em ${it.data.split("-").reverse().join("/")} · R$ ${valor.toFixed(2).replace(".", ",")}`);

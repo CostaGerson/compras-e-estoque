@@ -13,7 +13,7 @@ import {
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
   Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare, Gavel, Clock, BadgePercent,
   Info as InfoI, Handshake, Landmark, ExternalLink,
-  Copy as CopyIco, Check as CheckIco,
+  Copy as CopyIco, Check as CheckIco, Smartphone,
 } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 const ABAS_ATRASO = ["ATRASADAS", "EXECUCOES", "PERDAS"];
@@ -343,6 +343,8 @@ function CobrancaSemanalModal({ user, onClose }) {
 }
 
 let _destaqueId = null;
+let _pendPorTit = {};   // v1027 — comprovante do celular pendente de confirmação por conta
+let _abrirPend = null;
 let _buscaAtual = "";   // v952 — busca da lista (mostra o item da conta da semana que bateu)
 export default function ContasPagarReceber({ user, inicial = null }) {
   const [tipo, setTipo] = useState(inicial?.tipo || "PAGAR");   // v365 — pode abrir já filtrado
@@ -376,6 +378,12 @@ export default function ContasPagarReceber({ user, inicial = null }) {
   const [tickAtraso, setTickAtraso] = useState(0);
   // v172 — baixas pelo extrato: o sistema procura sozinho; só aparece quando há o que validar
   const [nBaixas, setNBaixas] = useState(0);
+  // v1027 — comprovantes enviados pelo celular aguardando confirmação
+  const [pendCel, setPendCel] = useState([]);
+  const carregarPend = () => api(`/api/fin/comprovantes?u=${user.id}`).then((j) => setPendCel(j.pendentes || [])).catch(() => setPendCel([]));
+  useEffect(() => { if (d && tipo === "PAGAR") carregarPend(); }, [d, tipo]);
+  _pendPorTit = Object.fromEntries(pendCel.filter((p) => p.tituloId).map((p) => [p.tituloId, p]));
+  _abrirPend = () => setModal({ t: "pendCel" });
   useEffect(() => { if (!d) return; api(`/api/fin/baixas?u=${user.id}&competencia=${mes}`).then((j) => setNBaixas((j.sugestoes || []).filter((x) => !x.lancamento.vista).length)).catch(() => setNBaixas(0)); }, [d, mes]);
   const carregar = () => api(`/api/fin/titulos?u=${user.id}&tipo=${tipoApi}&de=${mes}&ate=${mes}&dIni=${dIni}&dFim=${dFim < dIni ? dIni : dFim}`).then((j) => {
     setD(j); setErro("");
@@ -508,6 +516,16 @@ export default function ContasPagarReceber({ user, inicial = null }) {
         </button>
       )}
 
+      {/* v1027 — comprovantes do celular pendentes de confirmação */}
+      {P && pendCel.length > 0 && (
+        <button onClick={() => setModal({ t: "pendCel" })} className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-sm text-left"
+          style={{ background: C.yellowSoft, border: `1px solid ${C.yellow}88`, color: C.text }}>
+          <Smartphone size={18} style={{ color: C.yellow }} />
+          <span className="flex-1"><b>{pendCel.length} comprovante(s) PENDENTE(S) DE CONFIRMAÇÃO</b> enviados pelo celular ({moeda(pendCel.reduce((a, p) => a + (Number(p.dados?.valor) || 0), 0))}). Confirme para baixar a conta ou rejeite.</span>
+          <span className="font-semibold" style={{ color: C.yellow }}>Conferir →</span>
+        </button>
+      )}
+
       {/* baixas sugeridas pelo extrato */}
       {d && nBaixas > 0 && (
         <button onClick={() => setModal({ t: "baixas" })} className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-sm text-left"
@@ -534,6 +552,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
           return exportarExcel(user, ids, [`CONTAS ${P ? "A PAGAR" : "A RECEBER"}`, per, sitTxt, busca && `BUSCA "${busca}"`, soCompra && P && "SÓ ENTRADA POR COMPRA"].filter(Boolean).join(" · "),
             `contas-a-${P ? "pagar" : "receber"}_${dIni}_a_${dFim < dIni ? dIni : dFim}.xlsx`);
         }} />}
+        {P && <BtnS onClick={() => setModal({ t: "atalho" })} cor={C.navy}><Smartphone size={15} /> Comprovante pelo iPhone</BtnS>}
         <BtnS onClick={() => setModal({ t: "ia" })} cor={C.roxo}><Wand2 size={15} /> Analisar com IA</BtnS>
         {/* v171 — importações saíram daqui: tudo entra pela Transmissão de arquivos (painel do Financeiro) */}
         <BtnP onClick={() => setModal({ t: "titulo", item: null })}><Plus size={15} /> Nova conta</BtnP>
@@ -672,6 +691,8 @@ export default function ContasPagarReceber({ user, inicial = null }) {
       {modal?.t === "xml" && <XmlModal user={user} tipo={tipo} contas={d?.contas || []} lidosIniciais={modal.lidos} onClose={() => setModal(modal.lidos ? { t: "nfs" } : null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "nfs" && <NfsComprasModal user={user} onClose={() => { setModal(null); carregar(); }} onLancar={(lidos) => setModal({ t: "xml", lidos })} />}
       {modal?.t === "recorrencias" && <RecorrenciasModal user={user} d={d} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
+      {modal?.t === "pendCel" && <PendentesCelModal user={user} itens={pendCel} onClose={() => { setModal(null); carregarPend(); carregar(); }} onMudou={carregarPend} />}
+      {modal?.t === "atalho" && <AtalhoModal user={user} onClose={() => setModal(null)} />}
       {modal?.t === "baixas" && <BaixasModal user={user} competencia={mes} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "documento" && <DocumentoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "antecipacao" && <AntecipacaoModal user={user} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
@@ -705,6 +726,7 @@ export function MarcaRemessa({ t }) {
 }
 
 /* ---------------- tabela ---------------- */
+const pendT = (t) => t.status === "ABERTO" && !!_pendPorTit[t.id];   // v1027
 // valor usado para ordenar cada coluna
 const chaveOrdem = (t, col, contasPorId) => {
   switch (col) {
@@ -779,7 +801,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
               const [fT, FI] = FORMA[t.forma] || [t.forma, Hand];
               const conferir = t.recorrenciaId && !t.valorConfirmado && t.status === "ABERTO" && t.competencia <= mesAtual();
               return (
-                <tr key={t.id} id={`tit-${t.id}`} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1, background: t.id === _destaqueId ? "#FFE8D6" : sel?.has(t.id) ? C.accentSoft : t.critica ? C.redSoft : undefined, boxShadow: t.id === _destaqueId ? `inset 4px 0 0 ${C.accent}` : t.critica ? `inset 3px 0 0 ${C.red}` : undefined }} className="hover:bg-gray-50">
+                <tr key={t.id} id={`tit-${t.id}`} style={{ borderBottom: `1px solid ${C.line}`, opacity: t.status === "CANCELADO" ? 0.5 : 1, background: t.id === _destaqueId ? "#FFE8D6" : sel?.has(t.id) ? C.accentSoft : pendT(t) ? C.yellowSoft : t.critica ? C.redSoft : undefined, boxShadow: t.id === _destaqueId ? `inset 4px 0 0 ${C.accent}` : pendT(t) ? `inset 4px 0 0 ${C.yellow}` : t.critica ? `inset 3px 0 0 ${C.red}` : undefined }} className="hover:bg-gray-50">
                   {sel && <td className="pl-3 py-2">{t.status === "ABERTO" && <input type="checkbox" checked={sel.has(t.id)} onChange={(e) => marcar([t.id], e.target.checked)} />}</td>}
                   <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: s.k === "VENC" ? C.red : C.text }}>{dBR(t.vencimento)}<AltInfo t={t} campo="vencimento" /><MarcaR t={t} />{t.emissao && <div className="text-[10px] font-normal" style={{ color: C.sub }} title="Emissão da NF">emissão {dBR(t.emissao)}</div>}
                     {/* v887 — celular: valor e situação embaixo da data (as colunas ficam ocultas) */}
@@ -792,6 +814,8 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                         {t.nAnexos > 0 && <span className="flex items-center text-[10px] font-normal" style={{ color: C.sub }} title={`${t.nAnexos} anexo(s)`}><Paperclip size={11} />{t.nAnexos > 1 ? t.nAnexos : ""}</span>}
                         <MarcaRemessa t={t} />
                       </div>
+                      {pendT(t) && <span role="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); _abrirPend?.(); }} title="Comprovante enviado pelo celular — clique para confirmar ou rejeitar"
+                        className="inline-flex items-center gap-1 my-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer" style={{ background: "#F5B800", color: "#fff" }}><Smartphone size={10} /> PENDENTE DE CONFIRMAÇÃO</span>}
                       {/* v191 — uma linha só: crítica > OBS > documento/observação (o resto aparece ao abrir a conta) */}
                       {t.critica ? <div className="font-semibold flex items-center gap-1 truncate" style={{ color: C.red }}><AlertTriangle size={11} className="shrink-0" /><span className="truncate">{t.critica}</span></div>
                         : (t.notas || []).length ? <div className="truncate" style={{ color: C.yellow }}><b className="text-[9px]">OBS</b> {t.notas[t.notas.length - 1].texto}{t.notas.length > 1 ? ` (+${t.notas.length - 1})` : ""}</div>
@@ -4019,4 +4043,125 @@ function AltInfo({ t, campo }) {
   const l = (Array.isArray(t.alteracoes) ? t.alteracoes : []).filter((a) => a.campo === campo);
   if (!l.length) return null;
   return <span className="inline-flex align-middle mx-1 cursor-help" title={l.map((a) => a.texto).join("\n")}><InfoI size={13} style={{ color: C.yellow }} /></span>;
+}
+
+/* ---------- v1027 — comprovantes enviados pelo celular ---------- */
+function CartaoPendenteCel({ user, p, onFeito }) {
+  const dd = p.dados || {};
+  const [tituloId, setTituloId] = useState(p.tituloId || p.opcoes?.[0]?.id || "");
+  const [data, setData] = useState(dd.data || "");
+  const [valor, setValor] = useState(dd.valor ? brl(dd.valor) : "");
+  const [busca, setBusca] = useState("");
+  const [achadas, setAchadas] = useState(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState("");
+  const opcoes = useMemo(() => {
+    const m = new Map();
+    [...(p.opcoes || []), ...(achadas || [])].forEach((o) => { if (!m.has(o.id)) m.set(o.id, o); });
+    return [...m.values()];
+  }, [p.opcoes, achadas]);
+  useEffect(() => {
+    if (busca.trim().length < 2) { setAchadas(null); return; }
+    const t = setTimeout(() => api(`/api/fin/comprovantes?u=${user.id}&busca=${encodeURIComponent(busca.trim())}`).then((j) => { setAchadas(j.contas || []); if (j.contas?.[0]) setTituloId(j.contas[0].id); }).catch(() => setAchadas([])), 400);
+    return () => clearTimeout(t);
+  }, [busca]);
+  const escolhida = opcoes.find((o) => o.id === Number(tituloId));
+  const confirmarC = async () => {
+    if (!tituloId) { setErro("Escolha a conta."); return; }
+    setOcupado(true); setErro("");
+    try { const r = await api("/api/fin/comprovantes", "POST", { usuarioId: user.id, acao: "confirmar", id: p.id, tituloId: Number(tituloId), data, valor: lerNum(valor) }); onFeito(r.texto); }
+    catch (e) { setErro(e.message); setOcupado(false); }
+  };
+  const rejeitarC = async () => {
+    if (!(await confirmar("Rejeitar este comprovante? Ele será excluído e a conta continua em aberto."))) return;
+    setOcupado(true);
+    try { const r = await api("/api/fin/comprovantes", "POST", { usuarioId: user.id, acao: "rejeitar", id: p.id }); onFeito(r.texto); }
+    catch (e) { setErro(e.message); setOcupado(false); }
+  };
+  const optTxt = (o) => `${o.status === "PAGO" ? "[JÁ PAGA] " : ""}${dBR(o.vencimento)} · ${o.titulo}${o.parceiro && o.parceiro !== o.titulo ? ` · ${o.parceiro}` : ""} · R$ ${brl(o.valor)}`;
+  return (
+    <div className="rounded-xl mb-3 p-3" style={{ background: C.yellowSoft, border: `1px solid ${C.yellow}88`, boxShadow: `inset 4px 0 0 ${C.yellow}` }}>
+      <div className="flex flex-wrap items-center gap-2 mb-1.5">
+        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ background: "#F5B800", color: "#fff" }}>PENDENTE DE CONFIRMAÇÃO</span>
+        <span className="text-[11px]" style={{ color: C.sub }}>enviado por {p.enviadoPor || "—"} em {new Date(p.em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
+        <a href={`/api/fin/comprovantes?u=${user.id}&id=${p.id}&arquivo=1`} target="_blank" rel="noreferrer" className="ml-auto flex items-center gap-1 text-xs font-semibold" style={{ color: C.blue }}><ExternalLink size={13} /> Ver comprovante</a>
+      </div>
+      <div className="text-sm font-bold" style={{ color: C.navy }}>{dd.favorecido || "Destinatário não lido"}{dd.tipo && dd.tipo !== "OUTRO" ? <span className="font-normal text-xs" style={{ color: C.sub }}> · {dd.tipo}</span> : null}</div>
+      {dd.documento && <div className="text-[11px]" style={{ color: C.sub }}>CPF/CNPJ {fmtDoc(dd.documento)}</div>}
+      {p.motivo && <div className="text-xs mt-1" style={{ color: C.yellow }}><b>Por que não baixou sozinho:</b> {p.motivo}</div>}
+      <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
+        <Campo t="Data do pagamento"><input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inp} style={inpS} /></Campo>
+        <Campo t="Valor pago (R$)"><input value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal" className={inp} style={inpS} /></Campo>
+        <Campo t="Procurar outra conta"><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="fornecedor, título ou valor" className={inp} style={inpS} /></Campo>
+      </div>
+      <Campo t="Conta a baixar">
+        <select value={tituloId} onChange={(e) => setTituloId(e.target.value)} className={inp} style={inpS}>
+          <option value="">— escolha a conta —</option>
+          {opcoes.map((o) => <option key={o.id} value={o.id}>{optTxt(o)}</option>)}
+        </select>
+      </Campo>
+      {achadas && !achadas.length && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Nenhuma conta encontrada com "{busca}".</div>}
+      {escolhida?.status === "PAGO" && <div className="text-[11px] mt-1" style={{ color: C.blue }}>Essa conta já está paga: confirmar só anexa o comprovante nela.</div>}
+      {erro && <div className="text-xs mt-1.5" style={{ color: C.red }}>{erro}</div>}
+      <div className="flex justify-end gap-2 mt-2.5">
+        <button disabled={ocupado} onClick={rejeitarC} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panel, color: C.red, border: `1px solid ${C.red}66` }}><X size={14} /> Rejeitar</button>
+        <button disabled={ocupado || !tituloId} onClick={confirmarC} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.green, opacity: ocupado || !tituloId ? 0.5 : 1 }}>
+          {ocupado ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Confirmar e baixar</button>
+      </div>
+    </div>
+  );
+}
+function PendentesCelModal({ user, itens, onClose, onMudou }) {
+  const [msg, setMsg] = useState("");
+  return (
+    <Modal titulo="Comprovantes do celular · pendentes de confirmação" icone={Smartphone} onClose={onClose} largura={760}>
+      {msg && <div className="mb-3 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{msg}</div>}
+      {!itens.length ? <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum comprovante pendente.</div>
+        : itens.map((p) => <CartaoPendenteCel key={p.id} user={user} p={p} onFeito={(t) => { setMsg(t); onMudou(); }} />)}
+    </Modal>
+  );
+}
+function AtalhoModal({ user, onClose }) {
+  const [chave, setChave] = useState(null);
+  const [copiado, setCopiado] = useState(false);
+  const [erro, setErro] = useState("");
+  useEffect(() => { api(`/api/fin/comprovantes?u=${user.id}&chave=1`).then((j) => setChave(j.chave)).catch((e) => setErro(e.message)); }, []);
+  const url = chave ? `${typeof window !== "undefined" ? window.location.origin : ""}/api/fin/comprovantes/enviar?t=${chave}` : "";
+  const nova = async () => {
+    if (!(await confirmar("Gerar uma nova chave? O atalho que já está no iPhone para de funcionar até você colar o novo endereço."))) return;
+    try { setChave((await api("/api/fin/comprovantes", "POST", { usuarioId: user.id, acao: "novaChave" })).chave); } catch (e) { setErro(e.message); }
+  };
+  const passos = [
+    <>No iPhone, abra o app <b>Atalhos</b> e toque em <b>+</b>. Dê o nome <b>Enviar ao ERP</b>.</>,
+    <>Toque no <b>ⓘ</b> (detalhes) e ative <b>Mostrar na Folha de Compartilhamento</b>. Em <b>Recebe</b>, deixe <b>Imagens</b> e <b>PDFs</b>.</>,
+    <>Adicione a ação <b>Obter Conteúdo do URL</b> e cole o endereço acima no campo URL.</>,
+    <>Toque em <b>Mostrar Mais</b>: Método <b>POST</b> · Corpo da Solicitação <b>Formulário</b> · <b>Adicionar novo campo</b> do tipo <b>Arquivo</b>, chave <b>arquivo</b>, valor <b>Entrada do Atalho</b>.</>,
+    <>Adicione a ação <b>Mostrar Resultado</b> com <b>Conteúdo do URL</b> (é a resposta do sistema).</>,
+    <>Pronto. No WhatsApp, no app do banco, em Fotos ou Arquivos: <b>Compartilhar → Enviar ao ERP</b>. Um comprovante por vez.</>,
+  ];
+  return (
+    <Modal titulo="Comprovante pelo iPhone" icone={Smartphone} onClose={onClose} largura={640}>
+      <div className="text-sm mb-3" style={{ color: C.text }}>
+        Envie a foto ou o PDF do comprovante pelo menu Compartilhar do iPhone. O sistema lê o comprovante e:
+        <ul className="list-disc ml-5 mt-1 text-xs" style={{ color: C.sub }}>
+          <li><b style={{ color: C.green }}>baixa sozinho</b> quando o valor é igual, a data do pagamento é o vencimento e o nome do destinatário aparece no fornecedor (uma conta só);</li>
+          <li>senão, guarda o comprovante como <b style={{ color: C.yellow }}>PENDENTE DE CONFIRMAÇÃO</b> (linha amarela): confirmar baixa e anexa; rejeitar exclui o comprovante.</li>
+        </ul>
+      </div>
+      <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Seu endereço (pessoal — não compartilhe)</div>
+      {erro ? <div className="text-xs" style={{ color: C.red }}>{erro}</div> : !chave ? <Loader2 size={16} className="animate-spin" /> : (
+        <div className="flex gap-2 items-center mb-1">
+          <input readOnly value={url} onFocus={(e) => e.target.select()} className={inp} style={{ ...inpS, fontSize: 12 }} />
+          <button onClick={async () => { if (await copiarTexto(url)) { setCopiado(true); setTimeout(() => setCopiado(false), 1800); } }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shrink-0" style={{ background: copiado ? C.green : C.navy }}>
+            {copiado ? <CheckIco size={14} /> : <CopyIco size={14} />} {copiado ? "Copiado" : "Copiar"}</button>
+        </div>
+      )}
+      <button onClick={nova} className="text-[11px] underline mb-4" style={{ color: C.sub }}>gerar nova chave</button>
+      <div className="text-xs font-semibold mb-1.5" style={{ color: C.navy }}>Como criar o atalho (uma vez só)</div>
+      <ol className="text-xs space-y-1.5">
+        {passos.map((p, i) => <li key={i} className="flex gap-2"><span className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: C.accent }}>{i + 1}</span><span>{p}</span></li>)}
+      </ol>
+      <div className="text-[11px] mt-3" style={{ color: C.sub }}>Dica: abra esta tela no próprio iPhone para copiar o endereço direto.</div>
+    </Modal>
+  );
 }
