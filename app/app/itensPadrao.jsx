@@ -127,7 +127,7 @@ export default function ItensPadrao({ user, componentes = {} }) {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nome interno, nome NF, código, cliente, NCM…" className="py-1.5 text-sm outline-none flex-1" />
           {q && <button onClick={() => setQ("")} style={{ color: C.sub }}><X size={13} /></button>}
         </div>
-        <select value={cli} onChange={(e) => setCli(e.target.value)} className="px-2 py-1.5 rounded outline-none text-sm" style={{ ...inpS, maxWidth: 260 }}>
+        <select value={cli} onChange={(e) => setCli(e.target.value)} className="px-2 py-1.5 rounded outline-none text-sm" style={{ ...inpS, background: C.panel, maxWidth: 260 }}>
           <option value="">Todos os clientes</option>
           {clientes.filter((c) => (l || []).some((i) => (i.clienteIds || []).map(Number).includes(c.id))).map((c) => <option key={c.id} value={c.id}>{nomeCli(c)}</option>)}
         </select>

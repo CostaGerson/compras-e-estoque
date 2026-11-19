@@ -28,7 +28,9 @@ export function filtrarNotas(lista, f) {
     && (!f.origem || (f.origem === "COMPRAS" ? !!n.idCompras : f.origem === "CONTAB" ? n.origem === "IMPORTAÇÃO CONTABILIDADE" : f.origem === "CRITICA" ? !!n.critica : n.origem === "MOVIMENTO FISCAL"))
     && (!b || sem(`${n.numero} ${n.parceiro} ${n.documento || ""} ${n.natureza || ""} ${n.chave || ""}`).includes(b) || brl(n.valor).includes(b)));
   const [k, dir] = f.ordem || ["emissao", -1];
-  const v = (n) => (k === "valor" ? n.valor : k === "numero" ? Number(n.numero) || 0 : String(n[k] || ""));
+  const v = (n) => (k === "valor" ? n.valor : k === "numero" ? Number(n.numero) || 0
+    : k === "contas" ? (n.critica ? "0" : n.acao === "REGISTRADA" ? "1" : `2${n.parcelas.length}`) : k === "arquivos" ? (n.temXml ? 2 : 0) + (n.temPdf ? 1 : 0)   // v994
+    : String(n[k] || ""));
   return [...l].sort((a, c) => (v(a) > v(c) ? 1 : v(a) < v(c) ? -1 : 0) * dir);
 }
 
@@ -149,10 +151,10 @@ export default function NfRegistro({ user }) {
       <div className="rounded-xl overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         <table className="w-full text-xs">
           <thead style={{ color: C.sub, background: C.panel2 }}><tr>
-            <Th k="emissao" t="Emissão" /><Th k="numero" t="Nº" /><th className="px-3 py-2 text-left font-semibold">Modelo</th>
-            <Th k="parceiro" t={ent ? "Emitente (fornecedor)" : "Destinatário (cliente)"} /><th className="px-3 py-2 text-left font-semibold">CNPJ/CPF</th>
-            <Th k="natureza" t="Natureza" /><Th k="valor" t="Valor" right /><th className="px-3 py-2 text-left font-semibold">Contas</th>
-            <th className="px-3 py-2 text-left font-semibold">Arquivos</th><th className="px-3 py-2 text-left font-semibold">Origem</th>
+            <Th k="emissao" t="Emissão" /><Th k="numero" t="Nº" /><Th k="modelo" t="Modelo" />
+            <Th k="parceiro" t={ent ? "Emitente (fornecedor)" : "Destinatário (cliente)"} /><Th k="documento" t="CNPJ/CPF" />
+            <Th k="natureza" t="Natureza" /><Th k="valor" t="Valor" right /><Th k="contas" t="Contas" />
+            <Th k="arquivos" t="Arquivos" /><Th k="origem" t="Origem" />
           </tr></thead>
           <tbody>
             {!lista && <tr><td colSpan={10} className="px-3 py-8 text-center" style={{ color: C.sub }}><Loader2 size={15} className="inline animate-spin mr-1" /> Carregando…</td></tr>}

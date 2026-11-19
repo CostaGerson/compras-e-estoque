@@ -1,4 +1,5 @@
 "use client";
+import { BuscaLista, THEAD } from "./listaPadrao";   // v994
 import { podeImportar, gerencial, tem, temAlguma } from "@/lib/acesso";
 import Dfc from "./dfc";
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
@@ -2401,17 +2402,23 @@ function Senhas({ user }) {
         </button>
         {erro && <div className="w-full text-xs" style={{ color: C.red }}>{erro}</div>}
       </div>
-      <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-        {lista.length === 0 && <div className="p-4 text-sm" style={{ color: C.sub }}>Nenhuma senha cadastrada.</div>}
-        {lista.map((s) => (
-          <div key={s.id} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
-            <KeyRound size={16} style={{ color: C.accent }} />
-            <div className="flex-1 font-medium text-sm">{s.rotulo}</div>
-            <div className="text-sm font-mono" style={{ color: C.sub }}>{ver[s.id] ? s.senha : "••••••"}</div>
-            <button onClick={() => setVer((v) => ({ ...v, [s.id]: !v[s.id] }))} style={{ color: C.sub }}>{ver[s.id] ? <EyeOff size={15} /> : <Eye size={15} />}</button>
-            <button onClick={() => del(s)} style={{ color: C.sub }}><Trash2 size={15} /></button>
-          </div>
-        ))}
+      <div className="rounded-xl overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>   {/* v994 — tabela */}
+        <table className="w-full text-sm">
+          <thead className="text-xs" style={THEAD}><tr><th className="px-4 py-2 text-left font-semibold">Rótulo</th><th className="px-3 py-2 text-left font-semibold">Senha</th><th className="px-3 py-2" /></tr></thead>
+          <tbody>
+            {lista.length === 0 && <tr><td colSpan={3} className="p-4 text-sm" style={{ color: C.sub }}>Nenhuma senha cadastrada.</td></tr>}
+            {lista.map((s) => (
+              <tr key={s.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                <td className="px-4 py-2.5 font-medium"><span className="inline-flex items-center gap-2"><KeyRound size={15} style={{ color: C.accent }} />{s.rotulo}</span></td>
+                <td className="px-3 py-2.5 font-mono" style={{ color: C.sub }}>{ver[s.id] ? s.senha : "••••••"}</td>
+                <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                  <button onClick={() => setVer((v) => ({ ...v, [s.id]: !v[s.id] }))} className="mr-3" style={{ color: C.sub }}>{ver[s.id] ? <EyeOff size={15} /> : <Eye size={15} />}</button>
+                  <button onClick={() => del(s)} style={{ color: C.sub }}><Trash2 size={15} /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -3587,32 +3594,43 @@ function PlanoContas({ user }) {
         <button onClick={add} className="flex items-center gap-1 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Adicionar</button>
         {erro && <div className="w-full text-xs" style={{ color: C.red }}>{erro}</div>}
       </div>
-      <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar conta…" className="px-3 py-2 rounded-lg text-sm mb-3" style={{ border: `1px solid ${C.line}`, width: 260 }} />
-      <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      <BuscaLista value={busca} onChange={setBusca} placeholder="Buscar conta…" rotulo="" className="w-72 mb-3" />   {/* v994 */}
+      <div className="rounded-xl overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <table className="w-full text-sm">
+          <thead className="text-xs" style={THEAD}><tr>
+            <th className="px-4 py-2 text-left font-semibold" style={{ width: 110 }}>Código</th><th className="px-3 py-2 text-left font-semibold">Conta</th>
+            <th className="px-3 py-2 text-left font-semibold">Natureza</th><th className="px-3 py-2 text-left font-semibold">Situação</th><th className="px-3 py-2" />
+          </tr></thead>
+          <tbody>
         {vis.map((c) => {
           const [nt, cor] = nat(c.codigo);
           const e = edit[c.id];
           return (
-            <div key={c.id} className="flex items-center gap-3 px-4 py-2" style={{ borderBottom: `1px solid ${C.line}`, opacity: c.ativo ? 1 : 0.5 }}>
+            <tr key={c.id} style={{ borderTop: `1px solid ${C.line}`, opacity: c.ativo ? 1 : 0.5 }}>
               {e ? (
-                <>
+                <td colSpan={5} className="px-4 py-2"><div className="flex items-center gap-3">
                   <input value={e.codigo} onChange={(ev) => setEdit({ ...edit, [c.id]: { ...e, codigo: ev.target.value } })} className="px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, width: 100 }} />
                   <input value={e.nome} onChange={(ev) => setEdit({ ...edit, [c.id]: { ...e, nome: ev.target.value } })} className="flex-1 px-2 py-1 rounded text-sm uppercase" style={{ border: `1px solid ${C.line}` }} />
                   <button onClick={() => salvar(c, e)} className="px-3 py-1 rounded text-xs font-semibold" style={{ background: C.accent, color: "#fff" }}>Salvar</button>
                   <button onClick={() => setEdit((x) => { const n = { ...x }; delete n[c.id]; return n; })} style={{ color: C.sub }}><X size={15} /></button>
-                </>
+                </div></td>
               ) : (
                 <>
-                  <div className="font-mono font-semibold text-sm" style={{ color: cor, width: 80 }}>{c.codigo}</div>
-                  <div className="flex-1 text-sm">{c.nome}</div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: cor, background: C.panel2 }}>{nt}</span>
-                  <button onClick={() => setEdit({ ...edit, [c.id]: { codigo: c.codigo, nome: c.nome } })} style={{ color: C.sub }} title="Editar"><Pencil size={14} /></button>
-                  <button onClick={() => salvar(c, { ativo: !c.ativo })} className="text-xs" style={{ color: C.sub }}>{c.ativo ? "Inativar" : "Ativar"}</button>
+                  <td className="px-4 py-2 font-mono font-semibold tabular-nums" style={{ color: cor }}>{c.codigo}</td>
+                  <td className="px-3 py-2">{c.nome}</td>
+                  <td className="px-3 py-2"><span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: cor, background: C.panel2 }}>{nt}</span></td>
+                  <td className="px-3 py-2 text-xs" style={{ color: C.sub }}>{c.ativo ? "Ativa" : "Inativa"}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <button onClick={() => setEdit({ ...edit, [c.id]: { codigo: c.codigo, nome: c.nome } })} className="mr-3 align-middle" style={{ color: C.sub }} title="Editar"><Pencil size={14} /></button>
+                    <button onClick={() => salvar(c, { ativo: !c.ativo })} className="text-xs" style={{ color: C.sub }}>{c.ativo ? "Inativar" : "Ativar"}</button>
+                  </td>
                 </>
               )}
-            </div>
+            </tr>
           );
         })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -3679,7 +3697,7 @@ function Regras({ user, comp }) {
       {lista && (
         <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 1050 }}>
-            <thead style={{ borderBottom: `2px solid ${C.line}` }}>
+            <thead style={{ ...THEAD, borderBottom: `1px solid ${C.line}` }}>
               <tr className="text-[11px] uppercase" style={{ color: C.navy }}>
                 <th className="px-2 py-2 text-left" style={{ width: 78 }}>Prioridade</th>
                 <th className="px-2 py-2 text-left">Descrição</th>

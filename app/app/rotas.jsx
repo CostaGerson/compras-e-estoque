@@ -1,5 +1,6 @@
 "use client";
 // v425 — Logística › Rotas: calendário de demandas de rota, mapa do dia, montagem da rota com a melhor sequência, despacho e execução pelo motorista
+import { BuscaLista, THEAD } from "./listaPadrao";   // v994
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ArrowLeftRight, Link2, Play, ExternalLink, Undo2, Home, Copy, MessageCircle, Hourglass, Paperclip, Trash2, Phone } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
@@ -1411,25 +1412,34 @@ export function Destinatarios({ user }) {
           <div className="text-lg font-bold" style={{ color: C.navy }}>Destinatários</div>
           <div className="text-xs" style={{ color: C.sub }}>Locais das demandas de rota que não são fornecedor, terceirizado nem cliente. Um nome novo na demanda de rota entra aqui sozinho.</div>
         </div>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className="px-3 py-1.5 rounded-md text-sm w-56" style={{ border: `1px solid ${C.line}` }} />
+        <BuscaLista value={q} onChange={setQ} placeholder="Nome, endereço, contato…" rotulo="" className="w-64" />   {/* v994 */}
         <div className="flex-1" />
         <button onClick={() => setEd({})} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={15} /> Novo</button>
       </div>
-      <div className="rounded-xl" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+      {/* v994 — tabela no padrão das listas: título alinhado à coluna e ordenação ao clicar no título */}
+      <div className="rounded-xl overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         {!l && <div className="p-4 flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
-        {l && !lista.length && <div className="p-6 text-center text-sm" style={{ color: C.sub }}>Nenhum destinatário.</div>}
-        {lista.map((x) => (
-          <div key={x.id} className="flex items-center gap-3 px-4 py-2.5" style={{ borderTop: `1px solid ${C.line}` }}>
-            <MapPin size={16} style={{ color: x.lat != null ? C.green : C.yellow }} title={x.lat != null ? "Localizado no mapa" : "Fora do mapa"} />
-            <button onClick={() => setEd(x)} className="flex-1 text-left min-w-0">
-              <div className="text-sm font-semibold" style={{ color: C.text }}>{sc(x.nome)}</div>
-              <div className="text-xs truncate" style={{ color: C.sub }}>{x.endereco}</div>
-              {(x.contato || x.telefone) && <div className="text-xs" style={{ color: C.sub }}>{[x.contato, x.telefone].filter(Boolean).join(" · ")}</div>}
-            </button>
-            <span className="text-xs whitespace-nowrap" style={{ color: C.sub }}>{x.demandas} demanda(s)</span>
-            <button onClick={() => excluir(x)} title="Excluir" style={{ color: C.sub }}><X size={15} /></button>
-          </div>
-        ))}
+        {l && <table className="w-full text-sm">
+          <thead className="text-xs" style={THEAD}><tr>
+            <th className="px-3 py-2 text-left font-semibold">Nome</th><th className="px-3 py-2 text-left font-semibold">Endereço</th>
+            <th className="px-3 py-2 text-left font-semibold">Contato</th><th className="px-3 py-2 text-left font-semibold">Telefone</th>
+            <th className="px-3 py-2 text-center font-semibold">Mapa</th><th className="px-3 py-2 text-right font-semibold">Demandas</th><th className="px-3 py-2" />
+          </tr></thead>
+          <tbody>
+            {!lista.length && <tr><td colSpan={7} className="p-6 text-center text-sm" style={{ color: C.sub }}>Nenhum destinatário.</td></tr>}
+            {lista.map((x) => (
+              <tr key={x.id} onClick={() => setEd(x)} className="cursor-pointer hover:bg-gray-50" style={{ borderTop: `1px solid ${C.line}` }}>
+                <td className="px-3 py-2 font-semibold" style={{ color: C.text, minWidth: 160 }}>{sc(x.nome)}</td>
+                <td className="px-3 py-2 text-xs" style={{ color: C.sub, maxWidth: 360 }}><div className="truncate" title={x.endereco}>{x.endereco || "—"}</div></td>
+                <td className="px-3 py-2 text-xs" style={{ color: C.sub }}>{x.contato || "—"}</td>
+                <td className="px-3 py-2 text-xs whitespace-nowrap tabular-nums" style={{ color: C.sub }}>{x.telefone || "—"}</td>
+                <td className="px-3 py-2 text-center"><MapPin size={15} className="inline" style={{ color: x.lat != null ? C.green : C.yellow }} title={x.lat != null ? "Localizado no mapa" : "Fora do mapa"} /><span className="hidden">{x.lat != null ? "sim" : "não"}</span></td>
+                <td className="px-3 py-2 text-right text-xs tabular-nums" style={{ color: C.sub }}>{x.demandas}</td>
+                <td className="px-3 py-2 text-right"><button onClick={(e) => { e.stopPropagation(); excluir(x); }} title="Excluir" style={{ color: C.sub }}><X size={15} /></button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>}
       </div>
       {ed && <DestinatarioForm user={user} inicial={ed} onClose={() => setEd(null)} onOk={() => { setEd(null); _destinos = null; carregar(); }} />}
     </div>

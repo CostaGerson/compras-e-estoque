@@ -8,6 +8,7 @@ import {
   ChevronRight, ChevronLeft, Eye, EyeOff, Mountain, CheckCircle2, Workflow, Camera, Pencil, X,
   Bell, Inbox, LogOut, Send, AlertTriangle, Briefcase, Landmark, Compass, Factory, Truck, Building2, Tags, ChevronDown,
 } from "lucide-react";
+import { ThO, BuscaLista, SEL_BRANCO } from "./listaPadrao";   // v994
 import Comercial from "./comercial";
 import Financeiro, { DadosFinanceiros } from "./financeiro";
 import Gestao from "./gestao";
@@ -3076,11 +3077,11 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
   const ocultar = (k) => mudarOcultas((o) => [...new Set([...o, k])]);
   const COLS_NOME = { categoria: "Categoria", nome: "Artigo NF", interno: "Artigo interno", fornecedor: "Fornecedor", cor: "Cor", codigo: "Código", saldo: "Saldo",
     composicao: "Composição", movimento: "Movimento", preco: "Preço", valor: "Valor total", ultima: "Última compra" };
-  const Th = ({ k, label, campoKey, className }) => !vis(k) ? null : (
-    <div className={className + " flex items-start gap-1 group"}>
-      {campoKey ? <ThSort label={label} campoKey={campoKey} sort={sort} onSort={onSort} className="min-w-0" /> : <div className="min-w-0">{label}</div>}
-      <button onClick={(e) => { e.stopPropagation(); ocultar(k); }} title={`Ocultar coluna ${COLS_NOME[k]}`} className="shrink-0 opacity-40 hover:opacity-100" style={{ color: C.sub, marginTop: 1 }}><EyeOff size={12} /></button>
-    </div>
+  // v994 — tabela: título alinhado ao conteúdo, todas as colunas ordenam
+  const Th = ({ k, label, campoKey, dir }) => !vis(k) ? null : (
+    <ThO key={k} label={label} k={campoKey} sort={sort} onSort={onSort} dir={dir}>
+      <button onClick={(e) => { e.stopPropagation(); ocultar(k); }} title={`Ocultar coluna ${COLS_NOME[k]}`} className="ml-1 align-middle opacity-40 hover:opacity-100" style={{ color: C.sub }}><EyeOff size={12} /></button>
+    </ThO>
   );
 
   const campos = {
@@ -3093,6 +3094,8 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
     quantidade: [(a) => a.quantidade, "num"],
     dataCompra: [(a) => a.dataCompra, "data"],
     preco: [(a) => a.valorUnitario, "num"],
+    composicao: [(a) => a.composicao, "texto"],
+    valor: [(a) => (Number(a.valorUnitario) || 0) * (Number(a.quantidade) || 0), "num"],
   };
   const [fn, tipo] = campos[sort.key] || campos.nome;
 
@@ -3140,25 +3143,21 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
   return (
     <div>
       <div className="flex flex-wrap items-end gap-2 mb-3">
-        <div style={{ flex: "1 1 220px" }}>
-          <div className="text-xs mb-1" style={{ color: C.sub }}>Buscar</div>
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Busca em todos os campos…"
-            className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-        </div>
+        <BuscaLista value={busca} onChange={setBusca} placeholder="Busca em todos os campos…" className="flex-1 min-w-[220px]" />
         <div style={{ flex: "0 1 200px" }}>
           <div className="text-xs mb-1" style={{ color: C.sub }}>Fornecedor</div>
-          <select value={filtroForn} onChange={(e) => setFiltroForn(e.target.value)} className="w-full px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+          <select value={filtroForn} onChange={(e) => setFiltroForn(e.target.value)} className="w-full px-2 py-1.5 rounded outline-none text-sm" style={SEL_BRANCO}>
             <option value="">Todos</option>
             {fornecedores.map((x) => <option key={x.id} value={x.id}>{x.nome || "(sem nome comercial)"}</option>)}
           </select>
         </div>
         <div>
           <div className="text-xs mb-1" style={{ color: C.sub }}>NF de</div>
-          <input type="date" value={dataDe} onChange={(e) => setDataDe(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+          <input type="date" value={dataDe} onChange={(e) => setDataDe(e.target.value)} className="px-2 py-1.5 rounded outline-none text-sm" style={SEL_BRANCO} />
         </div>
         <div>
           <div className="text-xs mb-1" style={{ color: C.sub }}>até</div>
-          <input type="date" value={dataAte} onChange={(e) => setDataAte(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
+          <input type="date" value={dataAte} onChange={(e) => setDataAte(e.target.value)} className="px-2 py-1.5 rounded outline-none text-sm" style={SEL_BRANCO} />
         </div>
         {temFiltro && <button onClick={limpar} className="px-3 py-1.5 rounded text-sm" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Limpar</button>}
       </div>
@@ -3223,43 +3222,45 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
         </div>
       )}
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div style={{ minWidth: Math.max(640, (modoEstoque ? 1080 : 1000) - ocultas.length * 90), fontSize: 12, textTransform: "uppercase" }}>   {/* v639 — cabe na tela com a barra lateral aberta */}
-        <div className="flex gap-2 px-3 py-2 text-xs font-semibold" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
-          {Th({ k: "categoria", label: "Categoria", campoKey: "categoria", className: "w-[84px] shrink-0" })}
-          {Th({ k: "nome", label: "Artigo NF", campoKey: "nome", className: "flex-[1.3] min-w-0" })}
-          {Th({ k: "interno", label: "Artigo Interno", campoKey: "interno", className: "flex-1 min-w-0" })}
-          {Th({ k: "fornecedor", label: "Fornecedor", campoKey: "fornecedor", className: "flex-1 min-w-0" })}
-          {Th({ k: "cor", label: "Cor", campoKey: "cor", className: "w-24 shrink-0" })}
-          {Th({ k: "codigo", label: "Código", campoKey: "codigo", className: "w-16 shrink-0" })}
-          {modoEstoque && Th({ k: "saldo", label: "Saldo", campoKey: "quantidade", className: "w-[84px] shrink-0" })}
-          {Th({ k: "composicao", label: "Composição · larg. · gram.", className: "flex-1 min-w-0" })}
-          {modoEstoque && Th({ k: "movimento", label: "Movimento", className: "w-36 shrink-0" })}
-          {modoEstoque && master && Th({ k: "preco", label: "Preço", campoKey: "preco", className: "w-[76px] shrink-0" })}
-          {modoEstoque && master && Th({ k: "valor", label: "Valor total", className: "w-24 shrink-0" })}
-          {!modoEstoque && Th({ k: "ultima", label: "Última compra", className: "w-56 shrink-0" })}
-        </div>
-        {lista.length === 0 && <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</div>}
+        <table className="w-full" style={{ fontSize: 12, textTransform: "uppercase" }}>
+          <thead className="text-xs" style={{ background: C.panel2, color: C.sub }}>
+            <tr>
+              {Th({ k: "categoria", label: "Categoria", campoKey: "categoria" })}
+              {Th({ k: "nome", label: "Artigo NF", campoKey: "nome" })}
+              {Th({ k: "interno", label: "Artigo Interno", campoKey: "interno" })}
+              {Th({ k: "fornecedor", label: "Fornecedor", campoKey: "fornecedor" })}
+              {Th({ k: "cor", label: "Cor", campoKey: "cor" })}
+              {Th({ k: "codigo", label: "Código", campoKey: "codigo" })}
+              {modoEstoque && Th({ k: "saldo", label: "Saldo", campoKey: "quantidade", dir: "right" })}
+              {Th({ k: "composicao", label: "Composição · larg. · gram.", campoKey: "composicao" })}
+              {modoEstoque && Th({ k: "movimento", label: "Movimento" })}
+              {modoEstoque && master && Th({ k: "preco", label: "Preço", campoKey: "preco", dir: "right" })}
+              {modoEstoque && master && Th({ k: "valor", label: "Valor total", campoKey: "valor", dir: "right" })}
+              {!modoEstoque && Th({ k: "ultima", label: "Última compra", campoKey: "dataCompra" })}
+            </tr>
+          </thead>
+          <tbody>
+        {lista.length === 0 && <tr><td colSpan={12} className="px-4 py-6 text-sm normal-case" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</td></tr>}
         {lista.map((a) => (
-          <div key={a.id} onClick={() => setEditando(a)} className="flex gap-2 px-3 py-2.5 items-center cursor-pointer" style={{ borderBottom: `1px solid ${C.line}`, overflowWrap: "anywhere" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-            {vis("categoria") && <div className="w-[84px] shrink-0"><span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></div>}
-            {vis("nome") && <div className="flex-[1.3] min-w-0 font-medium" style={{ color: modoEstoque && abaixoMin(a) ? "#E5484D" : C.text }}>{a.nome}{a.origem === "FPP" && <span title="Cadastrado a partir de uma FPP" className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>FPP{a.origemFppNumero ? ` ${String(a.origemFppNumero).padStart(5, "0")}` : ""}</span>}</div>}
-            {vis("interno") && <div className="flex-1 min-w-0" style={{ color: internoDe(a) ? C.text : C.sub }} title={semInterno(a.categoria) ? "Aviamentos e outros não têm artigo interno: vale o nome da NF" : ""}>{internoDe(a) || "—"}</div>}
-            {vis("fornecedor") && <div className="flex-1 min-w-0" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub }}>
+          <tr key={a.id} onClick={() => setEditando(a)} className="cursor-pointer hover:bg-gray-50 align-top" style={{ borderTop: `1px solid ${C.line}`, overflowWrap: "anywhere" }}>
+            {vis("categoria") && <td className="px-3 py-2"><span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></td>}
+            {vis("nome") && <td className="px-3 py-2 font-medium" style={{ color: modoEstoque && abaixoMin(a) ? "#E5484D" : C.text, minWidth: 160 }}>{a.nome}{a.origem === "FPP" && <span title="Cadastrado a partir de uma FPP" className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>FPP{a.origemFppNumero ? ` ${String(a.origemFppNumero).padStart(5, "0")}` : ""}</span>}</td>}
+            {vis("interno") && <td className="px-3 py-2" style={{ color: internoDe(a) ? C.text : C.sub, minWidth: 120 }} title={semInterno(a.categoria) ? "Aviamentos e outros não têm artigo interno: vale o nome da NF" : ""}>{internoDe(a) || "—"}</td>}
+            {vis("fornecedor") && <td className="px-3 py-2" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub, minWidth: 110 }}>
               {a.fornecedor ? (a.fornecedor.nome || "⚠ definir nome") : "—"}
-            </div>}
-            {vis("cor") && <div className="w-24 shrink-0 flex items-center gap-1" style={{ color: C.sub }}><Bolinha cor={a.cor} /> <span className="min-w-0">{a.cor || "—"}</span></div>}
-            {vis("codigo") && <div className="w-16 shrink-0" style={{ color: C.sub }}>{a.codigo || "—"}</div>}
-            {modoEstoque && vis("saldo") && <div className="w-[84px] shrink-0" style={{ color: abaixoMin(a) ? "#E5484D" : C.sub, fontWeight: abaixoMin(a) ? 700 : 400 }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}</div>}
-            {vis("composicao") && <div className="flex-1 min-w-0" style={{ color: C.sub }}>
+            </td>}
+            {vis("cor") && <td className="px-3 py-2" style={{ color: C.sub }}><span className="flex items-center gap-1"><Bolinha cor={a.cor} /> <span className="min-w-0">{a.cor || "—"}</span></span></td>}
+            {vis("codigo") && <td className="px-3 py-2 whitespace-nowrap tabular-nums" style={{ color: C.sub }}>{a.codigo || "—"}</td>}
+            {modoEstoque && vis("saldo") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: abaixoMin(a) ? "#E5484D" : C.sub, fontWeight: abaixoMin(a) ? 700 : 400 }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}</td>}
+            {vis("composicao") && <td className="px-3 py-2" style={{ color: C.sub, minWidth: 120 }}>
               <div>{a.composicao || "—"}</div>
               {(a.largura || gramRend(a) !== "—") && <div className="text-[11px]">{[a.largura ? `${a.largura} m` : "", gramRend(a) !== "—" ? gramRend(a) : ""].filter(Boolean).join(" · ")}</div>}
-            </div>}
-            {modoEstoque && vis("movimento") && <div className="w-36 shrink-0" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></div>}
-            {modoEstoque && master && vis("preco") && <div className="w-[76px] shrink-0" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</div>}
-            {modoEstoque && master && vis("valor") && <div className="w-24 shrink-0" style={{ color: C.text, fontWeight: 600 }}>{a.valorUnitario && a.quantidade != null ? money(Number(a.valorUnitario) * Number(a.quantidade)) : "—"}</div>}
+            </td>}
+            {modoEstoque && vis("movimento") && <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></td>}
+            {modoEstoque && master && vis("preco") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</td>}
+            {modoEstoque && master && vis("valor") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: C.text, fontWeight: 600 }}>{a.valorUnitario && a.quantidade != null ? money(Number(a.valorUnitario) * Number(a.quantidade)) : "—"}</td>}
             {!modoEstoque && vis("ultima") && (
-              <div className="w-56 shrink-0" style={{ color: C.sub }}>
+              <td className="px-3 py-2" style={{ color: C.sub, minWidth: 160 }}>
                 {(master && a.valorUnitario) || ultimaCompraResto(a) ? (
                   <>
                     {master && a.valorUnitario && (
@@ -3269,11 +3270,12 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
                     {ultimaCompraResto(a)}
                   </>
                 ) : "—"}
-              </div>
+              </td>
             )}
-          </div>
+          </tr>
         ))}
-        </div>
+          </tbody>
+        </table>
       </div>
 
       {editando && (
@@ -3811,28 +3813,24 @@ function ClientesPane({ master, money }) {
       </div>}
 
       <div className="flex flex-wrap gap-3 items-end mb-4">
-        <div className="flex-1 min-w-64">
-          <div className="text-xs mb-1" style={{ color: C.sub }}>Buscar</div>
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome do cliente, CNPJ, cidade…"
-            className="w-full px-3 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-        </div>
+        <BuscaLista value={busca} onChange={setBusca} placeholder="Nome do cliente, CNPJ, cidade…" />
         <div>
           <div className="text-xs mb-1" style={{ color: C.sub }}>UF</div>
-          <select value={filtroUf} onChange={(e) => setFiltroUf(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+          <select value={filtroUf} onChange={(e) => setFiltroUf(e.target.value)} className="px-2 py-1.5 rounded outline-none text-sm" style={SEL_BRANCO}>
             <option value="">Todas</option>
             {ufs.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
         <div>
           <div className="text-xs mb-1" style={{ color: C.sub }}>Grupo</div>
-          <select value={filtroGrupo} onChange={(e) => setFiltroGrupo(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}`, maxWidth: 220 }}>
+          <select value={filtroGrupo} onChange={(e) => setFiltroGrupo(e.target.value)} className="px-2 py-1.5 rounded outline-none text-sm" style={{ ...SEL_BRANCO, maxWidth: 220 }}>
             <option value="">Todos</option>
             <option value="SEM">Sem grupo</option>
             {grupos.map((g) => <option key={g.id} value={g.id}>{g.nome} ({g.clientes.length})</option>)}
           </select>
         </div>
         <button onClick={buscarKm} disabled={!!km?.pedido} title="Busca todos os clientes cadastrados no KM (o agente do PC da fábrica atende em até 1 minuto)"
-          className="px-4 py-2 rounded font-semibold" style={{ background: C.panel2, color: C.accent, border: `1px solid ${C.accent}`, opacity: km?.pedido ? 0.6 : 1 }}>
+          className="px-4 py-2 rounded font-semibold" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}`, opacity: km?.pedido ? 0.6 : 1 }}>
           {km?.pedido ? "Aguardando o KM…" : "Buscar do KM"}
         </button>
         <button onClick={() => setEditando({})} className="px-4 py-2 rounded font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>
@@ -3846,7 +3844,7 @@ function ClientesPane({ master, money }) {
       </div>}
 
       <div className="flex flex-wrap items-center gap-2 mb-2">
-        <div className="text-xs flex-1" style={{ color: C.sub }}>{filtrados.length} de {clientes.length} cliente(s) · clique no nome para editar, no número de notas para ver o histórico · marque clientes para criar um grupo</div>
+        <div className="text-xs flex-1" style={{ color: C.sub }}>{filtrados.length} de {clientes.length} cliente(s) · clique na linha para editar, no título para ordenar, no número de notas para ver o histórico · marque clientes para criar um grupo</div>
         {sel.length > 0 && <>
           <span className="text-xs font-semibold" style={{ color: C.text }}>{sel.length} selecionado(s)</span>
           <button onClick={() => setModalGrupo({ modo: "novo" })} className="px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}><Plus size={13} /> Criar grupo / juntar a um grupo</button>
@@ -3856,42 +3854,44 @@ function ClientesPane({ master, money }) {
         {filtroGrupo && filtroGrupo !== "SEM" && <button onClick={() => setModalGrupo({ modo: "editar", grupo: grupos.find((g) => String(g.id) === filtroGrupo) })} className="px-3 py-1.5 rounded text-xs" style={{ border: `1px solid ${C.accent}`, color: C.accent }}>Editar grupo</button>}
       </div>
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div className="flex px-4 py-2 text-xs font-semibold min-w-[900px]" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
-          <div className="w-7"><input type="checkbox" style={{ accentColor: C.accent }} checked={filtrados.length > 0 && filtrados.every((c) => sel.includes(c.id))}
-            onChange={(e) => setSel(e.target.checked ? [...new Set([...sel, ...filtrados.map((c) => c.id)])] : sel.filter((id) => !filtrados.some((c) => c.id === id)))} /></div>
-          <ThSort label="Razão social" campoKey="razaoSocial" sort={sort} onSort={onSort} className="flex-1" />
-          <ThSort label="Grupo" campoKey="grupo" sort={sort} onSort={onSort} className="w-36" />
-          <ThSort label="Nome fantasia" campoKey="nomeFantasia" sort={sort} onSort={onSort} className="w-40" />
-          <div className="w-40">CNPJ</div>
-          <div className="w-24">IE</div>
-          <ThSort label="Cidade/UF" campoKey="municipio" sort={sort} onSort={onSort} className="w-40" />
-          <div className="w-32">Preposto</div>
-          <div className="w-36">Telefone(s)</div>
-          <div className="w-48">E-mail NF/Boletos</div>
-          <ThSort label="Notas" campoKey="notas" sort={sort} onSort={onSort} className="w-16 text-right" />
-        </div>
-        {loading ? (
-          <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Carregando…</div>
-        ) : filtrados.length === 0 ? (
-          <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum cliente. Importe os XMLs acima.</div>
-        ) : filtrados.map((c) => (
-          <div key={c.id} onClick={() => setEditando(c)} className="flex px-4 py-3 items-center cursor-pointer text-sm min-w-[900px]"
-            style={{ borderBottom: `1px solid ${C.line}` }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-            <div className="w-7" onClick={(e) => e.stopPropagation()}><input type="checkbox" style={{ accentColor: C.accent }} checked={sel.includes(c.id)} onChange={() => setSel((s) => (s.includes(c.id) ? s.filter((x) => x !== c.id) : [...s, c.id]))} /></div>
-            <div className="flex-1 font-medium">{c.razaoSocial || "—"}</div>
-            <div className="w-36 truncate" title={gNome(c.grupoId) || ""}>{c.grupoId ? <span className="text-[11px] px-1.5 py-0.5 rounded font-semibold" style={{ background: C.accentSoft, color: C.accent }}>{gNome(c.grupoId)}</span> : <span style={{ color: C.sub }}>—</span>}</div>
-            <div className="w-40" style={{ color: c.nomeFantasia ? C.text : C.sub }}>{c.nomeFantasia || "—"}</div>
-            <div className="w-40" style={{ color: C.sub }}>{fmtCnpj(c.cnpj)}</div>
-            <div className="w-24" style={{ color: C.sub }}>{c.inscricaoEstadual || "—"}</div>
-            <div className="w-40" style={{ color: C.sub }}>{c.municipio ? `${c.municipio}${c.uf ? "/" + c.uf : ""}` : "—"}</div>
-            <div className="w-32" style={{ color: C.sub }}>{c.preposto || "—"}</div>
-            <div className="w-36" style={{ color: C.sub }}>{c.telefones || "—"}</div>
-            <div className="w-48 truncate" style={{ color: C.sub }} title={c.emailNf || ""}>{c.emailNf || "—"}</div>
-            <button onClick={(e) => { e.stopPropagation(); setVerHist(c); }} title="Ver histórico de compras"
-              className="w-16 text-right" style={{ color: C.accent, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{c._count?.notas ?? 0}</button>
-          </div>
-        ))}
+        <table className="w-full text-sm">
+          <thead className="text-xs" style={{ background: C.panel2, color: C.sub }}>
+            <tr>
+              <th className="pl-3 pr-1 py-2 w-8 text-left"><input type="checkbox" style={{ accentColor: C.accent }} checked={filtrados.length > 0 && filtrados.every((c) => sel.includes(c.id))}
+                onChange={(e) => setSel(e.target.checked ? [...new Set([...sel, ...filtrados.map((c) => c.id)])] : sel.filter((id) => !filtrados.some((c) => c.id === id)))} /></th>
+              <ThO label="Razão social" k="razaoSocial" sort={sort} onSort={onSort} />
+              <ThO label="Grupo" k="grupo" sort={sort} onSort={onSort} />
+              <ThO label="Nome fantasia" k="nomeFantasia" sort={sort} onSort={onSort} />
+              <ThO label="CNPJ" k="cnpj" sort={sort} onSort={onSort} />
+              <ThO label="IE" k="inscricaoEstadual" sort={sort} onSort={onSort} />
+              <ThO label="Cidade/UF" k="municipio" sort={sort} onSort={onSort} />
+              <ThO label="Preposto" k="preposto" sort={sort} onSort={onSort} />
+              <ThO label="Telefone(s)" k="telefones" sort={sort} onSort={onSort} />
+              <ThO label="E-mail NF/Boletos" k="emailNf" sort={sort} onSort={onSort} />
+              <ThO label="Notas" k="notas" sort={sort} onSort={onSort} dir="right" />
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? <tr><td colSpan={11} className="px-4 py-6 text-sm" style={{ color: C.sub }}>Carregando…</td></tr>
+              : filtrados.length === 0 ? <tr><td colSpan={11} className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum cliente. Importe os XMLs acima.</td></tr>
+              : filtrados.map((c) => (
+              <tr key={c.id} onClick={() => setEditando(c)} className="cursor-pointer hover:bg-gray-50" style={{ borderTop: `1px solid ${C.line}` }}>
+                <td className="pl-3 pr-1 py-2" onClick={(e) => e.stopPropagation()}><input type="checkbox" style={{ accentColor: C.accent }} checked={sel.includes(c.id)} onChange={() => setSel((s) => (s.includes(c.id) ? s.filter((x) => x !== c.id) : [...s, c.id]))} /></td>
+                <td className="px-3 py-2 font-medium" style={{ minWidth: 200 }}>{c.razaoSocial || "—"}</td>
+                <td className="px-3 py-2" style={{ maxWidth: 160 }}><div className="truncate" title={gNome(c.grupoId) || ""}>{c.grupoId ? <span className="text-[11px] px-1.5 py-0.5 rounded font-semibold" style={{ background: C.accentSoft, color: C.accent }}>{gNome(c.grupoId)}</span> : <span style={{ color: C.sub }}>—</span>}</div></td>
+                <td className="px-3 py-2" style={{ color: c.nomeFantasia ? C.text : C.sub, minWidth: 140 }}>{c.nomeFantasia || "—"}</td>
+                <td className="px-3 py-2 whitespace-nowrap tabular-nums text-xs" style={{ color: C.sub }}>{fmtCnpj(c.cnpj)}</td>
+                <td className="px-3 py-2 whitespace-nowrap tabular-nums text-xs" style={{ color: C.sub }}>{c.inscricaoEstadual || "—"}</td>
+                <td className="px-3 py-2 whitespace-nowrap text-xs" style={{ color: C.sub }}>{c.municipio ? `${c.municipio}${c.uf ? "/" + c.uf : ""}` : "—"}</td>
+                <td className="px-3 py-2 text-xs" style={{ color: C.sub }}>{c.preposto || "—"}</td>
+                <td className="px-3 py-2 whitespace-nowrap tabular-nums text-xs" style={{ color: C.sub }}>{c.telefones || "—"}</td>
+                <td className="px-3 py-2 text-xs" style={{ color: C.sub, maxWidth: 200 }}><div className="truncate" title={c.emailNf || ""}>{c.emailNf || "—"}</div></td>
+                <td className="px-3 py-2 text-right"><button onClick={(e) => { e.stopPropagation(); setVerHist(c); }} title="Ver histórico de compras"
+                  className="tabular-nums" style={{ color: C.accent, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{c._count?.notas ?? 0}</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {verHist && <ClienteHistoricoModal cliente={verHist} master={master} money={money} onClose={() => setVerHist(null)} onChanged={carregar} />}
@@ -3986,23 +3986,22 @@ function ClienteHistoricoModal({ cliente, master, money, onClose, onChanged }) {
           {notas === null ? <div style={{ color: C.sub }}>Carregando…</div> : notas.length === 0 ? (
             <div className="text-sm" style={{ color: C.sub }}>Sem compras registradas.</div>
           ) : (
-            <div style={{ border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
-              <div className="flex px-3 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2, borderBottom: `1px solid ${C.line}` }}>
-                <div className="w-32">Pedido de venda</div>
-                <div className="w-28">Nota</div>
-                <div className="w-32">Data</div>
-                <div className="flex-1 text-right">Valor</div>
-                <div className="w-10"></div>
-              </div>
-              {notas.map((n) => (
-                <div key={n.id} className="flex px-3 py-2 items-center text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
-                  <div className="w-32">{n.pedidoVenda || "—"}</div>
-                  <div className="w-28" style={{ color: C.sub }}>NF {n.numero || "—"}</div>
-                  <div className="w-32" style={{ color: C.sub }}>{data(n.dataEmissao)}</div>
-                  <div className="flex-1 text-right" style={{ color: master ? C.text : C.sub }}>{master ? (n.valorTotal != null ? money(n.valorTotal) : "—") : "•••••"}</div>
-                  {podeImportar(lerSessao()) && <button onClick={() => excluir(n)} title="Excluir esta nota" className="w-10 flex justify-end" style={{ color: "#C77" }}><Trash2 size={15} /></button>}
-                </div>
-              ))}
+            <div style={{ border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">   {/* v994 — tabela */}
+              <table className="w-full text-sm">
+                <thead className="text-xs" style={{ color: C.sub, background: C.panel2 }}><tr>
+                  <th className="px-3 py-2 text-left font-semibold">Pedido de venda</th><th className="px-3 py-2 text-left font-semibold">Nota</th>
+                  <th className="px-3 py-2 text-left font-semibold">Data</th><th className="px-3 py-2 text-right font-semibold">Valor</th><th className="px-3 py-2" />
+                </tr></thead>
+                <tbody>{notas.map((n) => (
+                  <tr key={n.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                    <td className="px-3 py-2">{n.pedidoVenda || "—"}</td>
+                    <td className="px-3 py-2 tabular-nums" style={{ color: C.sub }}>NF {n.numero || "—"}</td>
+                    <td className="px-3 py-2 tabular-nums" style={{ color: C.sub }}>{data(n.dataEmissao)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: master ? C.text : C.sub }}>{master ? (n.valorTotal != null ? money(n.valorTotal) : "—") : "•••••"}</td>
+                    <td className="px-3 py-2 text-right">{podeImportar(lerSessao()) && <button onClick={() => excluir(n)} title="Excluir esta nota" style={{ color: "#C77" }}><Trash2 size={15} /></button>}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
             </div>
           )}
         </div>
@@ -4137,7 +4136,7 @@ function FornecedoresBancoPane({ master, money, perfil }) {
       const hay = norm([f.nome, f.razaoSocial, f.nomeFantasia, cnpjTxt, f.municipio, f.uf, f.preposto, f.telefones, f.emailNf].filter(Boolean).join(" "));
       return tokens.every((t) => hay.includes(t));
     });
-    const getv = sort.key === "compras" ? (f) => f._count?.nfs ?? 0 : (f) => f[sort.key];
+    const getv = sort.key === "compras" ? (f) => f._count?.nfs ?? 0 : sort.key === "cnpj" ? (f) => f.cnpjs?.[0]?.cnpj : sort.key === "telefones" ? (f) => f.telefones || f.telefone : (f) => f[sort.key];
     return ordenar(l, getv, sort.dir, sort.key === "compras" ? "num" : "texto");
   })();
 
@@ -4194,14 +4193,10 @@ function FornecedoresBancoPane({ master, money, perfil }) {
       </div>}
 
       <div className="flex flex-wrap gap-3 items-end mb-4">
-        <div className="flex-1 min-w-64">
-          <div className="text-xs mb-1" style={{ color: C.sub }}>Buscar</div>
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome, razão social, CNPJ, cidade…"
-            className="w-full px-3 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }} />
-        </div>
+        <BuscaLista value={busca} onChange={setBusca} placeholder="Nome, razão social, CNPJ, cidade…" />
         <div>
           <div className="text-xs mb-1" style={{ color: C.sub }}>UF</div>
-          <select value={filtroUf} onChange={(e) => setFiltroUf(e.target.value)} className="px-2 py-1.5 rounded outline-none" style={{ background: C.panel2, color: C.text, border: `1px solid ${C.line}` }}>
+          <select value={filtroUf} onChange={(e) => setFiltroUf(e.target.value)} className="px-2 py-1.5 rounded outline-none text-sm" style={SEL_BRANCO}>
             <option value="">Todas</option>
             {ufs.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
@@ -4215,35 +4210,37 @@ function FornecedoresBancoPane({ master, money, perfil }) {
       </div>
       {verDupF && <FornecedoresDuplicadosModal fornecedores={forns} onClose={() => setVerDupF(false)} onSaved={carregar} />}
 
-      <div className="text-xs mb-2" style={{ color: C.sub }}>{filtrados.length} de {forns.length} fornecedor(es) · clique no nome para editar, no número de compras para ver o histórico</div>
+      <div className="text-xs mb-2" style={{ color: C.sub }}>{filtrados.length} de {forns.length} fornecedor(es) · clique na linha para editar, no título para ordenar, no número de compras para ver o histórico</div>
       <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">
-        <div className="flex px-4 py-2 text-xs font-semibold min-w-[920px]" style={{ color: C.sub, borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
-          <ThSort label="Fornecedor (nome comercial)" campoKey="nome" sort={sort} onSort={onSort} className="flex-1" />
-          <ThSort label="Razão social" campoKey="razaoSocial" sort={sort} onSort={onSort} className="w-48" />
-          <div className="w-40">CNPJ</div>
-          <div className="w-24">IE</div>
-          <ThSort label="Cidade/UF" campoKey="municipio" sort={sort} onSort={onSort} className="w-36" />
-          <div className="w-36">Telefone(s)</div>
-          <ThSort label="Compras" campoKey="compras" sort={sort} onSort={onSort} className="w-20 text-right" />
-        </div>
-        {loading ? (
-          <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Carregando…</div>
-        ) : filtrados.length === 0 ? (
-          <div className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum fornecedor. Importe XMLs de compra acima.</div>
-        ) : filtrados.map((f) => (
-          <div key={f.id} onClick={() => setEditando(f)} className="flex px-4 py-3 items-center cursor-pointer text-sm min-w-[920px]"
-            style={{ borderBottom: `1px solid ${C.line}` }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-            <div className="flex-1 font-medium" style={{ color: f.nome ? C.text : C.accent }}>{f.nome || "⚠ definir nome"}</div>
-            <div className="w-48" style={{ color: C.sub }}>{f.razaoSocial || "—"}</div>
-            <div className="w-40" style={{ color: C.sub }}>{f.cnpjs?.[0] ? fmtCnpj(f.cnpjs[0].cnpj) : "—"}{f.cnpjs?.length > 1 ? ` +${f.cnpjs.length - 1}` : ""}</div>
-            <div className="w-24" style={{ color: C.sub }}>{f.inscricaoEstadual || "—"}</div>
-            <div className="w-36" style={{ color: C.sub }}>{f.municipio ? `${f.municipio}${f.uf ? "/" + f.uf : ""}` : "—"}</div>
-            <div className="w-36" style={{ color: C.sub }}>{f.telefones || f.telefone || "—"}</div>
-            <button onClick={(e) => { e.stopPropagation(); setVerMov(f); }} title="Ver histórico de compras"
-              className="w-20 text-right" style={{ color: C.accent, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{f._count?.nfs ?? 0}</button>
-          </div>
-        ))}
+        <table className="w-full text-sm">
+          <thead className="text-xs" style={{ background: C.panel2, color: C.sub }}>
+            <tr>
+              <ThO label="Fornecedor (nome comercial)" k="nome" sort={sort} onSort={onSort} />
+              <ThO label="Razão social" k="razaoSocial" sort={sort} onSort={onSort} />
+              <ThO label="CNPJ" k="cnpj" sort={sort} onSort={onSort} />
+              <ThO label="IE" k="inscricaoEstadual" sort={sort} onSort={onSort} />
+              <ThO label="Cidade/UF" k="municipio" sort={sort} onSort={onSort} />
+              <ThO label="Telefone(s)" k="telefones" sort={sort} onSort={onSort} />
+              <ThO label="Compras" k="compras" sort={sort} onSort={onSort} dir="right" />
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? <tr><td colSpan={7} className="px-4 py-6 text-sm" style={{ color: C.sub }}>Carregando…</td></tr>
+              : filtrados.length === 0 ? <tr><td colSpan={7} className="px-4 py-6 text-sm" style={{ color: C.sub }}>Nenhum fornecedor. Importe XMLs de compra acima.</td></tr>
+              : filtrados.map((f) => (
+              <tr key={f.id} onClick={() => setEditando(f)} className="cursor-pointer hover:bg-gray-50" style={{ borderTop: `1px solid ${C.line}` }}>
+                <td className="px-3 py-2 font-medium" style={{ color: f.nome ? C.text : C.accent, minWidth: 180 }}>{f.nome || "⚠ definir nome"}</td>
+                <td className="px-3 py-2 text-xs" style={{ color: C.sub, minWidth: 180 }}>{f.razaoSocial || "—"}</td>
+                <td className="px-3 py-2 whitespace-nowrap tabular-nums text-xs" style={{ color: C.sub }}>{f.cnpjs?.[0] ? fmtCnpj(f.cnpjs[0].cnpj) : "—"}{f.cnpjs?.length > 1 ? ` +${f.cnpjs.length - 1}` : ""}</td>
+                <td className="px-3 py-2 whitespace-nowrap tabular-nums text-xs" style={{ color: C.sub }}>{f.inscricaoEstadual || "—"}</td>
+                <td className="px-3 py-2 whitespace-nowrap text-xs" style={{ color: C.sub }}>{f.municipio ? `${f.municipio}${f.uf ? "/" + f.uf : ""}` : "—"}</td>
+                <td className="px-3 py-2 whitespace-nowrap tabular-nums text-xs" style={{ color: C.sub }}>{f.telefones || f.telefone || "—"}</td>
+                <td className="px-3 py-2 text-right"><button onClick={(e) => { e.stopPropagation(); setVerMov(f); }} title="Ver histórico de compras"
+                  className="tabular-nums" style={{ color: C.accent, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{f._count?.nfs ?? 0}</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {editando && <FornecedorFullModal fornecedor={editando} onClose={() => setEditando(null)} onSaved={() => { setEditando(null); carregar(); }} />}
@@ -4398,25 +4395,24 @@ function FornecedorMovModal({ fornecedor, master, money, onClose, onChanged }) {
           {dados === null ? <div style={{ color: C.sub }}>Carregando…</div> : !dados.linhas?.length ? (
             <div className="text-sm" style={{ color: C.sub }}>Sem compras registradas.</div>
           ) : (
-            <div style={{ border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
-              <div className="flex px-3 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2, borderBottom: `1px solid ${C.line}` }}>
-                <div className="w-28">Nº NF</div>
-                <div className="w-28">Data</div>
-                <div className="w-28 text-right">Metros</div>
-                <div className="w-28 text-right">Quilos</div>
-                <div className="flex-1 text-right">Valor total</div>
-                <div className="w-10"></div>
-              </div>
-              {dados.linhas.map((n) => (
-                <div key={n.id} className="flex px-3 py-2 items-center text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
-                  <div className="w-28">NF {n.numero}</div>
-                  <div className="w-28" style={{ color: C.sub }}>{data(n.dataEmissao)}</div>
-                  <div className="w-28 text-right" style={{ color: C.sub }}>{n.metros ? `${nBR(n.metros)} m` : "—"}</div>
-                  <div className="w-28 text-right" style={{ color: C.sub }}>{n.kg ? `${nBR(n.kg)} kg` : "—"}</div>
-                  <div className="flex-1 text-right" style={{ color: master ? C.text : C.sub }}>{master ? money(n.valorTotal) : "•••••"}</div>
-                  {podeImportar(lerSessao(), "nfEntrada") && <button onClick={() => excluir(n)} title="Excluir esta NF (reverte estoque)" className="w-10 flex justify-end" style={{ color: "#C77" }}><Trash2 size={15} /></button>}
-                </div>
-              ))}
+            <div style={{ border: `1px solid ${C.line}` }} className="rounded-lg overflow-x-auto">   {/* v994 — tabela */}
+              <table className="w-full text-sm">
+                <thead className="text-xs" style={{ color: C.sub, background: C.panel2 }}><tr>
+                  <th className="px-3 py-2 text-left font-semibold">Nº NF</th><th className="px-3 py-2 text-left font-semibold">Data</th>
+                  <th className="px-3 py-2 text-right font-semibold">Metros</th><th className="px-3 py-2 text-right font-semibold">Quilos</th>
+                  <th className="px-3 py-2 text-right font-semibold">Valor total</th><th className="px-3 py-2" />
+                </tr></thead>
+                <tbody>{dados.linhas.map((n) => (
+                  <tr key={n.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                    <td className="px-3 py-2 tabular-nums">NF {n.numero}</td>
+                    <td className="px-3 py-2 tabular-nums" style={{ color: C.sub }}>{data(n.dataEmissao)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.sub }}>{n.metros ? `${nBR(n.metros)} m` : "—"}</td>
+                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: C.sub }}>{n.kg ? `${nBR(n.kg)} kg` : "—"}</td>
+                    <td className="px-3 py-2 text-right tabular-nums" style={{ color: master ? C.text : C.sub }}>{master ? money(n.valorTotal) : "•••••"}</td>
+                    <td className="px-3 py-2 text-right">{podeImportar(lerSessao(), "nfEntrada") && <button onClick={() => excluir(n)} title="Excluir esta NF (reverte estoque)" style={{ color: "#C77" }}><Trash2 size={15} /></button>}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
             </div>
           )}
         </div>
