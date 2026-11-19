@@ -38,6 +38,17 @@ export async function GET(req) {
       m.convite = !t || t.excluidaEm || t.status === "CANCELADA" ? "CANCELADO" : cs.find((c) => c.tarefaId === m.conviteTarefaId)?.status || "REMOVIDO";
     }
   }
+  // v1006 — pergunta sobre sugestão: situação atual (o autor responde pela mensagem enquanto não foi decidida)
+  const sids = [...new Set(recebidasTodas.map((m) => m.sugestaoId).filter(Boolean))];
+  if (sids.length) {
+    const ss = await prisma.sugestao.findMany({ where: { id: { in: sids } }, select: { id: true, status: true, usuarioId: true, conversa: true } }).catch(() => []);
+    for (const m of recebidasTodas) if (m.sugestaoId) {
+      const x = ss.find((y) => y.id === m.sugestaoId);
+      const conv = Array.isArray(x?.conversa) ? x.conversa : [];
+      const ultima = conv[conv.length - 1];
+      m.sugestao = x ? { status: x.status, souAutor: x.usuarioId === usuarioId, respondida: !!ultima && ultima.de === "AUTOR" && new Date(ultima.em) > new Date(m.createdAt) } : null;
+    }
+  }
   await ligarTarefas([...recebidasTodas, ...enviadas.slice(0, 300)]).catch(() => null);   // v918
   return Response.json({ recebidas, arquivadas, lixeira, enviadas, naoLidas });
 }

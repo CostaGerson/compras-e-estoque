@@ -1171,6 +1171,8 @@ function Mensagens({ user, onMudou }) {
       <>
         <div className="text-xs mb-2" style={{ color: C.sub }}>{m.de?.nome} {m.de?.sobrenome} · {m.de?.setor} · {quandoData(m.createdAt)}</div>
         <div className={`text-sm whitespace-pre-wrap ${m.tarefaId ? "cursor-pointer hover:underline" : ""}`} style={{ color: C.text }} title={m.tarefaId ? "Abrir a tarefa" : undefined} onClick={m.tarefaId ? () => setTarefaMsg(m.tarefaId) : undefined}>{m.texto}</div>
+        {/* v1006 — pergunta sobre a sugestão de melhoria: o autor responde aqui mesmo */}
+        {m.sugestao?.souAutor && <RespostaSugestao user={user} m={m} onFeito={async () => { await carregar(); onMudou && onMudou(); }} />}
         {/* v607 — convite de evento: responde aqui mesmo; confirmado aparece na agenda da pessoa */}
         {m.convite && <div className="flex items-center gap-2 mt-3 flex-wrap">
           {m.convite === "PENDENTE" ? <>
@@ -3027,6 +3029,30 @@ function ordenar(lista, campo, dir, tipo = "texto") {
     return String(x || "").localeCompare(String(y || ""), "pt-BR", { sensitivity: "base" });
   });
   return dir === "desc" ? arr.reverse() : arr;
+}
+// v1006 — resposta do autor às perguntas sobre a sugestão de melhoria (caixa de entrada)
+function RespostaSugestao({ user, m, onFeito }) {
+  const [t, setT] = useState("");
+  const [oc, setOc] = useState(false);
+  const [erro, setErro] = useState("");
+  const st = m.sugestao || {};
+  if (["ACATADA", "RECUSADA"].includes(st.status)) return <div className="text-xs mt-3 font-semibold" style={{ color: C.sub }}>Sugestão já {st.status === "ACATADA" ? "acatada" : "decidida"}.</div>;
+  const enviar = async () => {
+    setOc(true); setErro("");
+    const r = await fetch(`/api/sugestoes/${m.sugestaoId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "RESPONDER", texto: t }) });
+    const j = await r.json().catch(() => ({}));
+    setOc(false);
+    if (!r.ok) { setErro(j.error || "Erro ao responder."); return; }
+    setT(""); onFeito && onFeito();
+  };
+  return (
+    <div className="mt-3 rounded-lg p-3" style={{ background: "#FFF6DD", border: "1px solid #F5B70055" }}>
+      {st.respondida && <div className="text-xs font-semibold mb-1.5" style={{ color: C.green }}>✓ Você já respondeu — pode complementar se quiser.</div>}
+      <textarea value={t} onChange={(e) => setT(e.target.value)} rows={3} placeholder="Sua resposta para quem está analisando a sugestão…" className="w-full rounded px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line}`, background: "#fff" }} />
+      {erro && <div className="text-xs mt-1" style={{ color: "#D92D20" }}>{erro}</div>}
+      <div className="flex justify-end mt-2"><button onClick={enviar} disabled={oc || t.trim().length < 2} className="text-xs font-semibold px-3 py-1.5 rounded flex items-center gap-1" style={{ background: C.accent, color: "#fff", opacity: oc || t.trim().length < 2 ? 0.6 : 1 }}>{oc ? "Enviando…" : "Enviar resposta"}</button></div>
+    </div>
+  );
 }
 function ThSort({ label, campoKey, sort, onSort, className, style }) {
   const on = sort.key === campoKey;

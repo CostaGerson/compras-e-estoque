@@ -4,7 +4,7 @@
 //  · Desenvolvimento (só o master): julgar cada sugestão — acatar (depois que a alteração subiu) ou recusar com motivo.
 //    O autor recebe mensagem do sistema e e-mail.
 import React, { useState, useEffect } from "react";
-import { Lightbulb, X, Send, Loader2, CheckCircle2, XCircle, Clock, RotateCcw, Search, Eye, Paperclip, FileText, Upload } from "lucide-react";
+import { Lightbulb, X, Send, Loader2, CheckCircle2, XCircle, Clock, RotateCcw, Search, Eye, Paperclip, FileText, Upload, MessageCircleQuestion } from "lucide-react";
 
 // v206 — anexos da sugestão: arrastar arquivos ou colar print (Ctrl+V)
 const MAX_MB = 10, MAX_ARQ = 10;
@@ -43,6 +43,7 @@ const dataHora = (s) => (s ? new Date(s).toLocaleString("pt-BR", { day: "2-digit
 const ST = {
   NOVA: ["Nova", C.blue, C.blueSoft, Lightbulb],
   EM_ANALISE: ["Em análise", C.yellow, C.yellowSoft, Clock],
+  AGUARDANDO: ["Aguardando o autor", "#7E3AF2", "#F3E8FF", MessageCircleQuestion],   // v1006
   ACATADA: ["Acatada", C.green, C.greenSoft, CheckCircle2],
   RECUSADA: ["Recusada", C.red, C.redSoft, XCircle],
 };
@@ -169,6 +170,7 @@ function SugestaoModal({ user, tela, onClose }) {
               <div className="flex items-center gap-2 mb-1"><span className="text-xs font-bold" style={{ color: C.sub }}>#{s.id}</span><Chip status={s.status} /><span className="text-[11px] ml-auto" style={{ color: C.sub }}>{dataHora(s.createdAt)}</span></div>
               <div className="text-sm whitespace-pre-wrap" style={{ color: C.text }}>{s.texto}</div>
               <AnexosSugestao user={user} anexos={s.anexos} />
+              <ConversaSugestao s={s} user={user} podeResponder onFeito={carregar} />
               {s.resposta && <div className="text-xs mt-2 px-2 py-1.5 rounded" style={{ background: s.status === "RECUSADA" ? C.redSoft : C.greenSoft, color: s.status === "RECUSADA" ? C.red : C.green }}>{s.status === "RECUSADA" ? "Motivo" : "Observação"}: {s.resposta}</div>}
             </div>
           ))}
@@ -179,7 +181,38 @@ function SugestaoModal({ user, tela, onClose }) {
 }
 
 /* ---------- Desenvolvimento (master) ---------- */
-const FILTROS = [["ABERTAS", "Em aberto"], ["NOVA", "Novas"], ["EM_ANALISE", "Em análise"], ["ACATADA", "Acatadas"], ["RECUSADA", "Recusadas"], ["TODAS", "Todas"]];
+const FILTROS = [["ABERTAS", "Em aberto"], ["NOVA", "Novas"], ["EM_ANALISE", "Em análise"], ["AGUARDANDO", "Aguardando o autor"], ["ACATADA", "Acatadas"], ["RECUSADA", "Recusadas"], ["TODAS", "Todas"]];
+const ABERTAS = ["NOVA", "EM_ANALISE", "AGUARDANDO"];
+
+// v1006 — aprofundar: conversa entre quem analisa e o autor
+export function ConversaSugestao({ s, user, podeResponder, onFeito }) {
+  const conv = Array.isArray(s.conversa) ? s.conversa : [];
+  const [t, setT] = useState("");
+  const [oc, setOc] = useState(false);
+  const [erro, setErro] = useState("");
+  const aberta = ABERTAS.includes(s.status);
+  const enviar = async () => {
+    setOc(true); setErro("");
+    try { await api(`/api/sugestoes/${s.id}`, "PATCH", { usuarioId: user.id, acao: "RESPONDER", texto: t }); setT(""); onFeito && onFeito(); } catch (e) { setErro(e.message); }
+    setOc(false);
+  };
+  if (!conv.length && !(podeResponder && aberta && s.status === "AGUARDANDO")) return null;
+  return (
+    <div className="mt-2 flex flex-col gap-1.5">
+      {conv.map((x, k) => (
+        <div key={k} className="text-xs rounded-lg px-2.5 py-1.5" style={x.de === "MASTER" ? { background: "#F3E8FF", color: C.text, marginRight: 40 } : { background: C.blueSoft, color: C.text, marginLeft: 40 }}>
+          <div className="font-semibold mb-0.5" style={{ color: x.de === "MASTER" ? "#7E3AF2" : C.blue }}>{x.de === "MASTER" ? "❓ " : "💬 "}{x.nome} · {dataHora(x.em)}</div>
+          <div className="whitespace-pre-wrap">{x.texto}</div>
+        </div>
+      ))}
+      {podeResponder && aberta && conv.some((x) => x.de === "MASTER") && <div>
+        <textarea value={t} onChange={(e) => setT(e.target.value)} rows={2} placeholder="Sua resposta…" className="w-full rounded-lg px-2 py-1.5 text-sm outline-none" style={{ border: `1px solid ${C.line}` }} />
+        {erro && <div className="text-xs" style={{ color: C.red }}>{erro}</div>}
+        <div className="flex justify-end mt-1"><button onClick={enviar} disabled={oc || t.trim().length < 2} className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1" style={btn(C.blue, "#fff", { opacity: oc || t.trim().length < 2 ? 0.5 : 1 })}>{oc ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Responder</button></div>
+      </div>}
+    </div>
+  );
+}
 
 export default function Desenvolvimento({ user }) {
   const [l, setL] = useState(null);
@@ -190,8 +223,8 @@ export default function Desenvolvimento({ user }) {
   const [aviso, setAviso] = useState("");
   const carregar = () => api(`/api/sugestoes?u=${user.id}`).then((j) => { setL(j.sugestoes); setErro(""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, []);
-  const conta = (k) => (l || []).filter((s) => (k === "TODAS" ? true : k === "ABERTAS" ? ["NOVA", "EM_ANALISE"].includes(s.status) : s.status === k)).length;
-  const lista = (l || []).filter((s) => (filtro === "TODAS" ? true : filtro === "ABERTAS" ? ["NOVA", "EM_ANALISE"].includes(s.status) : s.status === filtro))
+  const conta = (k) => (l || []).filter((s) => (k === "TODAS" ? true : k === "ABERTAS" ? ABERTAS.includes(s.status) : s.status === k)).length;
+  const lista = (l || []).filter((s) => (filtro === "TODAS" ? true : filtro === "ABERTAS" ? ABERTAS.includes(s.status) : s.status === filtro))
     .filter((s) => !busca || `${s.texto} ${s.usuarioNome} ${s.tela || ""} #${s.id}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(busca.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")));
   const simples = async (s, tipo) => {
     try { await api(`/api/sugestoes/${s.id}`, "PATCH", { usuarioId: user.id, acao: tipo }); carregar(); }
@@ -234,12 +267,14 @@ export default function Desenvolvimento({ user }) {
             </div>
             <div className="text-sm whitespace-pre-wrap" style={{ color: C.text }}>{s.texto}</div>
             <AnexosSugestao user={user} anexos={s.anexos} />
+            <ConversaSugestao s={s} user={user} podeResponder={s.usuarioId === user.id} onFeito={carregar} />
             {s.resposta && <div className="text-xs mt-2 px-2 py-1.5 rounded" style={{ background: s.status === "RECUSADA" ? C.redSoft : C.greenSoft, color: s.status === "RECUSADA" ? C.red : C.green }}>
               {s.status === "RECUSADA" ? "Motivo da recusa" : "Observação"}: {s.resposta}</div>}
             {s.respondidoEm && <div className="text-[11px] mt-1" style={{ color: C.sub }}>{s.status === "ACATADA" ? "Acatada" : "Recusada"} por {s.respondidoPor} em {dataHora(s.respondidoEm)}</div>}
             <div className="flex flex-wrap gap-2 mt-3">
               {s.status === "NOVA" && <button onClick={() => simples(s, "ANALISE")} className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1" style={btn(C.yellowSoft, C.yellow)}><Clock size={13} /> Em análise</button>}
-              {["NOVA", "EM_ANALISE"].includes(s.status) && <>
+              {ABERTAS.includes(s.status) && <button onClick={() => setAcao({ s, tipo: "APROFUNDAR" })} className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1" style={btn("#F3E8FF", "#7E3AF2")}><MessageCircleQuestion size={13} /> Aprofundar</button>}   {/* v1006 */}
+              {ABERTAS.includes(s.status) && <>
                 <button onClick={() => setAcao({ s, tipo: "ACATAR" })} className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1" style={btn(C.green, "#fff")}><CheckCircle2 size={13} /> Acatado</button>
                 <button onClick={() => setAcao({ s, tipo: "RECUSAR" })} className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1" style={btn(C.redSoft, C.red)}><XCircle size={13} /> Recusar</button>
               </>}
@@ -248,8 +283,38 @@ export default function Desenvolvimento({ user }) {
           </div>
         ))}
       </div>
-      {acao && <Decidir user={user} {...acao} onClose={() => setAcao(null)} onFeito={(m) => { setAcao(null); setAviso(m); setTimeout(() => setAviso(""), 7000); carregar(); }} />}
+      {acao?.tipo === "APROFUNDAR" && <Aprofundar user={user} s={acao.s} onClose={() => setAcao(null)} onFeito={(m) => { setAcao(null); setAviso(m); setTimeout(() => setAviso(""), 7000); carregar(); }} />}
+      {acao && acao.tipo !== "APROFUNDAR" && <Decidir user={user} {...acao} onClose={() => setAcao(null)} onFeito={(m) => { setAcao(null); setAviso(m); setTimeout(() => setAviso(""), 7000); carregar(); }} />}
     </div>
+  );
+}
+
+// v1006 — perguntas ao autor: vão para a caixa de entrada dele (e e-mail); ele responde por lá ou pela lâmpada
+function Aprofundar({ user, s, onClose, onFeito }) {
+  const [t, setT] = useState("");
+  const [st, setSt] = useState(null);
+  const enviar = async () => {
+    setSt("enviando");
+    try {
+      const r = await api(`/api/sugestoes/${s.id}`, "PATCH", { usuarioId: user.id, acao: "APROFUNDAR", texto: t });
+      const em = r.avisos?.email === true ? "e-mail enviado" : r.avisos?.email ? `e-mail ${r.avisos.email}` : "autor sem e-mail";
+      onFeito(`Perguntas enviadas a ${s.usuarioNome} · ${r.avisos?.mensagem ? "chegou na caixa de entrada" : "a sugestão é sua"} · ${em}.`);
+    } catch (e) { setSt(e.message); }
+  };
+  return (
+    <Janela titulo={`Aprofundar a sugestão #${s.id}`} onClose={onClose}
+      rodape={<>
+        <button onClick={onClose} className="px-4 py-2 rounded text-sm" style={btn(C.panel, C.sub, { border: `1px solid ${C.line}` })}>Cancelar</button>
+        <button onClick={enviar} disabled={t.trim().length < 3 || st === "enviando"} className="px-4 py-2 rounded text-sm font-semibold flex items-center gap-1.5" style={btn("#7E3AF2", "#fff", { opacity: t.trim().length < 3 || st === "enviando" ? 0.5 : 1 })}>
+          {st === "enviando" ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Enviar perguntas</button>
+      </>}>
+      <div className="text-xs mb-1" style={{ color: C.sub }}>{s.usuarioNome} · {dataHora(s.createdAt)}</div>
+      <div className="text-sm rounded-lg p-3 mb-3 whitespace-pre-wrap" style={{ background: C.panel2, color: C.text }}>{s.texto}</div>
+      <ConversaSugestao s={s} user={user} />
+      <div className="text-xs mb-1 mt-3" style={{ color: C.sub }}>Perguntas / observações para o autor — ele recebe na caixa de entrada e por e-mail, e responde por lá</div>
+      <textarea value={t} onChange={(e) => setT(e.target.value)} rows={4} autoFocus className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ border: `1px solid ${C.line}` }} placeholder="Ex.: em qual tela isso acontece? Pode mandar um print do que espera ver?" />
+      {typeof st === "string" && st !== "enviando" && <div className="text-sm mt-2" style={{ color: C.red }}>{st}</div>}
+    </Janela>
   );
 }
 
