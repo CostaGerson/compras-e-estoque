@@ -859,7 +859,8 @@ function montarSlides(R) {
       <Cab g="FINANCEIRO" t="" />
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 18 }}>
         <div style={{ fontSize: 26, fontWeight: 700, color: N, textDecoration: "underline" }}>APRESENTAÇÃO DA MATRIZ ATUAL E SIMULAÇÃO</div>
-        {p.irMatriz && <button onClick={(e) => { e.stopPropagation(); p.irMatriz(); }} style={{ background: L, color: "#fff", fontWeight: 700, padding: "10px 22px", borderRadius: 8, fontSize: 16 }}>Abrir a Matriz de custos ↗</button>}
+        {/* v1011 — abre a Matriz em outra guia (a apresentação continua aberta) */}
+        <a href="/?v=matriz" target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} style={{ background: L, color: "#fff", fontWeight: 700, padding: "10px 22px", borderRadius: 8, fontSize: 16, textDecoration: "none" }}>Abrir a Matriz de custos ↗</a>
       </div>
       <Obs {...p} chave="fin.matriz" />
     </>));
