@@ -588,7 +588,7 @@ export async function listarPedidos({ competencia, todos = false, comOcultos = f
   const desdeKm = process.env.KM_ENTRADA_DESDE || "2026-10-22";
   // v397 — "antigo" = já estava no sistema antes da integração (ou veio na 1ª carga); pedido que o KM trouxe depois aparece mesmo com data antiga
   const novoNoKm = (p) => p.createdAt && new Date(p.createdAt) >= KM_INICIO;
-  const foraPcp = (p) => p.status === "ANDAMENTO" && p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && !novoNoKm(p) && (!p.emissao || iso(p.emissao) < desdeKm);
+  const foraPcp = (p) => foraPcpAntigo(p);   // v995 — mesma regra da Operação
   const ocultos = lista0.filter(foraPcp);
   // v393 — comOcultos: a tela recebe os antigos fora do PCP marcados (oculto) para listá-los ao clicar no aviso; ficam fora dos totais
   const lista = todos ? lista0 : comOcultos ? lista0.map((p) => (foraPcp(p) ? { ...p, oculto: true } : p)) : lista0.filter((p) => !foraPcp(p));
@@ -720,6 +720,13 @@ export const excluirPedido = (id) => prisma.pedidoVenda.delete({ where: { id: Nu
 export const QUEM_KM = "KM (AUTOMÁTICO)";
 // v397 — fim da 1ª carga do KM (22/10/2026 13:09): o que foi criado depois é pedido novo de verdade
 export const KM_INICIO = new Date(process.env.KM_INICIO || "2026-10-22T16:15:00Z");
+// v995 — regra única (Financeiro e Operação): pedido antigo, de antes da integração com o KM, em andamento e fora do Cronograma do Maycon
+export function foraPcpAntigo(p) {
+  const desde = process.env.KM_ENTRADA_DESDE || "2026-10-22";
+  const em = p.emissao ? new Date(p.emissao).toISOString().slice(0, 10) : null;
+  return p.status === "ANDAMENTO" && p.fonte !== "SISTEMA" && p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA"
+    && !(p.createdAt && new Date(p.createdAt) >= KM_INICIO) && (!em || em < desde);
+}
 export async function entradaAutomatica(numero) {
   const p = await prisma.pedidoVenda.findUnique({ where: { numero }, select: { id: true, numero: true, status: true, interno: true, total: true, condicao: true, entradaValor: true, emissao: true, criadoPorNome: true, createdAt: true } });
   if (!p || p.interno || p.status !== "ANDAMENTO" || p.criadoPorNome !== QUEM_KM) return null;   // só pedido cadastrado pelo KM (os antigos, do PDF, ficam como estão)

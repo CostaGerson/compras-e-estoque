@@ -115,7 +115,9 @@ export async function gestaoProducao() {
   // v627 — situação em compras dos pedidos do sistema lida na hora (atendido pelo estoque → A programar sem esperar o PCP)
   try { const { situacaoComprasSistema } = await import("@/lib/compras"); const sc = await situacaoComprasSistema(ps); for (const p of ps) if (sc[p.numero]) p.sitCompras = sc[p.numero]; } catch (e) { console.log("producao/sitCompras:", e.message); }
   try { const lp = await layoutsPendentes(); for (const p of ps) if (lp[p.numero]) p.layoutPendente = lp[p.numero]; } catch (e) { console.log("producao/layout:", e.message); }   // v738
-  const lista = ps.filter((p) => p.fonte === "SISTEMA" || !(p.cronoSituacao === "NÃO ESTÁ NO CRONOGRAMA" && (!p.emissao || iso(p.emissao) < desde) && new Date(p.createdAt) < new Date(`${desde}T00:00:00Z`)))
+  // v995 — mesma regra do Financeiro (lib/pedidos foraPcpAntigo): antes contava a partir da meia-noite e 6 pedidos da 1ª carga do KM apareciam aqui e não lá
+  const { foraPcpAntigo } = await import("@/lib/pedidos");
+  const lista = ps.filter((p) => !foraPcpAntigo({ ...p, status: "ANDAMENTO" }))
     .map((p) => resumoPedido(p, hoje));
   const total = lista.length;
   const cont = (f) => lista.filter(f).length;

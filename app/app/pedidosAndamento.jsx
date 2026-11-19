@@ -97,7 +97,10 @@ export default function PedidosAndamento({ user }) {
   const CR = d?.crono;
   const f = filtro.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const VISTAS = {
-    andamento: ["Pedidos em andamento · a faturar", (p) => normal(p) && p.status === "ANDAMENTO" && (p.vlEntregar != null ? p.vlEntregar : p.total) > 0.009],
+    // v995 — mesmo conjunto da Operação (pedidos em andamento): inclui internos NORT e sem saldo a faturar; o valor do card segue sendo só o a faturar
+    andamento: ["Pedidos em andamento", (p) => !p.oculto && p.status === "ANDAMENTO"],
+    comSaldo: ["Pedidos em andamento · a faturar", (p) => normal(p) && p.status === "ANDAMENTO" && (p.vlEntregar != null ? p.vlEntregar : p.total) > 0.009],
+    semSaldo: ["Em andamento sem saldo a faturar", (p) => normal(p) && p.status === "ANDAMENTO" && !((p.vlEntregar != null ? p.vlEntregar : p.total) > 0.009)],
     noMes: [`Com pagamento em ${curto(comp)}`, (p) => normal(p) && p.noMes > 0.009],
     foraMes: ["Fora do mês", (p) => normal(p) && p.foraMes > 0.009],
     antes: ["Antes do mês", (p) => normal(p) && p.antes > 0.009],
@@ -224,18 +227,19 @@ export default function PedidosAndamento({ user }) {
           {/* painel de previsão de receitas */}
           <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
             <Kpi onClick={() => tog("andamento")} ativo={vista === "andamento"} t="Pedidos em andamento · a faturar" v={moeda(R.totalAndamento)} cor={C.navy}
-              s={`${R.qtdPedidos} pedido(s) · ${R.pecas.toLocaleString("pt-BR")} peças a entregar${R.totalBruto != null && Math.abs(R.totalBruto - R.totalAndamento) > 0.01 ? ` · bruto ${moeda(R.totalBruto)}` : ""}${R.qtdSemSaldo ? ` · ${R.qtdSemSaldo} sem saldo` : ""}`} />
+              s={`${R.qtdPedidos + (R.qtdSemSaldo || 0) + (R.qtdInternos || 0)} pedido(s) — os mesmos da Operação · ${R.qtdPedidos} a faturar${R.qtdSemSaldo ? ` · ${R.qtdSemSaldo} sem saldo` : ""}${R.qtdInternos ? ` · ${R.qtdInternos} internos NORT` : ""} · ${R.pecas.toLocaleString("pt-BR")} peças a entregar${R.totalBruto != null && Math.abs(R.totalBruto - R.totalAndamento) > 0.01 ? ` · bruto ${moeda(R.totalBruto)}` : ""}`} />
             <Kpi onClick={() => tog("noMes")} ativo={vista === "noMes"} t={`A receber em ${curto(comp)}`} v={moeda(R.noMes)} s="entradas a lançar + parcelas que vencem no mês" cor={C.green} />
             <Kpi onClick={() => tog("foraMes")} ativo={vista === "foraMes"} t="Fora do mês" v={moeda(R.foraMes)} s={`parcelas depois de ${curto(comp)}`} cor={C.blue} />
             <Kpi onClick={() => tog("entLancadas")} ativo={vista === "entLancadas"} t="Entradas já lançadas" v={moeda(R.entradasLancadas)} s="estão no contas a receber" cor={C.sub} />
             <Kpi onClick={() => tog("entPendentes")} ativo={vista === "entPendentes"} t="Entradas a lançar" v={moeda(R.entradasPendentes)} s={`${R.qtdEntradasPendentes} pedido(s)`} cor={R.entradasPendentes ? C.accent : C.sub} />
             {R.antes > 0 && <Kpi onClick={() => tog("antes")} ativo={vista === "antes"} t="Antes do mês" v={moeda(R.antes)} s="parcelas de meses anteriores ao selecionado" cor={C.yellow} />}
           </div>
-          {(R.qtdAtrasados || R.qtdProntos || R.qtdInternos || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida || R.qtdForaPcp || R.qtdNfSemContas || (CR?.temToken && R.qtdSemCrono)) > 0 && (
+          {(R.qtdAtrasados || R.qtdProntos || R.qtdInternos || R.qtdSemSaldo || R.qtdSemCondicao || R.qtdSemPv || R.qtdNfSugerida || R.qtdForaPcp || R.qtdNfSemContas || (CR?.temToken && R.qtdSemCrono)) > 0 && (
             <div className="flex flex-wrap gap-2 mb-3 text-xs">
               {R.qtdReprogPcp > 0 && <Aviso onClick={() => tog("reprogPcp")} ativo={vista === "reprogPcp"} cor={C.red} bg={C.redSoft}>{R.qtdReprogPcp} com programação vencida — reprogramar no Cronograma (contam de hoje)</Aviso>}
               {R.qtdReprogDespacho > 0 && <Aviso onClick={() => tog("reprogDespacho")} ativo={vista === "reprogDespacho"} cor={C.red} bg={C.redSoft}>{R.qtdReprogDespacho} com entrega vencida — programar no Cronograma (contam de hoje)</Aviso>}
-              {R.qtdInternos > 0 && <Aviso onClick={() => tog("internos")} ativo={vista === "internos"} cor={C.sub} bg={C.panel2}>{R.qtdInternos} interno(s) NORT — fora da lista, da previsão e sem contas</Aviso>}
+              {R.qtdInternos > 0 && <Aviso onClick={() => tog("internos")} ativo={vista === "internos"} cor={C.sub} bg={C.panel2}>{R.qtdInternos} interno(s) NORT — fora da previsão e sem contas</Aviso>}
+              {R.qtdSemSaldo > 0 && <Aviso onClick={() => tog("semSaldo")} ativo={vista === "semSaldo"} cor={C.sub} bg={C.panel2}>{R.qtdSemSaldo} em andamento sem saldo a faturar no KM — conferir se já faturou</Aviso>}
               {R.qtdProntosSemNf > 0 && <Aviso onClick={() => tog("prontosSemNf")} ativo={vista === "prontosSemNf"} cor={C.green} bg={C.greenSoft}>{R.qtdProntosSemNf} concluído(s) no PCP sem NF no KM — faturar</Aviso>}
               {R.qtdProntosComNf > 0 && <Aviso onClick={() => tog("prontosComNf")} ativo={vista === "prontosComNf"} cor={C.blue} bg={C.blueSoft}>{R.qtdProntosComNf} concluído(s) no PCP com NF parcial no KM — conferir o saldo</Aviso>}
               {R.qtdSemCondicao > 0 && <Aviso onClick={() => tog("semCondicao")} ativo={vista === "semCondicao"} cor={C.yellow} bg={C.yellowSoft}>{R.qtdSemCondicao} com condição de pagamento não reconhecida — previsto à vista na entrega</Aviso>}
@@ -273,7 +277,7 @@ export default function PedidosAndamento({ user }) {
               <thead>
                 <tr style={{ background: C.panel2, color: C.sub }}>
                   {["", "Pedido", "Cliente", "Emissão", "Entrega", "Condição", "Peças", "Total", "Entrada", `No mês`, "Fora do mês", "Situação", ""].map((h, i) => (
-                    <th key={i} className="px-2 py-2 font-semibold whitespace-nowrap text-center">{h}</th>))}
+                    <th key={i} className={`px-1.5 py-2 font-semibold text-center ${i === 2 ? "text-left" : ""}`} style={{ lineHeight: 1.15 }}>{h}</th>))}
                 </tr>
               </thead>
               <tbody>
@@ -300,14 +304,14 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
   const pcpSit = situacaoPcp(p);
   const st = { ANDAMENTO: [pcpSit && !semPrefixoPcp(pcpSit) ? `PCP: ${pcpSit}` : pcpSit === "FORA DO PCP" ? "Fora do PCP" : pcpSit ? pcpSit.charAt(0) + pcpSit.slice(1).toLowerCase() : "Em andamento", p.cronoConcluido ? C.green : C.accent, p.cronoConcluido ? C.greenSoft : C.accentSoft],
     FATURADO: ["Faturado", C.green, C.greenSoft], CANCELADO: ["Cancelado", C.sub, C.panel2] }[p.status];
-  const td = "px-2 py-2 text-center whitespace-nowrap";
+  const td = "px-1.5 py-2 text-center whitespace-nowrap";   // v995 — colunas mais estreitas: a lista cabe na tela sem rolar para o lado
   return (
     <>
       <tr onClick={onToggle} data-chave={p.id} className="cursor-pointer" style={{ height: 52, borderTop: `1px solid ${C.line}`, background: v.atrasado ? C.redSoft : aberto ? C.panel2 : undefined, boxShadow: v.atrasado ? `inset 3px 0 0 ${C.red}` : undefined, opacity: p.interno ? 0.65 : 1 }}>
         <td className={td}>{aberto ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</td>
         <td className={`${td} font-bold`} style={{ color: C.navy }}>{p.numero}</td>
         {/* v376 — linha de altura fixa: no máximo 2 linhas (cliente + um aviso); o resto aparece ao abrir o pedido */}
-        <td className="px-2 py-1 text-left" style={{ maxWidth: 340 }} title={[p.cliente, p.vendedor].filter(Boolean).join(" · ")}>
+        <td className="px-1.5 py-1 text-left" style={{ maxWidth: 250 }} title={[p.cliente, p.vendedor].filter(Boolean).join(" · ")}>
           <div className="truncate">{p.cliente}{p.vendedor && <span style={{ color: C.sub }}> · {p.vendedor}</span>}</div>
           {(() => {
             const a = v.reprogramar ? [C.red, `⚠ ${v.reprogramar === "PCP" ? "PROGRAMAÇÃO VENCIDA — REPROGRAMAR NO PCP" : "ENTREGA VENCIDA — PROGRAMAR NO PCP"}`]
@@ -319,31 +323,31 @@ function LinhaPedido({ p, aberto, onToggle, user, salvar, lancarEntrada, excluir
         <td className={td} style={{ color: v.atrasado ? C.red : C.text }} title={v.baseOrigem === "CRONOGRAMA" ? `programação do Cronograma${p.despacho ? ` · DT despacho do PV ${dBR(p.despacho)}` : ""}` : "DT despacho do PV"}>
           {dBR(p.entregaPrevista || p.despacho)}{v.baseOrigem === "CRONOGRAMA" && <span className="ml-1 text-[9px] font-bold" style={{ color: C.blue }}>PCP</span>}{v.atrasado && <AlertTriangle size={11} className="inline ml-1" />}
         </td>
-        <td className={td} style={{ color: v.condicaoOk ? C.text : C.yellow }}>{p.condicao || "—"}</td>
+        <td className="px-1.5 py-1 text-center text-[10px] leading-tight" style={{ color: v.condicaoOk ? C.text : C.yellow, maxWidth: 120, minWidth: 70 }} title={p.condicao || ""}><div className="line-clamp-2">{p.condicao || "—"}</div></td>
         <td className={`${td} tabular-nums`}>{(p.qtd || 0).toLocaleString("pt-BR")}</td>
         <td className={`${td} tabular-nums font-semibold`}>{p.temPv ? brl(p.total) : <span style={{ color: C.yellow }}>falta PV</span>}
           {p.faturadoLancado > 0 && <div className="text-[9px] font-semibold" style={{ color: C.green }} title={`NF ${(p.nfsComContas || []).join(", ")} com contas a receber lançadas — fora da previsão`}>− {brl(p.faturadoLancado)} faturado</div>}
           {p.status === "ANDAMENTO" && (p.nfsSemContas || []).length > 0 && <div className="text-[9px] font-semibold" style={{ color: C.accent }} title="NF parcial sem contas a receber lançadas: o valor continua na previsão até lançar as contas">NF {p.nfsSemContas.join(", ")} sem contas</div>}</td>
         <td className={`${td} tabular-nums`} style={{ color: v.entrada ? (v.entradaLancada + Math.max(1, v.entrada * 0.005) >= v.entrada ? C.green : C.accent) : C.sub }}>
-          {v.entrada ? brl(v.entrada) : "—"}{v.entrada > 0 && <span className="text-[9px] ml-1">{v.entradaLancada + Math.max(1, v.entrada * 0.005) >= v.entrada ? "lançada" : "a lançar"}</span>}
+          {v.entrada ? brl(v.entrada) : "—"}{v.entrada > 0 && <div className="text-[9px]">{v.entradaLancada + Math.max(1, v.entrada * 0.005) >= v.entrada ? "lançada" : "a lançar"}</div>}
         </td>
         <td className={`${td} tabular-nums font-semibold`} style={{ color: p.noMes ? C.green : C.sub }}>{brl(p.noMes)}</td>
         <td className={`${td} tabular-nums`} style={{ color: p.foraMes ? C.blue : C.sub }}>{brl(p.foraMes)}</td>
-        <td className={td}>
+        <td className="px-1.5 py-1 text-center leading-tight" style={{ maxWidth: 150 }}>
           {p.status === "ANDAMENTO" && Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length > 0   /* v372/v376 — parcial: resumido; NFs ao abrir */
-            ? <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: C.yellow, background: C.yellowSoft }}
+            ? <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: C.yellow, background: C.yellowSoft }}
                 title={p.nfsFaturadas.map((n) => `NF ${n.numero} (${dBR(n.emissao)}) · ${n.pecas} peças · ${moeda(n.valor)}`).join("\n")}>
                 Parcial · faltam {p.qtEntregar ?? "?"} pç</span>
-            : <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: st[1], background: st[2] }} title={p.status === "ANDAMENTO" ? [p.cronoSituacao, p.cronoEtapa && `etapa: ${p.cronoEtapa}`].filter(Boolean).join(" · ") || undefined : p.nfNumero ? `NF ${p.nfNumero}` : undefined}>
+            : <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ color: st[1], background: st[2] }} title={p.status === "ANDAMENTO" ? [p.cronoSituacao, p.cronoEtapa && `etapa: ${p.cronoEtapa}`].filter(Boolean).join(" · ") || undefined : p.nfNumero ? `NF ${p.nfNumero}` : undefined}>
                 {st[0]}{p.nfNumero ? ` · NF ${String(p.nfNumero).split(/[,\s]+/)[0]}${String(p.nfNumero).includes(",") ? "…" : ""}` : ""}</span>}
           {p.nfSugerida && <span className="ml-1 text-[10px] font-semibold" style={{ color: C.blue }} title={`NF ${p.nfSugerida.numero} de ${dBR(p.nfSugerida.emissao)} · ${moeda(p.nfSugerida.valor)}`}>NF?</span>}
-          {p.status === "ANDAMENTO" && (p.faturamentoPendente?.nfNumero || (Array.isArray(p.kmNfs) && p.kmNfs.length > 0)) && <span className="ml-1 text-[10px] font-semibold" style={{ color: C.blue }}
+          {p.status === "ANDAMENTO" && (p.faturamentoPendente?.nfNumero || (Array.isArray(p.kmNfs) && p.kmNfs.length > 0)) && <span className="block text-[10px] font-semibold truncate" style={{ color: C.blue }}
             title={`${(p.kmNfs || []).map((n) => `NF ${n.numero} (${dBR(n.emissao)}) · ${moeda(n.valor)}`).join("\n")}\nEmitida no KM — suba a NF no movimento fiscal para faturar o pedido`}>
             NF {p.faturamentoPendente?.nfNumero || (p.kmNfs || []).map((n) => n.numero).join(", ")} no KM — subir NF</span>}</td>
         <td className={td} onClick={(e) => e.stopPropagation()}>
-          {p.pdfPv && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PV`} target="_blank" className="font-semibold mr-2" style={{ color: C.accent }}>PV</a>}
+          {p.pdfPv && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PV`} target="_blank" className="font-semibold mr-1" style={{ color: C.accent }}>PV</a>}
           {p.pdfPp && <a href={`/api/fin/pedidos?u=${user.id}&acao=pdf&id=${p.id}&tipo=PP`} target="_blank" className="font-semibold" style={{ color: C.accent }}>PP</a>}
-          {String(p.fonte || "").includes("KM") && <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ color: C.green, background: C.greenSoft }} title="Dados sincronizados do KM (PV e OP)">KM</span>}
+          {String(p.fonte || "").includes("KM") && <span className="ml-1 px-1 py-0.5 rounded text-[9px] font-semibold" style={{ color: C.green, background: C.greenSoft }} title="Dados sincronizados do KM (PV e OP)">KM</span>}
         </td>
       </tr>
       {aberto && (
