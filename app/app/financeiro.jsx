@@ -20,6 +20,7 @@ import Transmissao from "./transmissao";
 import Uploads from "./uploads";
 import ConferenciaIntegracao from "./conferencia";
 import PedidosAndamento from "./pedidosAndamento";
+import SpedErp from "./spedErp";   // v1035
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 
 /* Paleta Meridian (igual ao restante do sistema) */
@@ -3971,6 +3972,9 @@ function Contabilidade({ user, comp, setComp, irRecebimentos }) {
               Os <b>XMLs das notas de saída</b> alimentam o cruzamento da guia Recebimentos.
             </div>
           </div>
+
+          {/* v1035 — SPED Fiscal gerado pelo ERP */}
+          <SpedErp user={user} comp={comp} />
 
           {/* ---- extratos ---- */}
           <div className="flex items-center gap-2 mb-3">
