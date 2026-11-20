@@ -10,6 +10,7 @@ import { linhasPdf } from "@/lib/finParse";
 import { ocrImagem, lerTextoComprovante } from "@/lib/finComprovanteTexto";
 import { normRegra, usuarioMaster } from "@/lib/fin";
 import { r2, nomeU } from "@/lib/finTitulos";
+import { baixarItemManual } from "@/lib/finSemana";
 
 const PREF = "COMPROVANTE_CEL|";
 const so = (s) => String(s || "").replace(/\D/g, "");
@@ -19,6 +20,9 @@ const brl = (v) => "R$ " + (Number(v) || 0).toLocaleString("pt-BR", { minimumFra
 const sha = (buf) => createHash("sha256").update(buf).digest("hex");
 const GEN = new Set("LTDA ME EPP EIRELI SA S A DE DA DO DAS DOS E EM PARA COM COMERCIO INDUSTRIA IND COM SERVICOS SERVICO".split(" "));
 const palavras = (s) => [...new Set(normRegra(s).split(" ").filter((p) => p.length >= 2 && !GEN.has(p) && !/^\d+$/.test(p)))];
+
+const SEL_T = { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, documento: true };
+const saida = (t) => t && ({ k: `T:${t.id}`, id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: Number(t.valor), vencimento: iso(t.vencimento), status: t.status });
 
 // ---------- chave do atalho (uma por usuário) ----------
 export async function chaveAtalho(usuarioId, nova = false) {
@@ -100,22 +104,80 @@ async function abertasNoDia(data) {
   if (!data) return [];
   const ts = await prisma.finTitulo.findMany({
     where: { tipo: "PAGAR", status: "ABERTO", vencimento: new Date(`${data}T00:00:00Z`) },
-    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, chaveImport: true },
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, chaveImport: true },
   });
   return ts.filter((t) => !String(t.chaveImport || "").startsWith("SEMANA|"));
 }
+// v1030 — lançamentos que compõem a conta da semana (freelancers, facções, serviços): cada um pode ser pago por um comprovante
+const SEL_I = { id: true, tituloId: true, grupo: true, nome: true, chavePix: true, valor: true, pago: true, vencimentoNegociado: true,
+  prestador: { select: { nome: true, documento: true } }, titulo: { select: { titulo: true, vencimento: true, status: true } } };
+const DIA = 86400000;
+const saidaI = (it) => ({ k: `I:${it.id}`, id: it.tituloId, itemId: it.id, titulo: `${it.titulo.titulo} · ${it.nome}`, parceiro: it.nome, grupo: it.grupo,
+  nomes: [it.nome, it.prestador?.nome].filter(Boolean), docs: [so(it.prestador?.documento), so(it.chavePix)].filter((d) => d.length >= 11),
+  valor: Number(it.valor), vencimento: iso(it.vencimentoNegociado || it.titulo.vencimento), status: it.pago ? "PAGO" : it.titulo.status });
+async function itensDaSemana(datas) {
+  const ds = datas.filter(Boolean).map((d) => new Date(`${d}T00:00:00Z`).getTime());
+  if (!ds.length) return [];
+  const de = new Date(Math.min(...ds) - 25 * DIA), ate = new Date(Math.max(...ds) + 25 * DIA);
+  const its = await prisma.finSemanaItem.findMany({ where: { pago: false, titulo: { tipo: "PAGAR", status: "ABERTO", vencimento: { gte: de, lte: ate } } }, select: SEL_I });
+  return its.map(saidaI);
+}
+// CPF/CNPJ do comprovante (inteiro ou os 6 dígitos do meio do CPF mascarado) no cadastro / chave PIX do prestador
+const docBate = (c, docs) => { const d = so(c.documento); return d.length >= 6 && docs.some((x) => x === d || (d.length === 6 && x.length === 11 && x.slice(3, 9) === d)); };
+const nomeItem = (c, o) => o.nomes.some((n) => nomeBate(c.favorecido, n));
+export function itensExatos(c, itens) {
+  if (!c?.data || !c?.valor || c.propria || c.agendado) return [];
+  return itens.filter((o) => o.vencimento === c.data && Math.abs(o.valor - c.valor) < 0.005 && nomeItem(c, o));
+}
+// nota da parecença comprovante × lançamento da semana (0 = não serve)
+function notaItem(c, o) {
+  if (!c?.valor) return 0;
+  const igual = Math.abs(o.valor - c.valor) < 0.005, nome = nomeItem(c, o), doc = docBate(c, o.docs);
+  const dias = c.data && o.vencimento ? Math.abs(Math.round((new Date(c.data) - new Date(o.vencimento)) / DIA)) : 99;
+  if (igual && (nome || doc)) return 3 + (dias === 0 ? 0.5 : 0);
+  if (igual && dias <= 7) return 2 - dias / 10;
+  if ((nome || doc) && Math.abs(o.valor - c.valor) / c.valor <= 0.15) return 1;
+  return 0;
+}
+const NOTA_CONF = { ALTA: 3, MEDIA: 2, BAIXA: 1 };
+
 // por que não baixou sozinho (texto do card amarelo)
 function motivoPendente(c, alvo, exatas) {
   if (!c.valor || !c.data) return "Não consegui ler valor e data do comprovante — informe e escolha a conta.";
   if (c.agendado) return "Pix ainda AGENDADO / AGUARDANDO APROVAÇÃO no banco — confirme só depois que ele for pago.";
   if (c.propria) return "Transferência para a própria empresa — confira se é mesmo pagamento de conta.";
-  if (exatas.length > 1) return `${exatas.length} contas com o mesmo valor, vencimento e fornecedor — escolha qual baixar.`;
+  if (exatas.length > 1) return `${exatas.length} contas/lançamentos com o mesmo valor, vencimento e fornecedor — escolha qual baixar.`;
   if (!alvo) return "Nenhuma conta em aberto com esse valor/fornecedor perto dessa data — escolha a conta ou rejeite.";
   const f = [];
   if (Math.abs(alvo.valor - c.valor) >= 0.005) f.push(`valor pago ${brl(c.valor)} ≠ conta ${brl(alvo.valor)}`);
   if (alvo.vencimento !== c.data) f.push(`pago em ${dBR(c.data)}, vencimento ${dBR(alvo.vencimento)}`);
-  if (!nomeBate(c.favorecido, alvo.parceiro)) f.push(`destinatário "${c.favorecido || "?"}" não aparece no fornecedor "${alvo.parceiro}"`);
+  if (!(alvo.nomes || [alvo.parceiro]).some((n) => nomeBate(c.favorecido, n))) f.push(`destinatário "${c.favorecido || "?"}" não aparece no fornecedor "${alvo.parceiro}"`);
   return f.length ? `Sugestão: ${alvo.titulo} — ${f.join(" · ")}.` : `Sugestão: ${alvo.titulo}.`;
+}
+
+// baixa a conta (T) ou o lançamento da semana (I) e anexa o comprovante na conta
+async function baixarAlvo(o, c, arq, quem) {
+  const chave = c.chave;
+  const h = chaveHash(chave);
+  if (await prisma.finTituloAnexo.findFirst({ where: { hash: h, titulo: { status: { not: "CANCELADO" } } }, select: { id: true } })) throw new Error("comprovante já usado em outra baixa");
+  if (o.itemId) {
+    const r = await baixarItemManual({ itemId: o.itemId, data: c.data, observacao: `COMPROVANTE ${c.tipo || ""} ${c.favorecido || ""}`.trim(), quem });
+    if (!r.ok) throw new Error(r.erro || "não consegui baixar o lançamento");
+    const ext = arq.mime === "application/pdf" ? "pdf" : "jpg";
+    await prisma.finTituloAnexo.create({ data: { tituloId: o.id, nome: `COMPROVANTE ${c.tipo || ""} ${c.data.split("-").reverse().join("-")} ${String(o.parceiro || c.favorecido || "").slice(0, 40)}.${ext}`.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " "),
+      mime: arq.mime, tamanho: Math.floor(arq.conteudo.length * 3 / 4), conteudo: arq.conteudo, hash: h, criadoPorNome: quem } });
+    return;
+  }
+  const r = await baixarComprovantes([{ tituloId: o.id, arquivo: arq.nome, pagina: 1, data: c.data, valor: c.valor, tipo: c.tipo || "OUTRO", favorecido: c.favorecido || o.parceiro, chave, juros: c.juros, multa: c.multa, desconto: c.desconto }],
+    [{ nome: arq.nome, conteudo: arq.conteudo, mime: arq.mime, separado: true }], { quem });
+  if (!r.baixadas) throw new Error(r.erros[0] || r.linhas[0] || "não consegui baixar a conta");
+}
+// melhor sugestão para o pendente: conta (pela análise dos comprovantes) ou lançamento da semana
+async function sugestao(c, arqNome, itens) {
+  const [an] = c.valor && c.data ? await analisarComprovantes([{ ...c, arquivo: arqNome, pagina: 1 }]) : [null];
+  const t = an?.alvo ? { ...an.alvo, k: `T:${an.alvo.id}`, nota: NOTA_CONF[an.alvo.confianca] || 1 } : null;
+  const i = itens.map((o) => ({ ...o, nota: notaItem(c, o) })).filter((o) => o.nota > 0).sort((a, b) => b.nota - a.nota)[0] || null;
+  return i && (!t || i.nota > t.nota) ? i : t;
 }
 
 // ---------- recebimento (atalho) ----------
@@ -152,21 +214,20 @@ export async function receberComprovantes(u, arquivos) {
         let conteudo = b64;
         if (peloTexto && comps.length > 1) { try { conteudo = await paginaPdf(b64, c.pagina || i + 1); } catch { /* vai inteiro */ } }
         const arqNome = `${nomeArq}${comps.length > 1 ? ` (${i + 1})` : ""}`;
-        const exatas = contasExatas(c, await abertasNoDia(c.data));
+        const itens = c.data ? await itensDaSemana([c.data]) : [];
+        const exatas = [...contasExatas(c, await abertasNoDia(c.data)).map((t) => ({ ...saida(t), k: `T:${t.id}` })), ...itensExatos(c, itens)];
         if (exatas.length === 1) {
-          const t = exatas[0];
-          const r = await baixarComprovantes([{ tituloId: t.id, arquivo: arqNome, pagina: 1, data: c.data, valor: c.valor, tipo: c.tipo, favorecido: c.favorecido, chave: c.chave, juros: c.juros, multa: c.multa, desconto: c.desconto }],
-            [{ nome: arqNome, conteudo, mime, separado: true }], { quem: `${quem} (CELULAR)` });
-          if (r.baixadas) {
-            await prisma.finComprovanteEnvio.create({ data: { status: "BAIXADO", usuarioId: u.id, enviadoPor: quem, nome: arqNome, mime, tamanho: buf.length, conteudo: "", hashArquivo: hA, hashChave, dados: c, tituloId: t.id, motivo: "BAIXA AUTOMÁTICA", resolvidoPor: "AUTOMÁTICO", resolvidoEm: new Date() } });
-            linhas.push(`✅ Baixada: ${t.titulo} · ${brl(c.valor)} · pago em ${dBR(c.data)}. Comprovante anexado.`);
+          const o = exatas[0];
+          try {
+            await baixarAlvo(o, c, { nome: arqNome, conteudo, mime }, `${quem} (CELULAR)`);
+            await prisma.finComprovanteEnvio.create({ data: { status: "BAIXADO", usuarioId: u.id, enviadoPor: quem, nome: arqNome, mime, tamanho: buf.length, conteudo: "", hashArquivo: hA, hashChave, dados: c, tituloId: o.id, semanaItemId: o.itemId || null, motivo: "BAIXA AUTOMÁTICA", resolvidoPor: "AUTOMÁTICO", resolvidoEm: new Date() } });
+            linhas.push(`✅ Baixada: ${o.titulo} · ${brl(c.valor)} · pago em ${dBR(c.data)}. Comprovante anexado.`);
             continue;
-          }
+          } catch { /* segue como pendente */ }
         }
-        // pendente de confirmação: guarda o comprovante com a melhor sugestão
-        const [an] = c.valor && c.data ? await analisarComprovantes([{ ...c, arquivo: arqNome, pagina: 1 }]) : [null];
-        const alvo = an?.alvo || null;
-        await prisma.finComprovanteEnvio.create({ data: { status: "PENDENTE", usuarioId: u.id, enviadoPor: quem, nome: arqNome, mime, tamanho: Math.floor(conteudo.length * 3 / 4), conteudo, hashArquivo: hA, hashChave, dados: c, tituloId: alvo?.id || null, motivo: motivoPendente(c, alvo, exatas) } });
+        // pendente de confirmação: guarda o comprovante com a melhor sugestão (conta ou lançamento da semana)
+        const alvo = await sugestao(c, arqNome, itens);
+        await prisma.finComprovanteEnvio.create({ data: { status: "PENDENTE", usuarioId: u.id, enviadoPor: quem, nome: arqNome, mime, tamanho: Math.floor(conteudo.length * 3 / 4), conteudo, hashArquivo: hA, hashChave, dados: c, tituloId: alvo?.id || null, semanaItemId: alvo?.itemId || null, motivo: motivoPendente(c, alvo, exatas) } });
         linhas.push(`🟡 Pendente de confirmação: ${c.favorecido || "comprovante"}${c.valor ? ` · ${brl(c.valor)}` : ""}${c.data ? ` · ${dBR(c.data)}` : ""}.${c.agendado ? " Pix ainda aguardando aprovação." : ""}${alvo ? ` Sugestão: ${alvo.titulo}.` : " Sem conta sugerida."} Confirme no Contas a pagar.`);
       }
     } catch (e) { linhas.push(`⚠️ ${nomeArq}: ${e.message}`); }
@@ -175,24 +236,28 @@ export async function receberComprovantes(u, arquivos) {
 }
 
 // ---------- tela: pendentes, confirmar, rejeitar ----------
-const SEL_T = { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, documento: true };
-const saida = (t) => t && ({ id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: Number(t.valor), vencimento: iso(t.vencimento), status: t.status });
 
 export async function listarPendentes() {
   const ps = await prisma.finComprovanteEnvio.findMany({ where: { status: "PENDENTE" }, orderBy: { createdAt: "desc" },
-    select: { id: true, nome: true, mime: true, tamanho: true, dados: true, tituloId: true, motivo: true, enviadoPor: true, createdAt: true } });
+    select: { id: true, nome: true, mime: true, tamanho: true, dados: true, tituloId: true, semanaItemId: true, motivo: true, enviadoPor: true, createdAt: true } });
   if (!ps.length) return [];
   const comps = ps.map((p) => ({ ...(p.dados || {}), arquivo: String(p.id), pagina: 1 }));
   const lidos = comps.filter((c) => c.valor && c.data);
   const an = lidos.length ? await analisarComprovantes(lidos) : [];
   const porK = Object.fromEntries(an.map((x) => [x.arquivo, x]));
-  const sug = await prisma.finTitulo.findMany({ where: { id: { in: ps.map((p) => p.tituloId).filter(Boolean) } }, select: SEL_T });
-  const sugPor = Object.fromEntries(sug.map((t) => [t.id, saida(t)]));
+  const itens = await itensDaSemana(lidos.map((c) => c.data));
+  const sugT = await prisma.finTitulo.findMany({ where: { id: { in: ps.filter((p) => !p.semanaItemId).map((p) => p.tituloId).filter(Boolean) } }, select: SEL_T });
+  const sugI = await prisma.finSemanaItem.findMany({ where: { id: { in: ps.map((p) => p.semanaItemId).filter(Boolean) } }, select: SEL_I });
+  const porT = Object.fromEntries(sugT.map((t) => [t.id, saida(t)])), porI = Object.fromEntries(sugI.map((it) => [it.id, saidaI(it)]));
   return ps.map((p) => {
+    const c = p.dados || {};
     const a = porK[String(p.id)];
-    const sugerida = (p.tituloId && sugPor[p.tituloId]) || null;
-    const opcoes = [...(sugerida ? [sugerida] : []), ...((a?.opcoes) || []).filter((o) => o.id !== sugerida?.id).map((o) => ({ id: o.id, titulo: o.titulo, parceiro: o.parceiro, valor: o.valor, vencimento: o.vencimento, status: "ABERTO" }))];
-    return { id: p.id, nome: p.nome, mime: p.mime, tamanho: p.tamanho, dados: p.dados, motivo: p.motivo, enviadoPor: p.enviadoPor, em: p.createdAt, tituloId: p.tituloId, sugerida, opcoes };
+    const sugerida = (p.semanaItemId ? porI[p.semanaItemId] : p.tituloId ? porT[p.tituloId] : null) || null;
+    const doT = ((a?.opcoes) || []).map((o) => ({ k: `T:${o.id}`, id: o.id, titulo: o.titulo, parceiro: o.parceiro, valor: o.valor, vencimento: o.vencimento, status: "ABERTO" }));
+    const doI = itens.map((o) => ({ ...o, nota: notaItem(c, o) })).filter((o) => o.nota > 0).sort((x, y) => y.nota - x.nota).slice(0, 6);
+    const vistos = new Set(), opcoes = [];
+    for (const o of [...(sugerida ? [sugerida] : []), ...doT, ...doI]) if (!vistos.has(o.k)) { vistos.add(o.k); opcoes.push(o); }
+    return { id: p.id, nome: p.nome, mime: p.mime, tamanho: p.tamanho, dados: c, motivo: p.motivo, enviadoPor: p.enviadoPor, em: p.createdAt, tituloId: p.tituloId, sugerida, opcoes: opcoes.slice(0, 12) };
   });
 }
 
@@ -200,36 +265,50 @@ export async function buscarContas(q) {
   const t = String(q || "").trim();
   if (t.length < 2) return [];
   const v = Number(t.replace(/\./g, "").replace(",", "."));
+  const porValor = Number.isFinite(v) && v > 0;
   const where = { tipo: "PAGAR", status: { in: ["ABERTO", "PAGO"] } };
   const ts = await prisma.finTitulo.findMany({
-    where: Number.isFinite(v) && v > 0 ? { ...where, valor: v } : { ...where, OR: [{ parceiro: { contains: t, mode: "insensitive" } }, { titulo: { contains: t, mode: "insensitive" } }] },
+    where: porValor ? { ...where, valor: v } : { ...where, OR: [{ parceiro: { contains: t, mode: "insensitive" } }, { titulo: { contains: t, mode: "insensitive" } }] },
     select: SEL_T, orderBy: { vencimento: "desc" }, take: 25,
   });
-  return ts.sort((a, b) => (a.status === b.status ? 0 : a.status === "ABERTO" ? -1 : 1)).map(saida);
+  // lançamentos de dentro das contas da semana (freelancer / terceirizado)
+  const its = await prisma.finSemanaItem.findMany({
+    where: { titulo: { status: { in: ["ABERTO", "PAGO"] } }, ...(porValor ? { valor: v } : { OR: [{ nome: { contains: t, mode: "insensitive" } }, { prestador: { nome: { contains: t, mode: "insensitive" } } }] }) },
+    select: SEL_I, orderBy: { id: "desc" }, take: 25,
+  });
+  const ab = (x) => (x.status === "ABERTO" ? 0 : 1);
+  return [...ts.map(saida), ...its.map(saidaI)].sort((a, b) => ab(a) - ab(b) || String(b.vencimento).localeCompare(String(a.vencimento))).slice(0, 40);
 }
 
-// confirmar: baixa a conta (ou só anexa, se ela já estava paga) e o comprovante vai para a conta
-export async function confirmarPendente(id, { tituloId, data, valor }, u) {
+// confirmar: baixa a conta / o lançamento da semana (ou só anexa, se já estava pago) e o comprovante vai para a conta
+// alvo: "T:<id da conta>" | "I:<id do lançamento da semana>" (tituloId sozinho = conta)
+export async function confirmarPendente(id, { alvo, tituloId, data, valor }, u) {
   const p = await prisma.finComprovanteEnvio.findUnique({ where: { id: Number(id) } });
   if (!p || p.status !== "PENDENTE") throw new Error("Comprovante não está mais pendente.");
-  const t = await prisma.finTitulo.findUnique({ where: { id: Number(tituloId) }, select: { ...SEL_T, tipo: true } });
-  if (!t || t.tipo !== "PAGAR") throw new Error("Escolha a conta a pagar.");
+  const [kind, idS] = String(alvo || (tituloId ? `T:${tituloId}` : "")).split(":");
+  let o = null;
+  if (kind === "I") {
+    const it = await prisma.finSemanaItem.findUnique({ where: { id: Number(idS) }, select: SEL_I });
+    o = it && saidaI(it);
+  } else if (kind === "T") {
+    const t = await prisma.finTitulo.findUnique({ where: { id: Number(idS) }, select: { ...SEL_T, tipo: true } });
+    o = t && t.tipo === "PAGAR" ? saida(t) : null;
+  }
+  if (!o) throw new Error("Escolha a conta a pagar.");
   const c = { ...(p.dados || {}) };
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(data || ""))) c.data = data;
   if (Number(valor) > 0) c.valor = r2(valor);
   if (!c.data || !c.valor) throw new Error("Informe a data e o valor pago.");
+  c.chave = c.chave || `CEL|ARQ|${p.hashArquivo}`;
   const quem = nomeU(u);
-  const chave = c.chave || `CEL|ARQ|${p.hashArquivo}`;
   const ext = p.mime === "application/pdf" ? "pdf" : "jpg";
-  if (t.status === "PAGO") {
-    await prisma.finTituloAnexo.create({ data: { tituloId: t.id, nome: `COMPROVANTE ${c.tipo || ""} ${c.data.split("-").reverse().join("-")} ${String(c.favorecido || "").slice(0, 40)}.${ext}`.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " "), mime: p.mime, tamanho: p.tamanho, conteudo: p.conteudo, hash: chaveHash(chave), criadoPorNome: quem } });
-  } else if (t.status === "ABERTO") {
-    const r = await baixarComprovantes([{ tituloId: t.id, arquivo: p.nome, pagina: 1, data: c.data, valor: c.valor, tipo: c.tipo || "OUTRO", favorecido: c.favorecido || t.parceiro, chave, juros: c.juros, multa: c.multa, desconto: c.desconto }],
-      [{ nome: p.nome, conteudo: p.conteudo, mime: p.mime, separado: true }], { quem });
-    if (!r.baixadas) throw new Error(r.erros[0] || r.linhas[0] || "Não consegui baixar a conta.");
+  if (o.status === "PAGO") {
+    await prisma.finTituloAnexo.create({ data: { tituloId: o.id, nome: `COMPROVANTE ${c.tipo || ""} ${c.data.split("-").reverse().join("-")} ${String(o.parceiro || c.favorecido || "").slice(0, 40)}.${ext}`.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " "), mime: p.mime, tamanho: p.tamanho, conteudo: p.conteudo, hash: chaveHash(c.chave), criadoPorNome: quem } });
+  } else if (o.status === "ABERTO") {
+    await baixarAlvo(o, c, { nome: p.nome, conteudo: p.conteudo, mime: p.mime }, quem);
   } else throw new Error("Conta cancelada.");
-  await prisma.finComprovanteEnvio.update({ where: { id: p.id }, data: { status: "BAIXADO", conteudo: "", tituloId: t.id, dados: c, resolvidoPor: quem, resolvidoEm: new Date() } });
-  return { ok: true, texto: t.status === "PAGO" ? `Comprovante anexado em ${t.titulo} (já estava paga).` : `${t.titulo} baixada em ${dBR(c.data)} · ${brl(c.valor)}. Comprovante anexado.` };
+  await prisma.finComprovanteEnvio.update({ where: { id: p.id }, data: { status: "BAIXADO", conteudo: "", tituloId: o.id, semanaItemId: o.itemId || null, dados: c, resolvidoPor: quem, resolvidoEm: new Date() } });
+  return { ok: true, texto: o.status === "PAGO" ? `Comprovante anexado em ${o.titulo} (já estava pago).` : `${o.titulo} baixado em ${dBR(c.data)} · ${brl(c.valor)}. Comprovante anexado.` };
 }
 
 // rejeitar: o comprovante é apagado e a conta fica como estava

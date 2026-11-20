@@ -1178,6 +1178,7 @@ model FinComprovanteEnvio {
   hashChave    String?
   dados        Json      // leitura: tipo, data, valor, favorecido, documento…
   tituloId     Int?      // conta sugerida (pendente) ou baixada
+  semanaItemId Int?      // v1030 — lançamento da conta da semana (freelancer/terceirizado) sugerido ou baixado
   motivo       String?
   resolvidoPor String?
   resolvidoEm  DateTime?

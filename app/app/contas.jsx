@@ -4048,7 +4048,7 @@ function AltInfo({ t, campo }) {
 /* ---------- v1027 — comprovantes enviados pelo celular ---------- */
 function CartaoPendenteCel({ user, p, onFeito }) {
   const dd = p.dados || {};
-  const [tituloId, setTituloId] = useState(p.tituloId || p.opcoes?.[0]?.id || "");
+  const [alvo, setAlvo] = useState(p.sugerida?.k || p.opcoes?.[0]?.k || "");
   const [data, setData] = useState(dd.data || "");
   const [valor, setValor] = useState(dd.valor ? brl(dd.valor) : "");
   const [busca, setBusca] = useState("");
@@ -4057,19 +4057,19 @@ function CartaoPendenteCel({ user, p, onFeito }) {
   const [erro, setErro] = useState("");
   const opcoes = useMemo(() => {
     const m = new Map();
-    [...(p.opcoes || []), ...(achadas || [])].forEach((o) => { if (!m.has(o.id)) m.set(o.id, o); });
+    [...(p.opcoes || []), ...(achadas || [])].forEach((o) => { if (!m.has(o.k)) m.set(o.k, o); });
     return [...m.values()];
   }, [p.opcoes, achadas]);
   useEffect(() => {
     if (busca.trim().length < 2) { setAchadas(null); return; }
-    const t = setTimeout(() => api(`/api/fin/comprovantes?u=${user.id}&busca=${encodeURIComponent(busca.trim())}`).then((j) => { setAchadas(j.contas || []); if (j.contas?.[0]) setTituloId(j.contas[0].id); }).catch(() => setAchadas([])), 400);
+    const t = setTimeout(() => api(`/api/fin/comprovantes?u=${user.id}&busca=${encodeURIComponent(busca.trim())}`).then((j) => { setAchadas(j.contas || []); if (j.contas?.[0]) setAlvo(j.contas[0].k); }).catch(() => setAchadas([])), 400);
     return () => clearTimeout(t);
   }, [busca]);
-  const escolhida = opcoes.find((o) => o.id === Number(tituloId));
+  const escolhida = opcoes.find((o) => o.k === alvo);
   const confirmarC = async () => {
-    if (!tituloId) { setErro("Escolha a conta."); return; }
+    if (!alvo) { setErro("Escolha a conta."); return; }
     setOcupado(true); setErro("");
-    try { const r = await api("/api/fin/comprovantes", "POST", { usuarioId: user.id, acao: "confirmar", id: p.id, tituloId: Number(tituloId), data, valor: lerNum(valor) }); onFeito(r.texto); }
+    try { const r = await api("/api/fin/comprovantes", "POST", { usuarioId: user.id, acao: "confirmar", id: p.id, alvo, data, valor: lerNum(valor) }); onFeito(r.texto); }
     catch (e) { setErro(e.message); setOcupado(false); }
   };
   const rejeitarC = async () => {
@@ -4078,7 +4078,7 @@ function CartaoPendenteCel({ user, p, onFeito }) {
     try { const r = await api("/api/fin/comprovantes", "POST", { usuarioId: user.id, acao: "rejeitar", id: p.id }); onFeito(r.texto); }
     catch (e) { setErro(e.message); setOcupado(false); }
   };
-  const optTxt = (o) => `${o.status === "PAGO" ? "[JÁ PAGA] " : ""}${dBR(o.vencimento)} · ${o.titulo}${o.parceiro && o.parceiro !== o.titulo ? ` · ${o.parceiro}` : ""} · R$ ${brl(o.valor)}`;
+  const optTxt = (o) => `${o.status === "PAGO" ? "[JÁ PAGA] " : ""}${o.itemId ? `[${o.grupo === "FREELANCER" ? "FREELANCER" : "TERCEIRIZADO"} · SEMANA] ` : ""}${dBR(o.vencimento)} · ${o.titulo}${o.parceiro && o.parceiro !== o.titulo ? ` · ${o.parceiro}` : ""} · R$ ${brl(o.valor)}`;
   return (
     <div className="rounded-xl mb-3 p-3" style={{ background: C.yellowSoft, border: `1px solid ${C.yellow}88`, boxShadow: `inset 4px 0 0 ${C.yellow}` }}>
       <div className="flex flex-wrap items-center gap-2 mb-1.5">
@@ -4092,20 +4092,20 @@ function CartaoPendenteCel({ user, p, onFeito }) {
       <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
         <Campo t="Data do pagamento"><input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inp} style={inpS} /></Campo>
         <Campo t="Valor pago (R$)"><input value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal" className={inp} style={inpS} /></Campo>
-        <Campo t="Procurar outra conta"><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="fornecedor, título ou valor" className={inp} style={inpS} /></Campo>
+        <Campo t="Procurar outra conta"><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="fornecedor, freelancer, título ou valor" className={inp} style={inpS} /></Campo>
       </div>
-      <Campo t="Conta a baixar">
-        <select value={tituloId} onChange={(e) => setTituloId(e.target.value)} className={inp} style={inpS}>
+      <Campo t="Conta ou lançamento a baixar (inclui freelancers e terceirizados da semana)">
+        <select value={alvo} onChange={(e) => setAlvo(e.target.value)} className={inp} style={inpS}>
           <option value="">— escolha a conta —</option>
-          {opcoes.map((o) => <option key={o.id} value={o.id}>{optTxt(o)}</option>)}
+          {opcoes.map((o) => <option key={o.k} value={o.k}>{optTxt(o)}</option>)}
         </select>
       </Campo>
       {achadas && !achadas.length && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Nenhuma conta encontrada com "{busca}".</div>}
-      {escolhida?.status === "PAGO" && <div className="text-[11px] mt-1" style={{ color: C.blue }}>Essa conta já está paga: confirmar só anexa o comprovante nela.</div>}
+      {escolhida?.status === "PAGO" && <div className="text-[11px] mt-1" style={{ color: C.blue }}>Já está pago: confirmar só anexa o comprovante na conta.</div>}
       {erro && <div className="text-xs mt-1.5" style={{ color: C.red }}>{erro}</div>}
       <div className="flex justify-end gap-2 mt-2.5">
         <button disabled={ocupado} onClick={rejeitarC} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panel, color: C.red, border: `1px solid ${C.red}66` }}><X size={14} /> Rejeitar</button>
-        <button disabled={ocupado || !tituloId} onClick={confirmarC} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.green, opacity: ocupado || !tituloId ? 0.5 : 1 }}>
+        <button disabled={ocupado || !alvo} onClick={confirmarC} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.green, opacity: ocupado || !alvo ? 0.5 : 1 }}>
           {ocupado ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Confirmar e baixar</button>
       </div>
     </div>
