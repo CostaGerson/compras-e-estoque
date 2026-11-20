@@ -7,7 +7,8 @@ import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups d
 import { ImportarNfs } from "./adm";
 import { imprimirPedido, dadosImpressaoPp, dadosImpressaoPedido } from "./impressaoPedido";   // v638 — Imprimir PV / OP no card
 import { CasarPedidoModal, descasar } from "./casamentoNf";   // v555   // v450 — Incluir faturamento (XML e PDF, como no movimento fiscal)
-import { lancaPP } from "@/lib/acesso";   // v728 — botão Editar no card do pedido
+import { lancaPP } from "@/lib/acesso";
+import ConteudoImportacao from "./conteudoImportacao";   // v1034   // v728 — botão Editar no card do pedido
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
@@ -429,6 +430,8 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
                   </div>
                 )) : <div className="text-xs" style={{ color: C.sub }}>Nenhuma NF casada com o pedido.{p.faturamento.nfs.length ? ` NFs do KM: ${p.faturamento.nfs.map((x) => x.numero).join(", ")}.` : ""}</div>}
               </div>
+              {/* v1034 — conteúdo de importação dos materiais (RET: acima de 40% perde o recolhimento de 2%) */}
+              <ConteudoImportacao numero={numero} veVal={veVal} />
               {/* v557 — fretes (CT-e): entrega pelas NFs casadas · compra pelas OCs com itens do pedido */}
               <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
                 <div className="flex items-center gap-2 mb-2">

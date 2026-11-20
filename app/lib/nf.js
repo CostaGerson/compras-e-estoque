@@ -42,6 +42,13 @@ export function camposDoTexto(txt) {
 }
 
 // ---------- XML (NFe 4.00) ----------
+// v1034 — origem do item (campo orig do grupo ICMS, qualquer CST/CSOSN)
+function origIcms(d) {
+  const g = d?.imposto?.ICMS;
+  if (!g || typeof g !== "object") return null;
+  for (const v of Object.values(g)) if (v && typeof v === "object" && v.orig != null) return String(v.orig);
+  return null;
+}
 export function parseXmlNfe(xml) {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
   const doc = parser.parse(xml);
@@ -67,6 +74,7 @@ export function parseXmlNfe(xml) {
       vUn: num(p.vUnCom),
       vProd: num(p.vProd),
       infAdProd: d.infAdProd || null,
+      orig: origIcms(d),   // v1034 — origem da mercadoria (0 nacional · 1/2/3/8 estrangeira ou conteúdo importado > 40% · 4/5/6/7)
     };
   });
 
