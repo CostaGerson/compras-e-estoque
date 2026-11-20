@@ -13,7 +13,7 @@ import {
   AlertTriangle, FileCode2, Hand, FileSpreadsheet, TrendingDown, TrendingUp, Ban, CalendarClock, Inbox, EyeOff, Grid3x3,
   Link2, ChevronDown, Wand2, Paperclip, FileText, Download, CheckSquare, Gavel, Clock, BadgePercent,
   Info as InfoI, Handshake, Landmark, ExternalLink,
-  Copy as CopyIco, Check as CheckIco, Smartphone,
+  Copy as CopyIco, Check as CheckIco, Smartphone, Send, QrCode,
 } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 const ABAS_ATRASO = ["ATRASADAS", "EXECUCOES", "PERDAS"];
@@ -382,6 +382,10 @@ export default function ContasPagarReceber({ user, inicial = null }) {
   const [pendCel, setPendCel] = useState([]);
   const carregarPend = () => api(`/api/fin/comprovantes?u=${user.id}`).then((j) => setPendCel(j.pendentes || [])).catch(() => setPendCel([]));
   useEffect(() => { if (d && tipo === "PAGAR") carregarPend(); }, [d, tipo]);
+  // v1031 — comprovantes já baixados aguardando envio pelo WhatsApp da empresa
+  const [nWhats, setNWhats] = useState(0);
+  const carregarWhats = () => api(`/api/fin/whats?u=${user.id}`).then((j) => setNWhats((j.itens || []).filter((i) => i.status === "A_ENVIAR").length)).catch(() => setNWhats(0));
+  useEffect(() => { if (d && tipo === "PAGAR") carregarWhats(); }, [d, tipo]);
   _pendPorTit = Object.fromEntries(pendCel.filter((p) => p.tituloId).map((p) => [p.tituloId, p]));
   _abrirPend = () => setModal({ t: "pendCel" });
   useEffect(() => { if (!d) return; api(`/api/fin/baixas?u=${user.id}&competencia=${mes}`).then((j) => setNBaixas((j.sugestoes || []).filter((x) => !x.lancamento.vista).length)).catch(() => setNBaixas(0)); }, [d, mes]);
@@ -526,6 +530,16 @@ export default function ContasPagarReceber({ user, inicial = null }) {
         </button>
       )}
 
+      {/* v1031 — comprovantes para enviar aos favorecidos pelo WhatsApp da empresa */}
+      {P && nWhats > 0 && (
+        <button onClick={() => setModal({ t: "whats" })} className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-sm text-left"
+          style={{ background: C.greenSoft, border: `1px solid ${C.green}55`, color: C.text }}>
+          <Send size={18} style={{ color: C.green }} />
+          <span className="flex-1"><b>{nWhats} comprovante(s) pago(s)</b> para enviar aos favorecidos pelo WhatsApp da empresa.</span>
+          <span className="font-semibold" style={{ color: C.green }}>Enviar →</span>
+        </button>
+      )}
+
       {/* baixas sugeridas pelo extrato */}
       {d && nBaixas > 0 && (
         <button onClick={() => setModal({ t: "baixas" })} className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-sm text-left"
@@ -553,6 +567,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
             `contas-a-${P ? "pagar" : "receber"}_${dIni}_a_${dFim < dIni ? dIni : dFim}.xlsx`);
         }} />}
         {P && <BtnS onClick={() => setModal({ t: "atalho" })} cor={C.navy}><Smartphone size={15} /> Comprovante pelo iPhone</BtnS>}
+        {P && <BtnS onClick={() => setModal({ t: "whats" })} cor={C.green}><Send size={15} /> Comprovantes no WhatsApp</BtnS>}
         <BtnS onClick={() => setModal({ t: "ia" })} cor={C.roxo}><Wand2 size={15} /> Analisar com IA</BtnS>
         {/* v171 — importações saíram daqui: tudo entra pela Transmissão de arquivos (painel do Financeiro) */}
         <BtnP onClick={() => setModal({ t: "titulo", item: null })}><Plus size={15} /> Nova conta</BtnP>
@@ -691,8 +706,9 @@ export default function ContasPagarReceber({ user, inicial = null }) {
       {modal?.t === "xml" && <XmlModal user={user} tipo={tipo} contas={d?.contas || []} lidosIniciais={modal.lidos} onClose={() => setModal(modal.lidos ? { t: "nfs" } : null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "nfs" && <NfsComprasModal user={user} onClose={() => { setModal(null); carregar(); }} onLancar={(lidos) => setModal({ t: "xml", lidos })} />}
       {modal?.t === "recorrencias" && <RecorrenciasModal user={user} d={d} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
-      {modal?.t === "pendCel" && <PendentesCelModal user={user} itens={pendCel} onClose={() => { setModal(null); carregarPend(); carregar(); }} onMudou={carregarPend} />}
+      {modal?.t === "pendCel" && <PendentesCelModal user={user} itens={pendCel} onClose={() => { setModal(null); carregarPend(); carregarWhats(); carregar(); }} onMudou={carregarPend} />}
       {modal?.t === "atalho" && <AtalhoModal user={user} onClose={() => setModal(null)} />}
+      {modal?.t === "whats" && <WhatsModal user={user} onClose={() => { setModal(null); carregarWhats(); }} />}
       {modal?.t === "baixas" && <BaixasModal user={user} competencia={mes} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "documento" && <DocumentoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "antecipacao" && <AntecipacaoModal user={user} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
@@ -4162,6 +4178,174 @@ function AtalhoModal({ user, onClose }) {
         {passos.map((p, i) => <li key={i} className="flex gap-2"><span className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: C.accent }}>{i + 1}</span><span>{p}</span></li>)}
       </ol>
       <div className="text-[11px] mt-3" style={{ color: C.sub }}>Dica: abra esta tela no próprio iPhone para copiar o endereço direto.</div>
+    </Modal>
+  );
+}
+
+/* ---------- v1031 — comprovantes aos favorecidos pelo WhatsApp da empresa ---------- */
+const foneTela = (f) => {
+  const d = String(f || "").replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
+  return d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : String(f || "");
+};
+const foneOk = (f) => { const d = String(f || "").replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, ""); return d.length === 10 || d.length === 11; };
+const ST_W = { A_ENVIAR: ["A ENVIAR", C.blue, C.blueSoft], ENVIADO: ["ENVIADO", C.green, C.greenSoft], ERRO: ["ERRO", C.red, C.redSoft], IGNORADO: ["NÃO ENVIAR", C.sub, C.panel2] };
+const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function WhatsConexao({ user, estado, onMudou }) {
+  const [qr, setQr] = useState(null);
+  const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState("");
+  const conectado = estado?.estado === "CONECTADO";
+  // com o QR na tela, confere a cada 3 s se o celular já leu
+  useEffect(() => {
+    if (!qr) return;
+    let vivo = true, n = 0;
+    const tick = async () => {
+      while (vivo && n++ < 60) {
+        await espera(3000);
+        try { const e = await api(`/api/fin/whats?u=${user.id}&estado=1`); if (e.estado === "CONECTADO") { setQr(null); onMudou(e); return; } } catch { /* tenta de novo */ }
+        if (n % 12 === 0) { try { const r = await api("/api/fin/whats", "POST", { usuarioId: user.id, acao: "conectar" }); if (r.qr) setQr(r.qr); } catch { /* idem */ } }
+      }
+    };
+    tick();
+    return () => { vivo = false; };
+  }, [qr ? 1 : 0]);
+  const conectar = async () => {
+    setOcupado(true); setErro("");
+    try { const r = await api("/api/fin/whats", "POST", { usuarioId: user.id, acao: "conectar" }); if (r.qr) setQr(r.qr); else onMudou(r); }
+    catch (e) { setErro(e.message); }
+    setOcupado(false);
+  };
+  const desconectar = async () => {
+    if (!(await confirmar("Desconectar o WhatsApp da empresa do ERP? Para voltar a enviar, será preciso ler o QR code de novo."))) return;
+    setOcupado(true);
+    try { onMudou(await api("/api/fin/whats", "POST", { usuarioId: user.id, acao: "desconectar" })); } catch (e) { setErro(e.message); }
+    setOcupado(false);
+  };
+  return (
+    <div className="rounded-lg p-3 mb-3" style={{ background: conectado ? C.greenSoft : C.yellowSoft, border: `1px solid ${conectado ? C.green : C.yellow}55` }}>
+      <div className="flex items-center gap-2 text-sm">
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: conectado ? C.green : estado?.estado === "FORA_DO_AR" ? C.red : C.yellow }} />
+        <span className="flex-1">
+          {conectado ? <>WhatsApp da empresa conectado{estado.numero ? <> · <b>{foneTela(estado.numero)}</b></> : null}{estado.perfil ? ` (${estado.perfil})` : ""}</>
+            : estado?.estado === "FORA_DO_AR" ? <>Serviço do WhatsApp fora do ar. Se o deploy acabou de rodar, aguarde 1 minuto.</>
+            : !estado ? "Conferindo a conexão…" : <>WhatsApp da empresa <b>não conectado</b>.</>}
+        </span>
+        {conectado ? <button disabled={ocupado} onClick={desconectar} className="text-[11px] underline" style={{ color: C.sub }}>desconectar</button>
+          : estado && !qr && <button disabled={ocupado} onClick={conectar} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.green }}>
+            {ocupado ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />} Conectar</button>}
+      </div>
+      {qr && (
+        <div className="flex gap-4 items-center mt-3">
+          <img src={qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`} alt="QR code" style={{ width: 220, height: 220, background: "#fff", borderRadius: 8 }} />
+          <ol className="text-xs space-y-1.5" style={{ color: C.text }}>
+            <li>1. Pegue o <b>celular da empresa</b> (não o seu).</li>
+            <li>2. WhatsApp → <b>⋮ / Configurações</b> → <b>Aparelhos conectados</b>.</li>
+            <li>3. <b>Conectar aparelho</b> e aponte para este QR code.</li>
+            <li className="flex items-center gap-1" style={{ color: C.sub }}><Loader2 size={12} className="animate-spin" /> aguardando a leitura…</li>
+          </ol>
+        </div>
+      )}
+      {erro && <div className="text-xs mt-1.5" style={{ color: C.red }}>{erro}</div>}
+    </div>
+  );
+}
+
+function WhatsModal({ user, onClose }) {
+  const [estado, setEstado] = useState(null);
+  const [itens, setItens] = useState(null);
+  const [todos, setTodos] = useState(false);
+  const [fones, setFones] = useState({});
+  const [sel, setSel] = useState(() => new Set());
+  const [env, setEnv] = useState(null);   // { feitos, total, atual }
+  const [erro, setErro] = useState("");
+  const [msg, setMsg] = useState("");
+  const parar = useRef(false);
+  const carregar = () => api(`/api/fin/whats?u=${user.id}&dias=${todos ? 60 : 15}${todos ? "&todos=1" : ""}`).then((j) => {
+    setEstado(j.estado); setItens(j.itens || []);
+    setFones((f) => { const n = { ...f }; (j.itens || []).forEach((i) => { if (n[i.id] == null) n[i.id] = i.fone ? foneTela(i.fone) : ""; }); return n; });
+    setSel((s) => s.size ? s : new Set((j.itens || []).filter((i) => i.status !== "ENVIADO" && i.status !== "IGNORADO" && i.fone).map((i) => i.id)));
+  }).catch((e) => setErro(e.message));
+  useEffect(() => { carregar(); }, [todos]);
+  const marcar = (id) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const conectado = estado?.estado === "CONECTADO";
+  const escolhidos = (itens || []).filter((i) => sel.has(i.id));
+  const semFone = escolhidos.filter((i) => !foneOk(fones[i.id]));
+  const enviarTodos = async () => {
+    if (semFone.length) { setErro(`${semFone.length} selecionado(s) sem telefone válido. Informe o WhatsApp ou desmarque.`); return; }
+    setErro(""); setMsg(""); parar.current = false;
+    let ok = 0; const falhas = [];
+    for (const [k, i] of escolhidos.entries()) {
+      if (parar.current) break;
+      setEnv({ feitos: k, total: escolhidos.length, atual: i.nome });
+      try { await api("/api/fin/whats", "POST", { usuarioId: user.id, acao: "enviar", id: i.id, fone: fones[i.id] }); ok++; }
+      catch (e) { falhas.push(`${i.nome}: ${e.message}`); }
+      // intervalo entre as mensagens (evita bloqueio do número)
+      if (k < escolhidos.length - 1 && !parar.current) await espera(4000 + Math.random() * 3000);
+    }
+    setEnv(null); setSel(new Set());
+    setMsg(`${ok} comprovante(s) enviado(s).${falhas.length ? ` ${falhas.length} com erro.` : ""}`);
+    if (falhas.length) setErro(falhas.join(" · "));
+    carregar();
+  };
+  const ignorar = async (i) => {
+    try { await api("/api/fin/whats", "POST", { usuarioId: user.id, acao: "ignorar", id: i.id, voltar: i.status === "IGNORADO" }); carregar(); } catch (e) { setErro(e.message); }
+  };
+  const rodape = (
+    <>
+      <label className="flex items-center gap-1.5 text-xs mr-auto" style={{ color: C.sub }}>
+        <input type="checkbox" checked={todos} onChange={(e) => { setTodos(e.target.checked); setSel(new Set()); }} /> mostrar também os já enviados / não enviar (60 dias)
+      </label>
+      {env ? <>
+        <span className="text-xs flex items-center gap-1.5" style={{ color: C.text }}><Loader2 size={14} className="animate-spin" /> Enviando {env.feitos + 1} de {env.total}: {env.atual}</span>
+        <button onClick={() => { parar.current = true; }} className="px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ color: C.red, border: `1px solid ${C.red}66`, background: C.panel }}>Parar</button>
+      </> : (
+        <button disabled={!conectado || !escolhidos.length} onClick={enviarTodos} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white"
+          style={{ background: C.green, opacity: !conectado || !escolhidos.length ? 0.5 : 1 }}><Send size={15} /> Enviar {escolhidos.length || ""} comprovante(s)</button>
+      )}
+    </>
+  );
+  return (
+    <Modal titulo="Comprovantes no WhatsApp da empresa" icone={Send} onClose={() => { parar.current = true; onClose(); }} largura={900} rodape={rodape}>
+      <WhatsConexao user={user} estado={estado} onMudou={(e) => { setEstado(e); carregar(); }} />
+      <div className="text-xs mb-2" style={{ color: C.sub }}>
+        Comprovantes do celular já baixados (contas e lançamentos da semana). Cada favorecido recebe o seu, com a mensagem abaixo do nome. O telefone vem do cadastro do prestador ou do fornecedor; se você digitar um novo, ele fica salvo no cadastro.
+      </div>
+      {msg && <div className="mb-2 px-3 py-2 rounded-lg text-xs font-semibold" style={{ background: C.greenSoft, color: C.green }}>{msg}</div>}
+      {erro && <div className="mb-2 px-3 py-2 rounded-lg text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
+      {!itens ? <div className="py-6 flex justify-center"><Loader2 size={18} className="animate-spin" /></div>
+        : !itens.length ? <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum comprovante para enviar nos últimos {todos ? 60 : 15} dias.</div> : (
+        <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
+          <div className="flex items-center gap-2 px-3 py-2 text-[11px] font-semibold" style={{ background: C.panel2, color: C.sub }}>
+            <input type="checkbox" checked={itens.length > 0 && itens.every((i) => i.status === "ENVIADO" || i.status === "IGNORADO" || sel.has(i.id))}
+              onChange={(e) => setSel(e.target.checked ? new Set(itens.filter((i) => i.status !== "ENVIADO" && i.status !== "IGNORADO").map((i) => i.id)) : new Set())} />
+            <span className="flex-1">FAVORECIDO · CONTA</span><span className="w-28 text-right">VALOR</span><span className="w-44">WHATSAPP</span><span className="w-24">SITUAÇÃO</span><span className="w-16" />
+          </div>
+          {itens.map((i) => {
+            const [stT, stC, stB] = ST_W[i.status] || ST_W.A_ENVIAR;
+            return (
+              <div key={i.id} className="px-3 py-2 text-sm" style={{ borderTop: `1px solid ${C.line}`, opacity: i.status === "IGNORADO" ? 0.55 : 1 }}>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" checked={sel.has(i.id)} disabled={!!env} onChange={() => marcar(i.id)} />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold truncate">{i.nome || i.favorecido || "—"}</div>
+                    <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.referencia}{i.data ? ` · pago em ${dBR(i.data)}` : ""}{i.cadastro === "MEM" || !i.cadastro ? " · sem cadastro" : ""}</div>
+                  </div>
+                  <div className="w-28 text-right font-semibold">{moeda(i.valor)}</div>
+                  <input value={fones[i.id] ?? ""} disabled={!!env} placeholder="(81) 99999-9999" onChange={(e) => setFones((f) => ({ ...f, [i.id]: e.target.value }))}
+                    onBlur={(e) => foneOk(e.target.value) && setFones((f) => ({ ...f, [i.id]: foneTela(e.target.value) }))}
+                    className={inp} style={{ ...inpS, width: 176, fontSize: 12, borderColor: sel.has(i.id) && !foneOk(fones[i.id]) ? C.red : C.line }} />
+                  <span className="w-24"><span className="px-1.5 py-0.5 rounded text-[10px] font-bold" style={{ color: stC, background: stB }}>{stT}</span></span>
+                  <button disabled={!!env} onClick={() => ignorar(i)} className="w-16 text-[11px] underline text-right" style={{ color: C.sub }}>{i.status === "IGNORADO" ? "voltar" : "não enviar"}</button>
+                </div>
+                {i.status === "ERRO" && i.erro && <div className="text-[11px] mt-1 ml-6" style={{ color: C.red }}>{i.erro}</div>}
+                {i.status === "ENVIADO" && i.enviadoEm && <div className="text-[11px] mt-1 ml-6" style={{ color: C.green }}>enviado para {foneTela(i.fone)} em {new Date(i.enviadoEm).toLocaleString("pt-BR")}</div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {itens?.[0] && <div className="mt-3 text-[11px]" style={{ color: C.sub }}>Exemplo da mensagem: <span className="whitespace-pre-line" style={{ color: C.text }}>{itens[0].mensagem}</span></div>}
     </Modal>
   );
 }

@@ -1179,6 +1179,10 @@ model FinComprovanteEnvio {
   dados        Json      // leitura: tipo, data, valor, favorecido, documento…
   tituloId     Int?      // conta sugerida (pendente) ou baixada
   semanaItemId Int?      // v1030 — lançamento da conta da semana (freelancer/terceirizado) sugerido ou baixado
+  whatsStatus  String?   // v1031 — envio ao favorecido pelo WhatsApp da empresa: ENVIADO | ERRO | IGNORADO (vazio = a enviar)
+  whatsFone    String?
+  whatsEm      DateTime?
+  whatsErro    String?
   motivo       String?
   resolvidoPor String?
   resolvidoEm  DateTime?
@@ -1187,6 +1191,7 @@ model FinComprovanteEnvio {
   @@index([status])
   @@index([hashArquivo])
   @@index([hashChave])
+  @@index([whatsStatus])
 }
 
 // v139: lixeira de contas — a conta excluída fica 30 dias aqui (cópia completa, com anexos) antes de sumir de vez

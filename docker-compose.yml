@@ -33,6 +33,8 @@ services:
       CRONO_TOKEN: ${CRONO_TOKEN:-}
       KM_SYNC_TOKEN: ${KM_SYNC_TOKEN:-}
       GOOGLE_MAPS_KEY: ${GOOGLE_MAPS_KEY:-}
+      EVOLUTION_URL: http://ce-whats:8080
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-ce-whats-interno}
     ports:
       - "3010:3000"
     volumes:
@@ -42,8 +44,42 @@ services:
       - default
       - crm
 
+  # v1031 — WhatsApp da empresa (Evolution API): só o ce-app fala com ele (sem porta aberta na VPS).
+  # Tabelas no próprio ce-db, schema "evolution". A sessão do WhatsApp fica no volume ce-whats-data.
+  ce-whats:
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: ce-whats
+    restart: unless-stopped
+    depends_on:
+      - ce-db
+    environment:
+      SERVER_URL: http://ce-whats:8080
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-ce-whats-interno}
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${DB_USER}:${DB_PASSWORD}@ce-db:5432/${DB_NAME}?schema=evolution
+      DATABASE_CONNECTION_CLIENT_NAME: ce_whats
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      CONFIG_SESSION_PHONE_CLIENT: ERP Meridian
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      QRCODE_LIMIT: "30"
+      DEL_INSTANCE: "false"
+      LOG_LEVEL: ERROR,WARN
+      LANGUAGE: pt-BR
+    volumes:
+      - ce-whats-data:/evolution/instances
+
 volumes:
   ce-db-data:
+  ce-whats-data:
 
 networks:
   default:
