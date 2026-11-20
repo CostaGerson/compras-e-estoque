@@ -5,19 +5,23 @@ import { KeyRound, Copy, Eye, EyeOff, RefreshCw, Loader2, CheckCircle2 } from "l
 import { alerta, confirmar } from "./dialogo";
 import IntegracaoEmail from "./integracaoEmail";   // v895
 import { IntegracaoNort } from "./pecasProntas";   // v906
+import { AtalhoModal, WhatsModal } from "./contas";   // v1032 — comprovantes: atalho do iPhone e WhatsApp da empresa
+import { gerencial, temAlguma } from "@/lib/acesso";
 
 const C = { panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41", accent: "#FF6B1A", green: "#12A150", red: "#D92D20" };
 
-// v895 — abas: PCP e E-mail (Resend, só master)
+// v895 — abas: PCP e E-mail (Resend, só master) · v1032 — Comprovantes (WhatsApp da empresa e atalho do iPhone), financeiro
 export default function Integracoes({ user }) {
   const [aba, setAba] = useState("pcp");
-  const abas = [["pcp", "PCP"], ...(user?.isMaster ? [["nort", "NORT"], ["email", "E-mail"]] : [])];
+  const fin = !!user && (gerencial(user) || temAlguma(user, "contasPagar", "contasReceber", "docsFinanceiros", "nfEntrada", "faturamento"));
+  const abas = [["pcp", "PCP"], ...(fin ? [["comprovantes", "Comprovantes"]] : []), ...(user?.isMaster ? [["nort", "NORT"], ["email", "E-mail"]] : [])];
   return (
     <div>
       <div className="text-lg font-bold mb-2" style={{ color: C.navy }}>Integrações</div>
       <div className="flex gap-1 mb-4">{abas.map(([k, t]) => <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 text-sm font-semibold rounded-md"
         style={{ background: aba === k ? "#EAF2FC" : "transparent", color: aba === k ? "#2E7CD6" : C.text }}>{t}</button>)}</div>
-      {aba === "email" ? <IntegracaoEmail user={user} /> : aba === "nort" ? <IntegracaoNort user={user} /> : <IntegracaoPcp user={user} />}
+      {aba === "comprovantes" ? <><WhatsModal user={user} embutido /><AtalhoModal user={user} embutido /></>
+        : aba === "email" ? <IntegracaoEmail user={user} /> : aba === "nort" ? <IntegracaoNort user={user} /> : <IntegracaoPcp user={user} />}
     </div>
   );
 }

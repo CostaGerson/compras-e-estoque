@@ -382,10 +382,6 @@ export default function ContasPagarReceber({ user, inicial = null }) {
   const [pendCel, setPendCel] = useState([]);
   const carregarPend = () => api(`/api/fin/comprovantes?u=${user.id}`).then((j) => setPendCel(j.pendentes || [])).catch(() => setPendCel([]));
   useEffect(() => { if (d && tipo === "PAGAR") carregarPend(); }, [d, tipo]);
-  // v1031 — comprovantes já baixados aguardando envio pelo WhatsApp da empresa
-  const [nWhats, setNWhats] = useState(0);
-  const carregarWhats = () => api(`/api/fin/whats?u=${user.id}`).then((j) => setNWhats((j.itens || []).filter((i) => i.status === "A_ENVIAR").length)).catch(() => setNWhats(0));
-  useEffect(() => { if (d && tipo === "PAGAR") carregarWhats(); }, [d, tipo]);
   _pendPorTit = Object.fromEntries(pendCel.filter((p) => p.tituloId).map((p) => [p.tituloId, p]));
   _abrirPend = () => setModal({ t: "pendCel" });
   useEffect(() => { if (!d) return; api(`/api/fin/baixas?u=${user.id}&competencia=${mes}`).then((j) => setNBaixas((j.sugestoes || []).filter((x) => !x.lancamento.vista).length)).catch(() => setNBaixas(0)); }, [d, mes]);
@@ -530,16 +526,6 @@ export default function ContasPagarReceber({ user, inicial = null }) {
         </button>
       )}
 
-      {/* v1031 — comprovantes para enviar aos favorecidos pelo WhatsApp da empresa */}
-      {P && nWhats > 0 && (
-        <button onClick={() => setModal({ t: "whats" })} className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-sm text-left"
-          style={{ background: C.greenSoft, border: `1px solid ${C.green}55`, color: C.text }}>
-          <Send size={18} style={{ color: C.green }} />
-          <span className="flex-1"><b>{nWhats} comprovante(s) pago(s)</b> para enviar aos favorecidos pelo WhatsApp da empresa.</span>
-          <span className="font-semibold" style={{ color: C.green }}>Enviar →</span>
-        </button>
-      )}
-
       {/* baixas sugeridas pelo extrato */}
       {d && nBaixas > 0 && (
         <button onClick={() => setModal({ t: "baixas" })} className="w-full flex items-center gap-2 px-4 py-3 mb-3 rounded-xl text-sm text-left"
@@ -566,8 +552,6 @@ export default function ContasPagarReceber({ user, inicial = null }) {
           return exportarExcel(user, ids, [`CONTAS ${P ? "A PAGAR" : "A RECEBER"}`, per, sitTxt, busca && `BUSCA "${busca}"`, soCompra && P && "SÓ ENTRADA POR COMPRA"].filter(Boolean).join(" · "),
             `contas-a-${P ? "pagar" : "receber"}_${dIni}_a_${dFim < dIni ? dIni : dFim}.xlsx`);
         }} />}
-        {P && <BtnS onClick={() => setModal({ t: "atalho" })} cor={C.navy}><Smartphone size={15} /> Comprovante pelo iPhone</BtnS>}
-        {P && <BtnS onClick={() => setModal({ t: "whats" })} cor={C.green}><Send size={15} /> Comprovantes no WhatsApp</BtnS>}
         <BtnS onClick={() => setModal({ t: "ia" })} cor={C.roxo}><Wand2 size={15} /> Analisar com IA</BtnS>
         {/* v171 — importações saíram daqui: tudo entra pela Transmissão de arquivos (painel do Financeiro) */}
         <BtnP onClick={() => setModal({ t: "titulo", item: null })}><Plus size={15} /> Nova conta</BtnP>
@@ -706,9 +690,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
       {modal?.t === "xml" && <XmlModal user={user} tipo={tipo} contas={d?.contas || []} lidosIniciais={modal.lidos} onClose={() => setModal(modal.lidos ? { t: "nfs" } : null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "nfs" && <NfsComprasModal user={user} onClose={() => { setModal(null); carregar(); }} onLancar={(lidos) => setModal({ t: "xml", lidos })} />}
       {modal?.t === "recorrencias" && <RecorrenciasModal user={user} d={d} contasPorId={contasPorId} onClose={() => { setModal(null); carregar(); }} />}
-      {modal?.t === "pendCel" && <PendentesCelModal user={user} itens={pendCel} onClose={() => { setModal(null); carregarPend(); carregarWhats(); carregar(); }} onMudou={carregarPend} />}
-      {modal?.t === "atalho" && <AtalhoModal user={user} onClose={() => setModal(null)} />}
-      {modal?.t === "whats" && <WhatsModal user={user} onClose={() => { setModal(null); carregarWhats(); }} />}
+      {modal?.t === "pendCel" && <PendentesCelModal user={user} itens={pendCel} onClose={() => { setModal(null); carregarPend(); carregar(); }} onMudou={carregarPend} />}
       {modal?.t === "baixas" && <BaixasModal user={user} competencia={mes} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "documento" && <DocumentoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "antecipacao" && <AntecipacaoModal user={user} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
@@ -4137,7 +4119,18 @@ function PendentesCelModal({ user, itens, onClose, onMudou }) {
     </Modal>
   );
 }
-function AtalhoModal({ user, onClose }) {
+// v1032 — atalho do iPhone e WhatsApp ficam em Dados → Integrações → Comprovantes (embutido); fora dele, modal
+function Moldura({ embutido, titulo, icone: Ico, onClose, largura, rodape, children }) {
+  if (!embutido) return <Modal titulo={titulo} icone={Ico} onClose={onClose} largura={largura} rodape={rodape}>{children}</Modal>;
+  return (
+    <div className="rounded-xl mb-4" style={{ background: C.panel, border: `1px solid ${C.line}`, maxWidth: largura }}>
+      <div className="font-semibold flex items-center gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${C.line}`, color: C.navy }}>{Ico && <Ico size={17} style={{ color: C.accent }} />} {titulo}</div>
+      <div className="p-4">{children}</div>
+      {rodape && <div className="flex items-center justify-end gap-2 px-4 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2, borderRadius: "0 0 12px 12px" }}>{rodape}</div>}
+    </div>
+  );
+}
+export function AtalhoModal({ user, onClose, embutido }) {
   const [chave, setChave] = useState(null);
   const [copiado, setCopiado] = useState(false);
   const [erro, setErro] = useState("");
@@ -4156,7 +4149,7 @@ function AtalhoModal({ user, onClose }) {
     <>Pronto. No WhatsApp, no app do banco, em Fotos ou Arquivos: <b>Compartilhar → Enviar ao ERP</b>. Um comprovante por vez.</>,
   ];
   return (
-    <Modal titulo="Comprovante pelo iPhone" icone={Smartphone} onClose={onClose} largura={640}>
+    <Moldura embutido={embutido} titulo="Comprovante pelo iPhone" icone={Smartphone} onClose={onClose} largura={embutido ? 900 : 640}>
       <div className="text-sm mb-3" style={{ color: C.text }}>
         Envie a foto ou o PDF do comprovante pelo menu Compartilhar do iPhone. O sistema lê o comprovante e:
         <ul className="list-disc ml-5 mt-1 text-xs" style={{ color: C.sub }}>
@@ -4178,7 +4171,7 @@ function AtalhoModal({ user, onClose }) {
         {passos.map((p, i) => <li key={i} className="flex gap-2"><span className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ background: C.accent }}>{i + 1}</span><span>{p}</span></li>)}
       </ol>
       <div className="text-[11px] mt-3" style={{ color: C.sub }}>Dica: abra esta tela no próprio iPhone para copiar o endereço direto.</div>
-    </Modal>
+    </Moldura>
   );
 }
 
@@ -4251,7 +4244,7 @@ function WhatsConexao({ user, estado, onMudou }) {
   );
 }
 
-function WhatsModal({ user, onClose }) {
+export function WhatsModal({ user, onClose, embutido }) {
   const [estado, setEstado] = useState(null);
   const [itens, setItens] = useState(null);
   const [todos, setTodos] = useState(false);
@@ -4261,6 +4254,7 @@ function WhatsModal({ user, onClose }) {
   const [erro, setErro] = useState("");
   const [msg, setMsg] = useState("");
   const parar = useRef(false);
+  useEffect(() => () => { parar.current = true; }, []);
   const carregar = () => api(`/api/fin/whats?u=${user.id}&dias=${todos ? 60 : 15}${todos ? "&todos=1" : ""}`).then((j) => {
     setEstado(j.estado); setItens(j.itens || []);
     setFones((f) => { const n = { ...f }; (j.itens || []).forEach((i) => { if (n[i.id] == null) n[i.id] = i.fone ? foneTela(i.fone) : ""; }); return n; });
@@ -4306,7 +4300,7 @@ function WhatsModal({ user, onClose }) {
     </>
   );
   return (
-    <Modal titulo="Comprovantes no WhatsApp da empresa" icone={Send} onClose={() => { parar.current = true; onClose(); }} largura={900} rodape={rodape}>
+    <Moldura embutido={embutido} titulo="Comprovantes no WhatsApp da empresa" icone={Send} onClose={() => { parar.current = true; onClose?.(); }} largura={900} rodape={rodape}>
       <WhatsConexao user={user} estado={estado} onMudou={(e) => { setEstado(e); carregar(); }} />
       <div className="text-xs mb-2" style={{ color: C.sub }}>
         Comprovantes do celular já baixados (contas e lançamentos da semana). Cada favorecido recebe o seu, com a mensagem abaixo do nome. O telefone vem do cadastro do prestador ou do fornecedor; se você digitar um novo, ele fica salvo no cadastro.
@@ -4346,6 +4340,6 @@ function WhatsModal({ user, onClose }) {
         </div>
       )}
       {itens?.[0] && <div className="mt-3 text-[11px]" style={{ color: C.sub }}>Exemplo da mensagem: <span className="whitespace-pre-line" style={{ color: C.text }}>{itens[0].mensagem}</span></div>}
-    </Modal>
+    </Moldura>
   );
 }

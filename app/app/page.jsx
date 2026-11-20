@@ -159,7 +159,7 @@ const MENU = [
     { key: "dadosfin", label: "Dados financeiros", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Plano de contas, palavras-chave e senhas de PDF" },
     { key: "tributario", label: "Tributário", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Naturezas de operação, NCM dos produtos e emitente — dados para emitir a NF-e pelo Bling" },   // v628
     { key: "uploads", label: "Uploads", icon: FolderUp, perfis: [...GESTAO_TODOS, "RH"], desc: "Todos os documentos enviados ao sistema e backup diário" },
-    { key: "integracoes", label: "Integrações", icon: KeyRound, desc: "PCP (token da API e endereços) e e-mail (Resend)" },   // v732
+    { key: "integracoes", label: "Integrações", icon: KeyRound, desc: "PCP (token da API e endereços), comprovantes (WhatsApp da empresa e atalho do iPhone), NORT e e-mail (Resend)" },   // v732 · v1032
   ] },
   { key: "usuarios", label: "Usuários", icon: Users2, perfis: ["FINANCEIRO"], desc: "Acessos, setores e permissões" },
 ];
