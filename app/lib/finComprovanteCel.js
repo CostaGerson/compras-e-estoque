@@ -1,12 +1,13 @@
 // v1027 — Comprovantes enviados pelo celular (atalho "Enviar ao ERP" do iPhone, menu Compartilhar).
-// Foto ou PDF → leitura (relatório do Bradesco pelo texto; o resto pela IA) → baixa automática SÓ quando
+// Foto ou PDF → leitura sem IA (relatório do Bradesco pelo texto do PDF; foto pelo OCR; outros PDFs pelo texto) → baixa automática SÓ quando
 // valor igual, data do comprovante = vencimento e o nome do destinatário aparece no fornecedor da conta,
 // com uma única conta nessas condições. Fora disso, o comprovante fica guardado como PENDENTE DE CONFIRMAÇÃO:
 // confirmar = baixa + anexo na conta; rejeitar = apaga o comprovante (a conta continua em aberto).
 import { createHash, randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { lerComprovantes, analisarComprovantes, baixarComprovantes, chaveHash, paginaPdf } from "@/lib/finComprovantes";
-import { iaDisponivel, perguntarIA } from "@/lib/finIA";
+import { linhasPdf } from "@/lib/finParse";
+import { ocrImagem, lerTextoComprovante } from "@/lib/finComprovanteTexto";
 import { normRegra, usuarioMaster } from "@/lib/fin";
 import { r2, nomeU } from "@/lib/finTitulos";
 
@@ -46,7 +47,7 @@ export function tipoArquivo(buf, mime = "", nome = "") {
   if (/pdf/i.test(mime) || /\.pdf$/i.test(nome)) return "application/pdf";
   return String(mime || "").toLowerCase() || "application/octet-stream";
 }
-// foto do iPhone (HEIC ou JPEG grande) → JPEG de até 2000 px (a IA aceita e o anexo fica leve)
+// foto do iPhone (HEIC ou JPEG grande) → JPEG de até 2000 px (o OCR lê melhor e o anexo fica leve)
 async function prepararImagem(buf, mime) {
   let b = buf;
   if (mime === "image/heic") {
@@ -60,40 +61,26 @@ async function prepararImagem(buf, mime) {
   return b;
 }
 
-// ---------- leitura pela IA (foto, print ou PDF de outro banco) ----------
-const SISTEMA = `Você lê comprovantes de pagamento de bancos brasileiros (PIX, boleto, TED/DOC, tributo) em foto, print ou PDF.
-Devolva só uma lista JSON entre <json></json>, um objeto por comprovante:
-[{"tipo":"PIX|BOLETO|TED|TRIBUTO|OUTRO","data":"AAAA-MM-DD","valor":1234.56,"favorecido":"NOME DE QUEM RECEBEU","documento":"dígitos do CPF/CNPJ de quem recebeu","pagador":"NOME DE QUEM PAGOU","idTransacao":"ID/E2E/autenticação","vencimento":"AAAA-MM-DD ou null","juros":0,"multa":0,"desconto":0}]
-Regras: data = data do pagamento/débito (não a do vencimento); valor = total pago, número com ponto decimal e sem milhar;
-favorecido = recebedor/destinatário/beneficiário (no boleto, a razão social do beneficiário); documento só com os dígitos visíveis,
-na ordem (CPF mascarado ***.210.046-** → "210046"); campo que não aparece → null (juros/multa/desconto → 0).
-Não invente nada. Se a imagem não for um comprovante de pagamento, devolva [].`;
-
-async function lerPelaIA(buf, mime) {
-  if (!iaDisponivel()) return [];
-  const b64 = buf.toString("base64");
-  const bloco = mime === "application/pdf"
-    ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } }
-    : { type: "image", source: { type: "base64", media_type: mime, data: b64 } };
-  const l = await perguntarIA(SISTEMA, [bloco, { type: "text", text: "Leia o(s) comprovante(s)." }]);
-  return (Array.isArray(l) ? l : []).map((x) => {
-    const data = /^\d{4}-\d{2}-\d{2}$/.test(String(x.data || "")) ? x.data : null;
-    const valor = r2(x.valor);
-    const tipo = ["PIX", "BOLETO", "TED", "TRIBUTO"].includes(String(x.tipo || "").toUpperCase()) ? String(x.tipo).toUpperCase() : "OUTRO";
-    const favorecido = String(x.favorecido || "").trim().toUpperCase();
-    let documento = so(x.documento);
-    if (documento.length === 15 && documento.startsWith("0")) documento = documento.slice(1);
-    const juros = r2(x.juros), multa = r2(x.multa), desconto = r2(x.desconto);
-    const id = String(x.idTransacao || "").replace(/\s/g, "").toUpperCase();
-    return {
-      tipo, data, valor, favorecido, fantasia: "", final: "", documento, docFinal: "", descricao: "", codBarras: "",
-      vencBoleto: /^\d{4}-\d{2}-\d{2}$/.test(String(x.vencimento || "")) ? x.vencimento : null,
-      pagador: String(x.pagador || "").trim().toUpperCase(),
-      propria: ["48011287", "55116246"].includes(documento.slice(0, 8)) || /^(MERIDIAN|NORT SPORTS)\b/.test(normRegra(favorecido)),
-      principal: null, juros, multa, desconto, encargos: r2(juros + multa), ia: true,
-      chave: id ? ["CEL", tipo, id].join("|") : null,
-    };
-  }).filter((c) => c.valor > 0);
+// ---------- leitura sem IA (v1028): foto → OCR; PDF de outro banco → texto do PDF ----------
+function normalizar(x) {
+  let documento = so(x.documento);
+  if (documento.length === 15 && documento.startsWith("0")) documento = documento.slice(1);
+  const favorecido = String(x.favorecido || "").trim().toUpperCase();
+  return {
+    tipo: x.tipo || "OUTRO", data: x.data || null, valor: r2(x.valor), favorecido, fantasia: "", final: "", documento, docFinal: "", descricao: "", codBarras: "",
+    vencBoleto: null, agendado: !!x.agendado,
+    propria: ["48011287", "55116246"].includes(documento.slice(0, 8)) || /^(MERIDIAN|NORT SPORTS)\b/.test(normRegra(favorecido)),
+    principal: null, juros: 0, multa: 0, desconto: 0, encargos: 0, lido: "TEXTO",
+    chave: x.idTransacao ? ["CEL", x.tipo || "OUTRO", x.idTransacao].join("|") : null,
+  };
+}
+async function lerPeloTexto(buf, mime) {
+  if (mime === "application/pdf") {
+    const pags = await linhasPdf(buf);
+    return pags.map((p) => lerTextoComprovante(p.map((l) => l.its.map((x) => x.s).join(" ")).join("\n"))).filter(Boolean).map(normalizar).filter((c) => c.valor > 0);
+  }
+  const c = lerTextoComprovante(await ocrImagem(buf));
+  return c && c.valor > 0 ? [normalizar(c)] : [];
 }
 
 // ---------- regra da baixa automática ----------
@@ -106,7 +93,7 @@ export function nomeBate(favorecido, parceiro) {
   return pf.length > 0 && pf.every((x) => pp.has(x));
 }
 export function contasExatas(c, titulos) {
-  if (!c?.data || !c?.valor || c.propria) return [];
+  if (!c?.data || !c?.valor || c.propria || c.agendado) return [];
   return titulos.filter((t) => iso(t.vencimento) === c.data && Math.abs(Number(t.valor) - c.valor) < 0.005 && nomeBate(c.favorecido, t.parceiro));
 }
 async function abertasNoDia(data) {
@@ -120,6 +107,7 @@ async function abertasNoDia(data) {
 // por que não baixou sozinho (texto do card amarelo)
 function motivoPendente(c, alvo, exatas) {
   if (!c.valor || !c.data) return "Não consegui ler valor e data do comprovante — informe e escolha a conta.";
+  if (c.agendado) return "Pix ainda AGENDADO / AGUARDANDO APROVAÇÃO no banco — confirme só depois que ele for pago.";
   if (c.propria) return "Transferência para a própria empresa — confira se é mesmo pagamento de conta.";
   if (exatas.length > 1) return `${exatas.length} contas com o mesmo valor, vencimento e fornecedor — escolha qual baixar.`;
   if (!alvo) return "Nenhuma conta em aberto com esse valor/fornecedor perto dessa data — escolha a conta ou rejeite.";
@@ -145,11 +133,11 @@ export async function receberComprovantes(u, arquivos) {
       if (!/^(application\/pdf|image\/(jpeg|png|heic|webp))$/.test(mime)) { linhas.push(`⚠️ ${nomeArq}: envie foto ou PDF.`); continue; }
       let buf = a0.buf;
       if (mime !== "application/pdf") { buf = await prepararImagem(buf, mime); mime = "image/jpeg"; }
-      // 1) relatório do Bradesco (texto do PDF, uma página por comprovante); 2) IA
+      // 1) relatório do Bradesco (texto do PDF, uma página por comprovante); 2) foto (OCR) ou PDF de outro banco, sem IA
       let comps = [];
       if (mime === "application/pdf") { try { comps = await lerComprovantes(nomeArq, buf); } catch { comps = []; } }
       const peloTexto = comps.length > 0;
-      if (!peloTexto) { try { comps = await lerPelaIA(buf, mime); } catch (e) { comps = []; linhas.push(`⚠️ Leitura pela IA falhou (${e.message}).`); } }
+      if (!peloTexto) { try { comps = await lerPeloTexto(buf, mime); } catch (e) { comps = []; linhas.push(`⚠️ Não consegui ler o comprovante (${e.message}).`); } }
       const b64 = buf.toString("base64");
       if (!comps.length) comps = [{ tipo: "OUTRO", data: null, valor: 0, favorecido: "", documento: "", naoLido: true }];
       for (const [i, c0] of comps.entries()) {
@@ -179,7 +167,7 @@ export async function receberComprovantes(u, arquivos) {
         const [an] = c.valor && c.data ? await analisarComprovantes([{ ...c, arquivo: arqNome, pagina: 1 }]) : [null];
         const alvo = an?.alvo || null;
         await prisma.finComprovanteEnvio.create({ data: { status: "PENDENTE", usuarioId: u.id, enviadoPor: quem, nome: arqNome, mime, tamanho: Math.floor(conteudo.length * 3 / 4), conteudo, hashArquivo: hA, hashChave, dados: c, tituloId: alvo?.id || null, motivo: motivoPendente(c, alvo, exatas) } });
-        linhas.push(`🟡 Pendente de confirmação: ${c.favorecido || "comprovante"}${c.valor ? ` · ${brl(c.valor)}` : ""}${c.data ? ` · ${dBR(c.data)}` : ""}.${alvo ? ` Sugestão: ${alvo.titulo}.` : " Sem conta sugerida."} Confirme no Contas a pagar.`);
+        linhas.push(`🟡 Pendente de confirmação: ${c.favorecido || "comprovante"}${c.valor ? ` · ${brl(c.valor)}` : ""}${c.data ? ` · ${dBR(c.data)}` : ""}.${c.agendado ? " Pix ainda aguardando aprovação." : ""}${alvo ? ` Sugestão: ${alvo.titulo}.` : " Sem conta sugerida."} Confirme no Contas a pagar.`);
       }
     } catch (e) { linhas.push(`⚠️ ${nomeArq}: ${e.message}`); }
   }
