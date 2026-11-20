@@ -65,7 +65,9 @@ export function lerTextoComprovante(texto) {
   const T = L.join("\n");
   if (!/R\$\s*[\d.]+,\d{2}/.test(T)) return null;
   const tipo = /\bpix\b/i.test(T) ? "PIX" : /boleto|c[oó]digo de barras|linha digit/i.test(T) ? "BOLETO" : /\bTED\b|\bDOC\b|transfer[eê]ncia/i.test(T) ? "TED" : /DARF|GPS|DAS\b|tributo|imposto|conv[eê]nio/i.test(T) ? "TRIBUTO" : "OUTRO";
-  const agendado = /aguardando aprova|agendad|agendamento (solicitado|realizado|efetuado)|pendente de aprova|em processamento|programad/i.test(T);
+  // v1029 — Inter: "Pix aguardando aprovação" é a aprovação interna da Meridian → vale como pago (baixa normal)
+  const inter = /banco inter\b|inter empresas/i.test(T);
+  const agendado = !inter && /aguardando aprova|agendad|agendamento (solicitado|realizado|efetuado)|pendente de aprova|em processamento|programad/i.test(T);
   // valor: linha "Valor …" (pago/total) → senão o primeiro R$
   const lv = L.find((l) => /^valor( (pago|total|da transa[cç][aã]o|do pix|transferido|cobrado))?\b/i.test(l) && /R?\$?\s*[\d.]+,\d{2}/.test(l));
   const mv = (lv && lv.match(/([\d.]+,\d{2})/)) || T.match(/R\$\s*([\d.]+,\d{2})/);
