@@ -128,7 +128,7 @@ export function cfopEntrada(cfopForn, fin) {
 const CREDITA = new Set(["101", "102", "401", "403", "910", "911", "124", "125", "201", "202", "410", "411", "352", "353"]);
 
 // ---------- montagem ----------
-export async function gerarEfd(competencia) {
+export async function gerarEfd(competencia, opcoes = {}) {
   const [ano, mes] = String(competencia).split("-").map(Number);
   if (!ano || !mes) throw new Error("Competência AAAA-MM?");
   const ini = new Date(Date.UTC(ano, mes - 1, 1)), fim = new Date(Date.UTC(ano, mes, 0));
@@ -141,16 +141,45 @@ export async function gerarEfd(competencia) {
   const sel = { id: true, tipo: true, modelo: true, numero: true, serie: true, chave: true, emissao: true, parceiro: true, documento: true, valor: true, motivo: true, acao: true,
     xml: true, temXml: true, ocId: true, estoqueEm: true, createdAt: true };
   const saidasDb = await prisma.fiscalNota.findMany({ where: { empresa: "MERIDIAN", tipo: "SAIDA", modelo: { in: ["NF-e"] }, emissao: { gte: ini, lte: fim } }, select: sel, orderBy: [{ emissao: "asc" }, { numero: "asc" }] });
-  // entrada: escriturada pela data de entrada (lançamento no estoque → baixa da OC → importação no sistema), nunca antes da emissão
-  const entradasCand = await prisma.fiscalNota.findMany({ where: { empresa: "MERIDIAN", tipo: "ENTRADA", modelo: { in: ["NF-e", "CT-e"] }, emissao: { lte: fim },
-    OR: [{ estoqueEm: { gte: ini, lt: fimDia } }, { createdAt: { gte: ini, lt: fimDia } }, { emissao: { gte: ini, lte: fim } }] }, select: sel, orderBy: [{ emissao: "asc" }] });
+  // entradas: Movimento fiscal + NFs do Compras + XMLs do Contas a pagar (a mesma chave vale uma vez, nessa ordem)
+  const janela = new Date(ini.getTime() - 90 * 86400e3);
+  const fnEnt = await prisma.fiscalNota.findMany({ where: { empresa: "MERIDIAN", tipo: "ENTRADA", modelo: { in: ["NF-e", "CT-e"] }, emissao: { gte: janela, lte: fim } }, select: sel, orderBy: [{ emissao: "asc" }] });
+  const vistas = new Set(fnEnt.map((n) => n.chave).filter(Boolean));
+  const entradasCand = [...fnEnt.map((n) => ({ ...n, origem: "MOVIMENTO FISCAL" }))];
+  const ncs = await prisma.notaFiscal.findMany({ where: { dataEmissao: { gte: janela, lte: fimDia }, temXml: true, modelo: "NFE" },
+    select: { id: true, numero: true, chave: true, dataEmissao: true, arquivoXml: true, createdAt: true, fornecedor: { select: { nome: true, razaoSocial: true } } } }).catch(() => []);
+  for (const n of ncs) {
+    if (!n.arquivoXml || (n.chave && vistas.has(n.chave))) continue;
+    if (n.chave) vistas.add(n.chave);
+    entradasCand.push({ id: `C${n.id}`, tipo: "ENTRADA", modelo: "NF-e", numero: n.numero, chave: n.chave, emissao: n.dataEmissao, parceiro: n.fornecedor?.razaoSocial || n.fornecedor?.nome || "",
+      xml: n.arquivoXml, temXml: true, ocId: null, estoqueEm: null, createdAt: n.createdAt, motivo: null, origem: "COMPRAS" });
+  }
+  const tts = await prisma.finTitulo.findMany({ where: { tipo: "PAGAR", arquivoXml: { not: null }, status: { not: "CANCELADO" }, OR: [{ emissao: { gte: janela, lte: fim } }, { emissao: null, vencimento: { gte: janela } }] },
+    select: { id: true, numeroDoc: true, parceiro: true, emissao: true, arquivoXml: true, createdAt: true } }).catch(() => []);
+  for (const t of tts) {
+    const m = /Id="NFe(\d{44})"/.exec(t.arquivoXml || "");
+    const ch = m?.[1];
+    if (!ch || vistas.has(ch)) continue;
+    if (ch.slice(6, 20) === so(emp.cnpj)) continue;   // nota da própria empresa
+    vistas.add(ch);
+    const em = /<dhEmi>(\d{4}-\d{2}-\d{2})/.exec(t.arquivoXml)?.[1] || /<dEmi>(\d{4}-\d{2}-\d{2})/.exec(t.arquivoXml)?.[1];
+    if (!em || em > isoD(fim) || em < isoD(janela)) continue;
+    entradasCand.push({ id: `T${t.id}`, tipo: "ENTRADA", modelo: "NF-e", numero: String(Number(ch.slice(25, 34))), chave: ch, emissao: new Date(`${em}T00:00:00Z`), parceiro: t.parceiro,
+      xml: t.arquivoXml, temXml: true, ocId: null, estoqueEm: null, createdAt: t.createdAt, motivo: null, origem: "CONTAS A PAGAR" });
+  }
   const ocIds = [...new Set(entradasCand.map((n) => n.ocId).filter(Boolean))];
   const ocs = ocIds.length ? await prisma.ordemCompra.findMany({ where: { id: { in: ocIds } }, select: { id: true, baixaEm: true } }) : [];
   const baixaOc = Object.fromEntries(ocs.map((o) => [o.id, o.baixaEm]));
+  // data de entrada: a do SPED já entregue (KM) para a mesma chave → lançamento no estoque → baixa da OC →
+  // importação no sistema (só se até 20 dias depois da emissão; importação tardia não é entrada) → emissão
+  const datasKm = opcoes.datasEntrada || {};
   const dataEntrada = (n) => {
-    const cand = [n.estoqueEm, n.ocId && baixaOc[n.ocId], n.createdAt].find(Boolean);
-    const d = cand ? new Date(cand.getTime() - 3 * 3600e3) : n.emissao;   // horário de Brasília
-    const s = isoD(d), e = isoD(n.emissao);
+    if (n.chave && datasKm[n.chave]) return datasKm[n.chave];
+    const e = isoD(n.emissao);
+    const br = (d) => isoD(new Date(d.getTime() - 3 * 3600e3));
+    let s = n.estoqueEm ? br(n.estoqueEm) : n.ocId && baixaOc[n.ocId] ? br(baixaOc[n.ocId]) : null;
+    if (!s && n.createdAt && e && (n.createdAt - new Date(`${e}T00:00:00Z`)) <= 20 * 86400e3) s = br(n.createdAt);
+    s = s || e;
     return e && s < e ? e : s;
   };
   const doMes = (s) => s && s >= isoD(ini) && s <= isoD(fim);
@@ -159,7 +188,7 @@ export async function gerarEfd(competencia) {
   const nfesEnt = entradasDb.filter((n) => n.modelo === "NF-e");
 
   // artigos ligados aos itens das NFs de entrada (OC corrigida pela NF, ou NF lançada no estoque)
-  const idsEnt = nfesEnt.map((n) => n.id);
+  const idsEnt = nfesEnt.map((n) => n.id).filter((x) => typeof x === "number");
   const ocLig = idsEnt.length ? await prisma.ocItem.findMany({ where: { nfItem: { not: null } }, select: { nfItem: true, artigoId: true } }) : [];
   const artPorItem = {};
   for (const o of ocLig) { const [f, i] = String(o.nfItem).split("|").map(Number); if (idsEnt.includes(f)) artPorItem[`${f}|${i}`] = o.artigoId; }
@@ -367,7 +396,8 @@ export async function gerarEfd(competencia) {
   return {
     competencia, versao, texto, criticas,
     resumo: {
-      saidas: saidasDb.length, entradas: nfesEnt.length, ctes: ctes.length, participantes: part.size, itens: itensCad.size, linhas: regs.length,
+      saidas: saidasDb.length, entradas: nfesEnt.length, porOrigem: nfesEnt.reduce((m, n) => ({ ...m, [n.origem]: (m[n.origem] || 0) + 1 }), {}),
+      datasDoArquivoGuardado: Object.keys(datasKm).length, ctes: ctes.length, participantes: part.size, itens: itensCad.size, linhas: regs.length,
       icmsDebitos: deb, icmsCreditos: cred, ipiDebitos: debIpi, ipiCreditos: credIpi,
       contagem: Object.fromEntries([...cont9.entries()].filter(([k]) => /^(0150|0200|C100|C170|C190|D100)$/.test(k))),
     },
@@ -399,7 +429,7 @@ export function lerResumoEfd(texto) {
 export function compararEfd(nosso, outro) {
   const a = lerResumoEfd(nosso), b = lerResumoEfd(outro);
   const so = [], soOutro = [], dif = [];
-  const fmt = (x) => ({ tipo: x.tipo, oper: x.oper, numero: x.numero, chave: x.chave, vlDoc: r2(x.vlDoc), icms: r2(x.icms), cfops: [...x.cfops].join(",") });
+  const fmt = (x) => ({ tipo: x.tipo, oper: x.oper, numero: x.numero, chave: x.chave, vlDoc: r2(x.vlDoc), icms: r2(x.icms), cfops: x.sit === "02" ? "CANCELADA" : [...x.cfops].join(",") });
   for (const [k, x] of a) {
     const y = b.get(k);
     if (!y) { so.push(fmt(x)); continue; }
@@ -420,4 +450,16 @@ export function compararEfd(nosso, outro) {
     },
     soNoErp: so, soNoOutro: soOutro, diferentes: dif,
   };
+}
+
+// datas de entrada (DT_E_S / DT_A_P) das entradas de um SPED já entregue, por chave
+export function datasEntradaEfd(texto) {
+  const m = {};
+  for (const l of String(texto).split(/\r?\n/)) {
+    const f = l.split("|");
+    const d = f[1] === "C100" && f[2] === "0" ? f[12] : f[1] === "D100" && f[2] === "0" ? f[12] : null;
+    const ch = f[1] === "C100" ? f[9] : f[1] === "D100" ? f[10] : null;
+    if (ch && /^\d{8}$/.test(d || "")) m[ch] = `${d.slice(4)}-${d.slice(2, 4)}-${d.slice(0, 2)}`;
+  }
+  return m;
 }
