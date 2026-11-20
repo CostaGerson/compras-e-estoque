@@ -33,3 +33,8 @@ v630 - DESCOBRIR a parte fiscal do KM (naturezas de operacao, CFOP, NCM, tributa
   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Tributario
   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Notas        (v1017: descobre o "Monta notas" do KM; gera km-notas.txt na Area de Trabalho)
   -> gera km-tributario.txt na Area de Trabalho; mande esse arquivo para o Claude montar a importacao.
+
+v1033 - DESCOBRIR o ESTOQUE do KM e o que ele usa no SPED (Bloco K: K200 estoque escriturado; Bloco H: inventario) - SO LEITURA
+  cd C:\projetos\compras-e-estoque ; git pull ; cd tools\km
+  powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Estoque
+  -> gera km-estoque.txt na Area de Trabalho; mande esse arquivo para o Claude.

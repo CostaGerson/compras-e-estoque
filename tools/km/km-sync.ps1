@@ -11,7 +11,7 @@
 #   powershell -ExecutionPolicy Bypass -File .\km-sync.ps1 -Produtos     (v595: manda o cadastro de itens do KM agora)
 # v521: clientes do KM vao sozinhos de hora em hora e quando alguem clica "Buscar do KM" na tela Clientes
 # v595: itens (produtos) do KM vao sozinhos de hora em hora (minuto 10)
-param([switch]$Configurar, [switch]$Previa, [switch]$Instalar, [switch]$Desinstalar, [int]$Minutos = 1, [switch]$Silencioso, [switch]$Clientes, [switch]$Produtos, [switch]$Tributario, [switch]$Notas)
+param([switch]$Configurar, [switch]$Previa, [switch]$Instalar, [switch]$Desinstalar, [int]$Minutos = 1, [switch]$Silencioso, [switch]$Clientes, [switch]$Produtos, [switch]$Tributario, [switch]$Notas, [switch]$Estoque)
 $ErrorActionPreference = "Stop"
 
 $pasta  = Join-Path $env:LOCALAPPDATA "km-sync"
@@ -153,6 +153,13 @@ if ($Tributario) {
 if ($Notas) {
   $arq = Join-Path ([Environment]::GetFolderPath("Desktop")) "km-notas.txt"
   if (RodarSql "km-notas-descobrir.sql" $arq) { Write-Host "Pronto: $arq  (mande esse arquivo para o Claude)"; Start-Process notepad.exe $arq }
+  exit 0
+}
+
+# v1033 - descobrir o ESTOQUE do KM e o que ele usa no SPED (Bloco K/H). SO LEITURA. Gera km-estoque.txt na Area de Trabalho.
+if ($Estoque) {
+  $arq = Join-Path ([Environment]::GetFolderPath("Desktop")) "km-estoque.txt"
+  if (RodarSql "km-estoque-descobrir.sql" $arq) { Write-Host "Pronto: $arq  (mande esse arquivo para o Claude)"; Start-Process notepad.exe $arq }
   exit 0
 }
 
