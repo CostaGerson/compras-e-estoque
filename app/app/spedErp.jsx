@@ -92,7 +92,7 @@ export default function SpedErp({ user, comp }) {
                 </div>
               )}
             </div>
-          ) : <div className="text-[11px]" style={{ color: C.sub }}>Suba o SPED do KM do mês no card SPED abaixo para comparar nota a nota.</div>}
+          ) : <div className="text-[11px]" style={{ color: C.sub }}>Para comparar nota a nota, suba o SPED do KM deste mês no card SPED da Contabilidade do mês seguinte (onde ele é entregue). O sistema acha o arquivo pelo período dentro dele.</div>}
         </div>
       )}
     </div>
