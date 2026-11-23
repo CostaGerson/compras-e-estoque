@@ -151,8 +151,9 @@ export function LocalTarefa({ user, local, hora, prazo, onChange }) {
         <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.text }}><MapPin size={14} style={{ color: C.blue }} /> Endereço da tarefa</span>
         <button type="button" onClick={() => { onChange(null); setAberto(false); }} className="text-[11px] flex items-center gap-0.5" style={{ color: C.sub }}><X size={12} /> tirar</button>
       </div>
-      <EnderecoMaps user={user} valor={l?.endereco || ""} onEscolher={(g) => onChange({ antecedenciaMin: 5, ...(l || {}), ...g, nome: g.nome || null, deslocMin: null, km: null })} />
+      <EnderecoMaps user={user} valor={l?.endereco || ""} onEscolher={(g) => onChange({ antecedenciaMin: 5, ...(l || {}), ...g, nome: g.nome || null, complemento: null, deslocMin: null, km: null })} />
       {l?.nome && <div className="text-[11px] mt-1" style={{ color: C.sub }}>{l.nome}</div>}
+      {l && <input value={l.complemento || ""} onChange={(e) => set({ complemento: e.target.value.slice(0, 80) })} placeholder="Complemento (sala, apto, bloco…) — opcional" className={`${inp} mt-1.5`} style={{ ...inpS, minHeight: 40 }} />}
       {l && <>
         <div className="mt-2"><BotoesNavegar local={l} compacto /></div>
         {!hora
@@ -161,7 +162,7 @@ export function LocalTarefa({ user, local, hora, prazo, onChange }) {
             <div className="text-xs mt-3 mb-1 font-semibold" style={{ color: C.text }}>De onde você vai sair?</div>
             <div className="flex flex-wrap gap-1.5">
               {favs.map((f) => { const on = l.origem?.favoritoId === f.id; return (
-                <button key={f.id} type="button" onClick={() => escolherOrigem({ endereco: f.endereco, lat: f.lat, lng: f.lng }, f)} className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1" style={on ? { background: C.navy, color: "#fff" } : { background: "#fff", color: C.text, border: `1px solid ${C.line}` }}>
+                <button key={f.id} type="button" onClick={() => escolherOrigem({ endereco: f.endereco, complemento: f.complemento || null, lat: f.lat, lng: f.lng }, f)} className="px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1" style={on ? { background: C.navy, color: "#fff" } : { background: "#fff", color: C.text, border: `1px solid ${C.line}` }}>
                   <Star size={12} /> {f.nome}</button>); })}
               <button type="button" onClick={() => setOutra(true)} className="px-3 py-2 rounded-lg text-xs font-semibold" style={l.origem && !l.origem.favoritoId ? { background: C.navy, color: "#fff" } : { background: "#fff", color: C.accent, border: `1px solid ${C.accent}` }}>
                 {l.origem && !l.origem.favoritoId ? "Outro endereço ✓" : "Outro endereço"}</button>
@@ -200,7 +201,7 @@ export function LocalDetalhe({ t }) {
   return (
     <div className="rounded-lg p-3 mb-3" style={{ background: C.blueSoft }}>
       <div className="flex items-start gap-1.5 text-sm mb-2" style={{ color: C.text }}><MapPin size={15} className="mt-0.5 shrink-0" style={{ color: C.blue }} />
-        <span className="min-w-0">{l.nome && <b className="block">{l.nome}</b>}<span>{l.endereco}</span>
+        <span className="min-w-0">{l.nome && <b className="block">{l.nome}</b>}<span>{l.endereco}</span>{l.complemento && <span className="block font-semibold">{l.complemento}</span>}
           {l.deslocMin != null && <span className="block text-xs mt-0.5" style={{ color: C.sub }}>{l.origem?.nome ? `De ${l.origem.nome}: ` : l.origem ? "Da origem: " : ""}{l.deslocMin} min{l.km != null ? ` · ${String(l.km).replace(".", ",")} km` : ""}{saida ? ` · sair às ${saida}` : ""} · chegar {l.antecedenciaMin ?? 5} min antes</span>}
         </span></div>
       <BotoesNavegar local={l} />
@@ -235,6 +236,7 @@ export default function EnderecosParticulares({ user }) {
         <label className="block text-xs mb-2" style={{ color: C.sub }}>Nome<input value={ed.nome} onChange={(e) => setEd({ ...ed, nome: e.target.value })} placeholder="CASA" className={`${inp} mt-1`} style={{ ...inpS, minHeight: 40 }} autoFocus /></label>
         <div className="text-xs mb-1" style={{ color: C.sub }}>Endereço</div>
         <EnderecoMaps user={user} valor={ed.endereco} onEscolher={(g) => setEd((x) => ({ ...x, endereco: g.endereco, lat: g.lat, lng: g.lng }))} />
+        <input value={ed.complemento || ""} onChange={(e) => setEd({ ...ed, complemento: e.target.value.slice(0, 80) })} placeholder="Complemento (sala, apto, bloco…) — opcional" className={`${inp} mt-2`} style={{ ...inpS, minHeight: 40 }} />
         <div className="flex justify-end gap-2 mt-3">
           <button onClick={() => setEd(null)} className="px-3 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Cancelar</button>
           <button onClick={salvar} disabled={st || !ed.lat || !ed.nome.trim()} className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ background: C.navy, color: "#fff" }}>{st ? "Salvando…" : "Salvar"}</button>
@@ -246,8 +248,8 @@ export default function EnderecosParticulares({ user }) {
           {l.map((x) => (
             <div key={x.id} className="flex items-center gap-3 px-3 py-2.5" style={{ borderTop: `1px solid ${C.line}` }}>
               <Star size={15} style={{ color: C.accent }} />
-              <div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: C.text }}>{x.nome}</div><div className="text-xs truncate" style={{ color: C.sub }}>{x.endereco}</div></div>
-              <button onClick={() => setEd({ id: x.id, nome: x.nome, endereco: x.endereco, lat: x.lat, lng: x.lng })} className="p-2" style={{ color: C.sub }} title="Editar"><Pencil size={15} /></button>
+              <div className="min-w-0 flex-1"><div className="text-sm font-semibold" style={{ color: C.text }}>{x.nome}</div><div className="text-xs truncate" style={{ color: C.sub }}>{x.endereco}{x.complemento ? ` · ${x.complemento}` : ""}</div></div>
+              <button onClick={() => setEd({ id: x.id, nome: x.nome, endereco: x.endereco, complemento: x.complemento || "", lat: x.lat, lng: x.lng })} className="p-2" style={{ color: C.sub }} title="Editar"><Pencil size={15} /></button>
               <button onClick={() => excluir(x)} className="p-2" style={{ color: C.red }} title="Excluir"><Trash2 size={15} /></button>
             </div>
           ))}

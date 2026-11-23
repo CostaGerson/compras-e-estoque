@@ -33,7 +33,7 @@ export async function enviarLembretes() {
     const lc = t.local && t.local.aceito && t.local.deslocMin != null ? t.local : null;
     if (lc) {
       await notificar(t.responsavelId, { titulo: `🚗 Hora de sair${falta > lc.deslocMin + (lc.antecedenciaMin ?? 5) + 2 ? ` em ${textoAntecedencia(falta - lc.deslocMin - (lc.antecedenciaMin ?? 5))}` : ""} · início ${diaT !== dia ? `${diaT.slice(8, 10)}/${diaT.slice(5, 7)} ` : ""}${t.hora}`,
-        texto: `${t.titulo}\n${lc.origem?.nome ? `${lc.origem.nome} → ` : ""}${lc.nome || lc.endereco} · ${lc.deslocMin} min${lc.km != null ? ` · ${String(lc.km).replace(".", ",")} km` : ""}`, url: "/?v=agenda", tag: `tarefa-${t.id}` }).catch((e) => console.log("lembrete:", e.message));
+        texto: `${t.titulo}\n${lc.origem?.nome ? `${lc.origem.nome} → ` : ""}${lc.nome || lc.endereco}${lc.complemento ? ` (${lc.complemento})` : ""} · ${lc.deslocMin} min${lc.km != null ? ` · ${String(lc.km).replace(".", ",")} km` : ""}`, url: "/?v=agenda", tag: `tarefa-${t.id}` }).catch((e) => console.log("lembrete:", e.message));
       n++; continue;
     }
     await notificar(t.responsavelId, { titulo: `⏰ Em ${falta ? textoAntecedencia(falta) : "instantes"} · ${diaT !== dia ? `${diaT.slice(8, 10)}/${diaT.slice(5, 7)} ` : ""}${t.hora}${t.horaFim ? `–${t.horaFim}` : ""}`, texto: t.titulo, url: "/?v=agenda", tag: `tarefa-${t.id}` }).catch((e) => console.log("lembrete:", e.message));

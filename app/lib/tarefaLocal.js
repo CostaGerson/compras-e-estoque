@@ -8,7 +8,7 @@ const ponto = (p) => {
   if (!p || typeof p !== "object") return null;
   const lat = num(p.lat), lng = num(p.lng), endereco = txt(p.endereco, 300);
   if (lat == null || lng == null || !endereco) return null;
-  return { endereco, lat, lng, ...(p.nome ? { nome: txt(p.nome, 80) } : {}), ...(p.favoritoId ? { favoritoId: Number(p.favoritoId) || null } : {}) };
+  return { endereco, lat, lng, ...(p.nome ? { nome: txt(p.nome, 80) } : {}), ...(p.complemento ? { complemento: txt(p.complemento, 80) } : {}), ...(p.favoritoId ? { favoritoId: Number(p.favoritoId) || null } : {}) };
 };
 const minDe = (h) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(h || "")); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
 const hhmm = (m) => { const x = ((Math.round(m) % 1440) + 1440) % 1440; return `${String(Math.floor(x / 60)).padStart(2, "0")}:${String(x % 60).padStart(2, "0")}`; };
@@ -28,7 +28,8 @@ export function limparLocal(b, hora) {
   const antecedenciaMin = Math.min(600, Math.max(0, Math.round(num(b.antecedenciaMin) ?? 5)));
   const origem = ponto(b.origem);
   const deslocMin = origem && num(b.deslocMin) != null ? Math.max(0, Math.round(num(b.deslocMin))) : null;
-  const local = { endereco: dest.endereco, lat: dest.lat, lng: dest.lng, ...(dest.nome ? { nome: dest.nome } : {}), antecedenciaMin, origem, deslocMin,
+  const complemento = txt(b.complemento, 80) || null;   // v1045 — sala, apto, bloco…
+  const local = { endereco: dest.endereco, lat: dest.lat, lng: dest.lng, ...(dest.nome ? { nome: dest.nome } : {}), ...(complemento ? { complemento } : {}), antecedenciaMin, origem, deslocMin,
     km: origem && num(b.km) != null ? Math.round(num(b.km) * 10) / 10 : null, aceito: !!(b.aceito && origem && deslocMin != null && hora) };
   const out = { local };
   if (local.aceito) { local.saida = saidaDe(hora, local); out.lembreteMin = Math.min(10080, deslocMin + antecedenciaMin); }
@@ -56,7 +57,7 @@ export async function salvarFavorito(u, b) {
   if (!p) return { error: "Escolha o endereço na lista do Google." };
   const nome = txt(b.nome, 60).toUpperCase();
   if (!nome) return { error: "Dê um nome ao endereço (ex.: CASA, FÁBRICA)." };
-  const data = { nome, endereco: p.endereco, lat: p.lat, lng: p.lng };
+  const data = { nome, endereco: p.endereco, complemento: txt(b.complemento, 80) || null, lat: p.lat, lng: p.lng };
   if (b.id) {
     const x = await prisma.enderecoParticular.findUnique({ where: { id: Number(b.id) || 0 } });
     if (!x || x.usuarioId !== u.id) return { error: "Endereço não encontrado." };

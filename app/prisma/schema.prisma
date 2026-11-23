@@ -2836,6 +2836,7 @@ model EnderecoParticular {
   usuarioId Int
   nome      String                     // CASA, FÁBRICA…
   endereco  String
+  complemento String?                  // v1045 — sala, apto, bloco…
   lat       Float
   lng       Float
   createdAt DateTime @default(now())
