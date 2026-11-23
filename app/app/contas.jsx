@@ -191,6 +191,52 @@ function Modal({ titulo, icone: Ico, onClose, children, largura = 620, rodape })
     </div>
   );
 }
+// v1065 — protesto de conta a pagar vencida: tabelionato (1º a 4º de BH), data máxima de pagamento e total a pagar
+//   (principal = valor da conta; taxas = total − principal → conta-caixa TAXAS DE PROTESTO na baixa)
+function BotaoProtesto({ t, user, onFeito }) {
+  const [ab, setAb] = useState(false);
+  const pr = t.protesto && typeof t.protesto === "object" ? t.protesto : null;
+  const principal = pr ? Number(pr.principal) : Number(t.valor);
+  const [f, setF] = useState({ cartorio: pr?.cartorio || 0, prazo: pr?.prazo || "", total: pr ? String(pr.total).replace(".", ",") : "" });
+  const [st, setSt] = useState(false);
+  const venc = t.status === "ABERTO" && t.vencimento < new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+  if (t.tipo !== "PAGAR" || t.status !== "ABERTO" || (!venc && !pr)) return null;
+  const tot = Number(String(f.total || "").replace(/\./g, "").replace(",", ".")) || 0;
+  const taxas = tot ? Math.round((tot - principal) * 100) / 100 : null;
+  const brl = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  async function salvar(sustar) {
+    if (sustar && !(await confirmar("Sustar/retirar o protesto? A conta volta ao valor, à conta-caixa e ao vencimento de antes."))) return;
+    setSt(true);
+    try { await api(`/api/fin/titulos/${t.id}`, "PATCH", { usuarioId: user.id, acao: "protesto", ...(sustar ? { sustar: true } : { cartorio: f.cartorio, prazo: f.prazo, total: f.total }) }); setAb(false); onFeito?.(); }
+    catch (e) { alerta(e.message); }
+    setSt(false);
+  }
+  return (
+    <>
+      <button onClick={() => setAb(true)} title={pr ? `Protestado no ${pr.cartorio}º Tabelionato · pagar até ${pr.prazo.split("-").reverse().join("/")}` : "Protesto (conta vencida)"} className="mr-2 text-[11px] font-black" style={{ color: pr ? C.red : "#B0B7C3" }}>P</button>
+      {ab && <Modal titulo={`Protesto · ${t.titulo}`} onClose={() => setAb(false)} largura={480}
+        rodape={<>{pr && <button onClick={() => salvar(true)} disabled={st} className="mr-auto text-sm font-semibold" style={{ color: C.red }}>Sustar / retirar protesto</button>}
+          <BtnS onClick={() => setAb(false)}>Cancelar</BtnS>
+          <BtnP onClick={() => salvar(false)} disabled={st || !f.cartorio || !f.prazo || !(tot >= principal)}>{st ? <Loader2 size={14} className="animate-spin" /> : null} Salvar protesto</BtnP></>}>
+        <div className="text-xs mb-3" style={{ color: C.sub }}>{t.parceiro} · vencida em {(t.vencimentoOriginal || t.vencimento).split("-").reverse().join("/")} · valor da conta <b style={{ color: C.text }}>{brl(principal)}</b></div>
+        <div className="text-xs font-semibold mb-1" style={{ color: C.sub }}>Tabelionato de Protesto de Títulos de BH</div>
+        <div className="grid grid-cols-4 gap-2 mb-3">
+          {[1, 2, 3, 4].map((n) => <button key={n} type="button" onClick={() => setF({ ...f, cartorio: n })} className="py-2 rounded-lg text-sm font-bold"
+            style={f.cartorio === n ? { background: C.navy, color: "#fff" } : { border: `1px solid ${C.line}`, color: C.text, background: "#fff" }}>{n}º</button>)}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-xs" style={{ color: C.sub }}>Data máxima de pagamento<input type="date" value={f.prazo} onChange={(e) => setF({ ...f, prazo: e.target.value })} className="block w-full mt-1 px-2 py-1.5 rounded-lg text-sm" style={{ border: `1px solid ${C.line}` }} /></label>
+          <label className="text-xs" style={{ color: C.sub }}>Valor total a pagar (R$)<input value={f.total} onChange={(e) => setF({ ...f, total: e.target.value })} inputMode="decimal" placeholder="0,00" className="block w-full mt-1 px-2 py-1.5 rounded-lg text-sm text-right font-semibold" style={{ border: `1px solid ${C.accent}` }} /></label>
+        </div>
+        {tot > 0 && <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
+          <div className="rounded-lg px-3 py-2" style={{ background: C.panel2 }}><div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>Principal · conta original</div><b>{brl(principal)}</b></div>
+          <div className="rounded-lg px-3 py-2" style={{ background: taxas < 0 ? C.redSoft : C.yellowSoft }}><div className="text-[10px] font-semibold uppercase" style={{ color: taxas < 0 ? C.red : C.yellow }}>Taxas · Taxas de protesto</div><b>{taxas < 0 ? "total menor que a conta" : brl(taxas)}</b></div>
+        </div>}
+        <div className="text-[11px] mt-3" style={{ color: C.sub }}>Ao salvar, a conta passa a valer o total, vence na data máxima e o rateio separa o principal (conta-caixa original) e as taxas (<b>2134100 TAXAS DE PROTESTO</b>, em 06. Impostos e juros da DRE). Na baixa, cada parte vai para a sua conta.</div>
+      </Modal>}
+    </>
+  );
+}
 const BtnP = ({ onClick, children, disabled }) => (
   <button onClick={onClick} disabled={disabled} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: disabled ? 0.5 : 1 }}>{children}</button>
 );
@@ -853,7 +899,8 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                           className="ml-1 underline" style={{ color: C.accent }} title="Redistribuir a diferença nas próximas parcelas do pedido">ajustar parcelas</button>}</div>}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap ce-tab-md" style={{ color: t.formaPagamento ? C.text : C.sub }}>{FORMAS_PGTO[t.formaPagamento] || t.formaPagamento || "—"}</td>
-                  <td className="px-3 py-2 ce-tab-pc"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: s.c, background: s.bg }}>{s.t}</span></td>
+                  <td className="px-3 py-2 ce-tab-pc"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ color: s.c, background: s.bg }}>{s.t}</span>
+                    {t.protesto && <div className="mt-0.5"><span className="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap" title={`${t.protesto.cartorio}º Tabelionato · pagar até ${String(t.protesto.prazo).split("-").reverse().join("/")} · taxas ${Number(t.protesto.taxas).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`} style={{ color: "#fff", background: C.red }}>Protestado · {t.protesto.cartorio}º Tab.</span></div>}</td>
                   <td className="px-3 py-2 ce-tab-md" title={`${fT} · ${t.criadoPorNome || "—"} · ${new Date(t.createdAt).toLocaleString("pt-BR")}${t.atualizadoPorNome ? ` · alterado por ${t.atualizadoPorNome}` : ""}`}>
                     {ehImportacao(t) ? (
                       <>
@@ -870,6 +917,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
                   <td className="px-3 py-2 whitespace-nowrap">
                     {P && t.status !== "PAGO" && t.status !== "CANCELADO" && t.chavePix && <span className="ce-tab-pc mr-2"><BotaoPix chave={t.chavePix} /></span>}
                     <BotaoObs t={t} user={user} onFeito={onMudou} />
+                    {P && <BotaoProtesto t={t} user={user} onFeito={onMudou} />}
                     {!P && <BotaoRecompra t={t} user={user} onFeito={onMudou} />}
                     {(t.status === "ABERTO" || antPendente(t)) && <button onClick={() => onBaixar(t)} title={antPendente(t) ? "Cliente pagou o título antecipado — baixar" : P ? "Registrar pagamento" : "Registrar recebimento"} className="mr-2" style={{ color: C.green }}><CheckCircle2 size={15} /></button>}
                     {t.status === "PAGO" && t.liquidacao !== "RECOMPRA" && <button onClick={async () => { if (!(await confirmaExcluirPgto(t, P))) return; onAcao(t, "estornar"); }}

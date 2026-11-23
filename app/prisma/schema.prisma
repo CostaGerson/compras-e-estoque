@@ -1132,6 +1132,7 @@ model FinTitulo {
   perdaData        DateTime? @db.Date
   perdaPorNome     String?
   perdaLancamentoId Int?                        // lançamento que leva a perda à DRE do mês
+  protesto         Json?                         // v1065 — título a pagar protestado: { cartorio, prazo, total, principal, taxas, rateioOrig, valorOrig, em, por }
   criadoPorId      Int?
   criadoPorNome    String?
   atualizadoPorNome String?

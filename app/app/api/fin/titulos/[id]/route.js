@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { usuarioMaster, negado } from "@/lib/fin";
 import { tituloOut, validarRateio, nomeU, r2, so, dataUTC, mesDe } from "@/lib/finTitulos";
 import { excluirTitulo } from "@/lib/finLote";
@@ -56,6 +57,54 @@ export async function PATCH(req, { params }) {
     if (!["MERIDIAN", "NORT"].includes(b.pagoPor)) return Response.json({ error: "Escolha Meridian ou NORT." }, { status: 400 });
     const n2 = await prisma.finTitulo.update({ where: { id }, data: { pagoPor: b.pagoPor, ...quem } });
     return Response.json(tituloOut(n2));
+  }
+  // v1065 — protesto (conta a pagar vencida): cartório, data máxima de pagamento e valor total a pagar.
+  //   Valor da conta = total; rateio = conta original proporcional ao principal + TAXAS DE PROTESTO (2134100) com as taxas.
+  //   "sustar" volta valor, rateio e vencimento de antes.
+  if (b.acao === "protesto") {
+    if (t.tipo !== "PAGAR") return Response.json({ error: "Protesto é só para contas a pagar." }, { status: 400 });
+    if (t.status !== "ABERTO") return Response.json({ error: "Só conta em aberto." }, { status: 400 });
+    const ant = t.protesto && typeof t.protesto === "object" ? t.protesto : null;
+    const notas = Array.isArray(t.notas) ? [...t.notas] : [];
+    const em = new Date().toISOString(), por = nomeU(u);
+    const brl = (v) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    if (b.sustar) {
+      if (!ant) return Response.json({ error: "A conta não está protestada." }, { status: 400 });
+      const hist = Array.isArray(t.reprogramacoes) ? [...t.reprogramacoes] : [];
+      const dVolta = ant.vencAntes ? dataUTC(ant.vencAntes) : t.vencimento;
+      if (ant.vencAntes && ant.vencAntes !== t.vencimento.toISOString().slice(0, 10)) hist.push({ de: t.vencimento.toISOString().slice(0, 10), para: ant.vencAntes, em, por, desfeito: true });
+      notas.push({ texto: `PROTESTO SUSTADO/RETIRADO (${ant.cartorio}º Tabelionato). Valor volta a ${brl(ant.principal)}.`, por, em });
+      const n = await prisma.finTitulo.update({ where: { id }, data: { protesto: Prisma.DbNull, valor: ant.principal, rateio: ant.rateioOrig || t.rateio, vencimento: dVolta,
+        ...(t.recorrenciaId ? {} : { competencia: mesDe(dVolta.toISOString().slice(0, 10)) }), ...(ant.vencOrigAntes === null ? { vencimentoOriginal: null } : {}), reprogramacoes: hist, notas, ...quem } });
+      return Response.json(tituloOut(n));
+    }
+    const cart = Number(b.cartorio);
+    if (![1, 2, 3, 4].includes(cart)) return Response.json({ error: "Escolha o tabelionato (1º a 4º)." }, { status: 400 });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.prazo || ""))) return Response.json({ error: "Informe a data máxima de pagamento." }, { status: 400 });
+    const principal = r2(ant ? ant.principal : Number(t.valor));
+    const total = r2(Number(String(b.total ?? "").replace(/\./g, "").replace(",", ".")) || Number(b.total) || 0);
+    if (!(total > 0)) return Response.json({ error: "Informe o valor total a pagar no cartório." }, { status: 400 });
+    if (total + 0.001 < principal) return Response.json({ error: `O total (${brl(total)}) é menor que o valor da conta (${brl(principal)}).` }, { status: 400 });
+    const taxas = r2(total - principal);
+    const conta = await prisma.finConta.findUnique({ where: { codigo: "2134100" } }) || await prisma.finConta.create({ data: { codigo: "2134100", nome: "TAXAS DE PROTESTO" } });
+    const rateioOrig = ant?.rateioOrig || (Array.isArray(t.rateio) ? t.rateio : []);
+    const base = rateioOrig.filter((x) => Number(x.contaId) !== conta.id);
+    const somaBase = base.reduce((s0, x) => s0 + Number(x.pct || 0), 0) || 100;
+    const r6 = (v) => Math.round(v * 1e6) / 1e6;   // % com 6 casas: principal e taxas fecham no centavo
+    let rateio = base.map((x) => ({ contaId: Number(x.contaId), pct: r6((Number(x.pct) / somaBase) * (principal / total) * 100) }));
+    if (taxas > 0) rateio.push({ contaId: conta.id, pct: r6((taxas / total) * 100) });
+    rateio = rateio.filter((x) => x.pct > 0);
+    const dif = r6(100 - rateio.reduce((s0, x) => s0 + x.pct, 0));
+    if (rateio.length && dif) rateio[0].pct = r6(rateio[0].pct + dif);   // arredondamento fecha em 100%
+    const vAtual = t.vencimento.toISOString().slice(0, 10);
+    const hist = Array.isArray(t.reprogramacoes) ? [...t.reprogramacoes] : [];
+    if (b.prazo !== vAtual) hist.push({ de: vAtual, para: b.prazo, em, por, motivo: "protesto" });
+    const protesto = { cartorio: cart, prazo: b.prazo, total, principal, taxas, rateioOrig, em, por,
+      vencAntes: ant ? ant.vencAntes : vAtual, vencOrigAntes: ant ? ant.vencOrigAntes : (t.vencimentoOriginal ? t.vencimentoOriginal.toISOString().slice(0, 10) : null) };
+    notas.push({ texto: `PROTESTADO no ${cart}º Tabelionato de Protesto de Títulos de BH · pagar até ${b.prazo.split("-").reverse().join("/")} · total ${brl(total)} (principal ${brl(principal)} + taxas ${brl(taxas)}).`, por, em });
+    const n = await prisma.finTitulo.update({ where: { id }, data: { protesto, valor: total, rateio, vencimento: dataUTC(b.prazo),
+      ...(t.recorrenciaId ? {} : { competencia: mesDe(b.prazo) }), ...(t.vencimentoOriginal ? {} : { vencimentoOriginal: t.vencimento }), reprogramacoes: hist, notas, ...quem } });
+    return Response.json(tituloOut(n));
   }
   if (b.acao === "baixar") {
     const vp = r2(b.valorPago ?? t.valor);
