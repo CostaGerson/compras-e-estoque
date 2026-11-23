@@ -16,6 +16,14 @@ async function ler(tipo) {
 export async function GET(req) {
   const sp = new URL(req.url).searchParams;
   const u = await usuarioAtivoFin(sp.get("u"));
+  // v1062 — lista das artes (nome + custo total por peça) para a FPP: qualquer usuário ativo
+  if (u && sp.get("artes")) {
+    const t = TIPOS.includes(sp.get("artes")) ? sp.get("artes") : "DTF";
+    const d = await ler(t);
+    const { calcLinha } = await import("@/lib/custoImpressao");
+    const totalM = calcMetro(t, d.params).c.total;
+    return Response.json({ tipo: t, artes: d.linhas.filter((l) => String(l.nome || "").trim() && !/METRO LINEAR/i.test(l.nome)).map((l) => ({ nome: String(l.nome).trim().toUpperCase(), custo: Math.round(calcLinha(l, totalM).total * 10000) / 10000 })) });
+  }
   if (!u || !gerencial(u)) return Response.json({ error: "Sem acesso." }, { status: 403 });
   const tipo = TIPOS.includes(sp.get("tipo")) ? sp.get("tipo") : "SUBLIMACAO";
   const d = await ler(tipo);

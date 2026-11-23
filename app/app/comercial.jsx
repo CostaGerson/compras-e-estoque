@@ -2136,8 +2136,11 @@ function ArteInput({ value, onChange, qtde, rotulo = "arte", className, style, t
   return <input value={value || ""} onFocus={() => { ini.current = value; }} onChange={(e) => onChange(e.target.value)} onBlur={sair} inputMode="decimal" className={className} style={style} title={title} />;
 }
 
+let _artesDtf = null;   // v1062 — artes de DTF com o custo (Análises operacionais › DTF)
 function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT }) {
   const pc = silkPorCorDe(params);
+  const [artesDtf, setArtesDtf] = useState(_artesDtf || []);
+  useEffect(() => { if (!_artesDtf && user?.id && lista.some((a) => a.metodo === "DTF")) fetch(`/api/producao/custoImpressao?u=${user.id}&artes=DTF`).then((r) => r.json()).then((x) => { _artesDtf = x.artes || []; setArtesDtf(_artesDtf); }).catch(() => {}); }, [lista.some((a) => a.metodo === "DTF")]);
   const locais = locaisDaPeca(item);   // v693 — calça: laterais e bolsos
   const novoUid = () => Math.random().toString(36).slice(2, 10);
   const add = () => onChange([...lista, { uid: novoUid(), metodo: "SILK", local: locais[0][0], cores: 1, valor: "", interno: true }]);
@@ -2184,6 +2187,18 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT
                         title={a.local === "TOTAL" ? "Total: quantas peças saem em 1 metro de papel (o mesmo metro de malha)" : "Peças por metro de papel neste local (vazio = padrão do banco de dados)"}
                         className="w-1/2 min-w-0 h-full px-2 rounded text-sm" style={{ ...sel, borderColor: a.local === "TOTAL" && !(num(a.papel) > 0) ? C.accent : C.line }} />
                       <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" placeholder="R$/pç" title="Outros custos por peça (terceirizado: o valor cobrado)" className="w-1/2 min-w-0 h-full px-2 rounded text-sm" style={sel} />
+                    </div>)
+                : a.metodo === "DTF"   // v1062 — arte de DTF da lista (custo das Análises operacionais) ou "Outros" com o valor digitado
+                  ? lbl("Arte DTF · R$/peça", <div className="flex gap-1 w-full h-full">
+                      <select value={a.dtfArte || (a.valor ? "__outros" : "")} onChange={(e) => { const v = e.target.value; const x = artesDtf.find((y) => y.nome === v);
+                          onChange(lista.map((b, j) => (j !== i ? b : v === "__outros" ? { ...b, dtfArte: null } : x ? { ...b, dtfArte: x.nome, valor: String(x.custo).replace(".", ",") } : { ...b, dtfArte: null, valor: "" }))); }}
+                        className={`${a.dtfArte ? "w-full" : "w-3/5"} min-w-0 h-full px-1 rounded text-xs`} style={sel} title="Artes de DTF com o custo por peça (Análises operacionais › DTF)">
+                        <option value="">— arte —</option>
+                        {artesDtf.map((x) => <option key={x.nome} value={x.nome}>{x.nome} · {brl(x.custo)}</option>)}
+                        {a.dtfArte && !artesDtf.some((x) => x.nome === a.dtfArte) && <option value={a.dtfArte}>{a.dtfArte}</option>}
+                        <option value="__outros">Outros (digitar valor)</option>
+                      </select>
+                      {!a.dtfArte && <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" placeholder="R$/pç" className="w-2/5 min-w-0 h-full px-2 rounded text-sm" style={sel} />}
                     </div>)
                 : lbl(a.metodo === "BORDADO" ? "R$/aplicação" : "R$/peça", <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" className="w-full h-full px-2 rounded text-sm" style={sel} />)}
               {temArte
