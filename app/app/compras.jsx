@@ -545,7 +545,7 @@ function BuscaPedido({ valor, cliente, onEscolher, sel, rotulo = "Pedido (nº ou
 
 // v493 — etapa de cada item da avulsa (mesma régua do painel de compras)
 const ETAPA_AV = { LEVANTAMENTO: ["Pendente", "#3D6799", "#EEF3FB"], ESTOQUE: ["Atendido pelo estoque", C.green, C.greenSoft], REPROVADO: ["Vai para compra", C.red, C.redSoft],
-  EM_COTACAO: ["Em cotação", C.accent, C.accentSoft], AGUARDANDO_NF: ["Aguardando NF", C.yellow, C.yellowSoft], EM_COLETA: ["Em coleta", C.blue, C.blueSoft],
+  SEM_COTACAO: ["Aguardando cotação", "#B54708", "#FEF0C7"], EM_COTACAO: ["Em cotação", C.accent, C.accentSoft], AGUARDANDO_NF: ["Aguardando NF", C.yellow, C.yellowSoft], EM_COLETA: ["Em coleta", C.blue, C.blueSoft],
   EM_TRANSPORTADORA: ["Em entrega transportadora", "#4F46E5", "#EEF2FF"], ENTREGA_FORNECEDOR: ["Entrega do fornecedor", "#0E9384", "#E6F6F4"], RECEBIDA: ["Recebida", C.green, C.greenSoft],
   PIC: ["Em cotação", C.accent, C.accentSoft], OC: ["Aguardando NF", C.yellow, C.yellowSoft], NF: ["NF emitida", C.yellow, C.yellowSoft], ENTREGUE: ["Recebida", C.green, C.greenSoft] };
 function EtapaItemAv({ i }) {
@@ -1950,7 +1950,8 @@ function ArquivosNfOc({ o, onMudou }) {
 
 // ---------- v486 — painel de compras: tudo que está em PIC e a etapa de cada item ----------
 const ETAPAS_PRE = [["LEVANTAMENTO", "Pendente", "#3D6799", "#EEF3FB"], ["ESTOQUE", "Atendido pelo estoque", C.green, C.greenSoft], ["REPROVADO", "Vai para compra", C.red, C.redSoft]];   // v495
-const ETAPAS = [["EM_COTACAO", "Em cotação", C.accent, C.accentSoft], ["AGUARDANDO_NF", "Aguardando NF", C.yellow, C.yellowSoft], ["EM_COLETA", "Em coleta", C.blue, C.blueSoft],
+const ETAPAS = [["SEM_COTACAO", "Aguardando cotação", "#B54708", "#FEF0C7"], ["EM_COTACAO", "Em cotação", C.accent, C.accentSoft],   // v1044 — no PIC sem cotação gerada
+  ["AGUARDANDO_NF", "Aguardando NF", C.yellow, C.yellowSoft], ["EM_COLETA", "Em coleta", C.blue, C.blueSoft],
   ["EM_TRANSPORTADORA", "Em entrega transportadora", "#4F46E5", "#EEF2FF"], ["ENTREGA_FORNECEDOR", "Entrega do fornecedor", "#0E9384", "#E6F6F4"], ["RECEBIDA", "Recebida", C.green, C.greenSoft]];
 export function PainelCompras({ ir, soAvulsas, acoes }) {   // v495 — soAvulsas: o mesmo painel só com as compras avulsas
   const [l, setL] = useState(null);
@@ -1996,7 +1997,8 @@ export function PainelCompras({ ir, soAvulsas, acoes }) {   // v495 — soAvulsa
           </div>
           {vis.map((i) => {
             const e = [...ETAPAS_PRE, ...ETAPAS].find((x) => x[0] === i.etapa) || ETAPAS[0];
-            const cotTxt = i.etapa === "EM_COTACAO" ? (i.cotacoes.length ? `${i.cotacoes.filter((c) => c.s === "VALOR").length}/${i.cotacoes.length} cotação(ões) respondida(s)${i.cotacoes.length && i.cotacoes.every((c) => c.s === "NAO_TEM") ? " · ninguém tem" : ""}` : "cotação não gerada") : null;
+            const cotTxt = i.etapa === "EM_COTACAO" ? (i.cotacoes.length ? `${i.cotacoes.filter((c) => c.s === "VALOR").length}/${i.cotacoes.length} cotação(ões) respondida(s)${i.cotacoes.length && i.cotacoes.every((c) => c.s === "NAO_TEM") ? " · ninguém tem" : ""}` : "cotação não gerada")
+              : i.etapa === "SEM_COTACAO" ? (!Number(i.quantidade) ? "sem quantidade · ajuste no PIC" : !i.fornecedor ? "sem fornecedor · gere no PIC" : "gere a cotação no PIC") : null;   // v1044
             return (
               <div key={i.id} className="flex px-4 py-2 gap-3 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
                 <div className="flex-1 min-w-0"><div className="font-semibold truncate" style={{ color: C.text }}>{i.nome} <span className="text-xs font-normal" style={{ color: C.sub }}>{i.det}</span></div>
@@ -2019,7 +2021,7 @@ export function PainelCompras({ ir, soAvulsas, acoes }) {   // v495 — soAvulsa
                 <div className="w-36 min-w-0 text-center">
                   <span className="text-[10px] font-semibold px-1.5 py-px rounded whitespace-nowrap" style={{ background: e[3], color: e[2] }}>{e[1]}</span>
                   <div className="text-[10px] mt-0.5 truncate" style={{ color: C.sub }}>
-                    {cotTxt}
+                    {i.etapa === "SEM_COTACAO" && i.pic ? <button onClick={() => (ir ? irPara(ir, "pic", i.pic) : setJan({ tipo: "pic", numero: i.pic }))} className="underline decoration-dotted" style={{ color: "#B54708" }} title="Abrir o PIC para gerar a cotação">{cotTxt}</button> : cotTxt}
                     {i.etapa === "EM_COLETA" && (i.rota ? `rota ${dBR(i.rota.data).slice(0, 5)} · ${ST_ROTA[i.rota.status] || i.rota.status}${i.rota.blocoId ? ` R${i.rota.blocoId}` : ""}` : "sem rota de coleta")}
                     {["EM_TRANSPORTADORA", "ENTREGA_FORNECEDOR", "AGUARDANDO_NF"].includes(i.etapa) && i.previsao ? `previsão ${dBR(i.previsao)}` : ""}
                   </div>

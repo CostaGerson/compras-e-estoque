@@ -271,6 +271,7 @@ export async function painelDemandas({ avulsasAbertas = false, soAvulsas = true 
       else if (oc.formaRecebimento === "ENTREGA_PROPRIA") etapa = "ENTREGA_FORNECEDOR";
       else etapa = "EM_COLETA";
     }
+    if (etapa === "EM_COTACAO" && !(cotPor[i.id] || []).length) etapa = "SEM_COTACAO";   // v1044 — no PIC, mas nenhuma cotação gerada para o item
     if (oc) previsao = entregaDaOc(oc, rotas[oc.id])?.previsao || null;   // v497 — mesma previsão da OC
     return { id: i.id, pic: i.pic.numero, picData: i.pic.data, nome: inf.nome || `Artigo #${i.artigoId}`, det: [inf.cor, inf.codigo].filter(Boolean).join(" · "), quantidade: Number(i.quantidade), unidade: inf.unidade,
       pedidos: [...new Set((inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${String(x.cliente || "").split("·")[0].replace("AVULSA", "").trim() || x.pedido}` : `Ped. ${x.pedido}${x.cliente ? ` · ${String(x.cliente).trim()}` : ""}`)))],   // v999 — com o cliente
