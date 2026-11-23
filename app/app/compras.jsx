@@ -1276,6 +1276,28 @@ export function PicCompras({ user, fases, ir }) {
   const alvo = alvoGeral;
   const linha = (i) => { const v = val(i); const f = porNome[v.fornecedor.trim().toUpperCase()]; return { id: i.id, fornecedorId: f ? f.id : (v.fornecedor.trim() ? undefined : null), valorUnitario: v.valor, quantidade: v.qtd, nomeForn: v.fornecedor,
     fornecedoresCotacao: v.extras.map((n) => porNome[String(n || "").trim().toUpperCase()]).filter(Boolean).map((x) => ({ id: x.id, nome: nomeFornec(x) })) }; };
+  // v1061 — salvar só o que foi alterado (fornecedor, valor, quantidade, fornecedores extras), em qualquer guia
+  const editados = (pid) => todosPic.flatMap((p) => p.itens.filter((i) => !i.oc && ed[i.id] && (pid == null || p.id === pid)).map((i) => ({ ...i, picNumero: p.numero })));
+  const [salvando, setSalvando] = useState(false);
+  async function salvarEdicoes(pid = null) {
+    const alvo = editados(pid);
+    if (!alvo.length) return;
+    const its = alvo.map(linha);
+    const semCad = its.filter((x) => x.fornecedorId === undefined);
+    if (semCad.length) return alerta(`Fornecedor não encontrado no cadastro: ${[...new Set(semCad.map((x) => x.nomeForn))].join(", ")}. Escolha um da lista (ou use "Cadastrar").`);
+    const extraFora = alvo.flatMap((i) => val(i).extras).filter((n) => String(n || "").trim() && !porNome[String(n).trim().toUpperCase()]);
+    if (extraFora.length) return alerta(`Fornecedor para cotação fora do cadastro: ${[...new Set(extraFora)].join(", ")}. Escolha da lista.`);
+    setSalvando(true);
+    const r = await fetch("/api/compras/pic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "salvarItens", itens: its.map(({ nomeForn, ...x }) => ({ ...x, fornecedorId: x.fornecedorId || null })) }) });
+    const x = await r.json().catch(() => ({}));
+    setSalvando(false);
+    if (!r.ok) return alerta(x.error || "Não foi possível salvar.");
+    const ids = new Set(alvo.map((i) => String(i.id)));
+    const resto = Object.fromEntries(Object.entries(ed).filter(([k]) => !ids.has(String(k))));   // as alterações de outros PICs continuam na tela
+    await carregar(); setEd(resto);
+  }
+  // avisa ao sair da página com alteração sem salvar
+  useEffect(() => { const n = Object.keys(ed).length; if (!n) return; const f = (e) => { e.preventDefault(); e.returnValue = ""; }; window.addEventListener("beforeunload", f); return () => window.removeEventListener("beforeunload", f); }, [ed]);
   async function acaoItens(acao, alvo = alvoGeral) {   // v527 — alvo: itens escolhidos (barra de baixo) ou os do PIC (barra do PIC)
     const its = (acao === "salvarItens" ? todosAbertos : alvo).map(linha);
     const semCad = its.filter((x) => x.fornecedorId === undefined);
@@ -1340,7 +1362,8 @@ export function PicCompras({ user, fases, ir }) {
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {/* v1047 — guias no padrão das OCs: em andamento (com itens sem OC e fora de cotação), baixados (tudo em OC) e todos */}
       <Guias abas={[["andamento", `Em andamento (${(l || []).length})`, Clock], ["baixados", `Baixados (${todosPic.filter(picConcluido).length})`, PackageCheck], ["todos", "Todos", Layers]]} atual={guia} onChange={setGuia}
-        direita={<button onClick={carregar} title="Atualizar" className="p-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>} />
+        direita={<>{(() => { const n = Object.keys(ed).length; return <button disabled={!n || salvando} onClick={() => salvarEdicoes()} title="Salva fornecedor, valor, quantidade e fornecedores extras alterados" className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5 disabled:opacity-50" style={n ? { background: C.accent, color: "#fff" } : { border: `1px solid ${C.line}`, color: C.sub, background: C.panel }}>{salvando ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} {n ? `Salvar alterações (${n})` : "Salvo"}</button>; })()}
+          <button onClick={carregar} title="Atualizar" className="p-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button></>} />
       {l && !(guia === "andamento" ? l : guia === "baixados" ? todosPic.filter(picConcluido) : todosPic).length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>{guia === "andamento" ? "Nenhum PIC em andamento. Gere pelo Cruzamento com estoque (botão Gerar PIC)." : "Nenhum PIC aqui."}</div>}
       {emCot > 0 && <div className="text-xs mb-3 flex items-center gap-2" style={{ color: C.sub }}>{emCot} item(ns) com cotação gerada estão em Cotações.{ir && <button onClick={() => ir("comprasCotacoes")} className="underline" style={{ color: C.accent }}>Abrir cotações</button>}</div>}
       {cot && <CotacaoModal cot={cot} onClose={() => setCot(null)} />}
@@ -1362,6 +1385,7 @@ export function PicCompras({ user, fases, ir }) {
               <div className="flex-1 min-w-0"><span className="text-xs font-bold px-2 py-0.5 rounded mr-2" style={{ background: fundoPic, color: corPic }}>{p.numero}</span><span className="text-xs" style={{ color: C.sub }}> {new Date(p.data).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}{p.criadoPorNome ? ` por ${p.criadoPorNome}` : ""} · {p.itens.length} artigo(s)</span></div>
               <div className="text-right"><div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>Total</div><div className="text-base font-bold" style={{ color: C.navy }}>{brl(tot)}</div></div>
               <Chip cor={corPic} fundo={fundoPic}>{abertos.length ? `${abertos.length} sem cotação` : "em cotação / OC"}</Chip>
+              {editados(p.id).length > 0 && <button onClick={(e) => { e.stopPropagation(); salvarEdicoes(p.id); }} disabled={salvando} title="Salvar as alterações deste PIC" className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}><CheckCircle2 size={13} /> Salvar ({editados(p.id).length})</button>}   {/* v1061 */}
               <button onClick={(e) => { e.stopPropagation(); setFotoPic({ ...p, itens: p.itens.map((i) => ({ ...i, _forn: val(i).fornecedor, _valor: lerNum(val(i).valor), _qtd: lerNum(val(i).qtd) ?? Number(i.quantidade) })) }); }} title="Card do PIC em imagem (copiar, PNG ou PDF)" className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.line}`, color: C.text, background: C.panel }}><ImagePlus size={13} /> Card</button>   {/* v1054 */}
               {abertos.length > 0 && (() => {   // v527 — cotação e OC deste PIC: os marcados dele, ou todos os sem OC
                 const doPic = abertos.map((i) => ({ ...i, picNumero: p.numero }));
