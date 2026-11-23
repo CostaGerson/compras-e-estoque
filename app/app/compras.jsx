@@ -1234,6 +1234,7 @@ export function PicCompras({ user, fases, ir }) {
   const [todosPic, setTodosPic] = useState([]);   // v1047 — PICs completos (guias Baixados e Todos)
   const [guia, setGuia] = useState("andamento");
   const [abPic, setAbPic] = useState({});
+  const [fotoPic, setFotoPic] = useState(null);   // v1054 — card do PIC em imagem
   const carregar = () => fetch("/api/compras/pic").then((r) => r.json()).then((x) => {
     const todos = Array.isArray(x) ? x : [];
     setTodosPic(todos);
@@ -1337,6 +1338,7 @@ export function PicCompras({ user, fases, ir }) {
       {l && !(guia === "andamento" ? l : guia === "baixados" ? todosPic.filter(picConcluido) : todosPic).length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>{guia === "andamento" ? "Nenhum PIC em andamento. Gere pelo Cruzamento com estoque (botão Gerar PIC)." : "Nenhum PIC aqui."}</div>}
       {emCot > 0 && <div className="text-xs mb-3 flex items-center gap-2" style={{ color: C.sub }}>{emCot} item(ns) com cotação gerada estão em Cotações.{ir && <button onClick={() => ir("comprasCotacoes")} className="underline" style={{ color: C.accent }}>Abrir cotações</button>}</div>}
       {cot && <CotacaoModal cot={cot} onClose={() => setCot(null)} />}
+      {fotoPic && <PicFotoModal p={fotoPic} onClose={() => setFotoPic(null)} />}
       {novoForn && <NovoFornecedorModal nome={novoForn.nome} onClose={() => setNovoForn(null)} onCriado={(f) => {
         _fornPic = [...forns, f]; setForns(_fornPic); set(novoForn.item, "fornecedor", nomeFornec(f)); setNovoForn(null);
       }} />}
@@ -1354,6 +1356,7 @@ export function PicCompras({ user, fases, ir }) {
               <div className="flex-1 min-w-0"><span className="text-xs font-bold px-2 py-0.5 rounded mr-2" style={{ background: fundoPic, color: corPic }}>{p.numero}</span><span className="text-xs" style={{ color: C.sub }}> {new Date(p.data).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}{p.criadoPorNome ? ` por ${p.criadoPorNome}` : ""} · {p.itens.length} artigo(s)</span></div>
               <div className="text-right"><div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>Total</div><div className="text-base font-bold" style={{ color: C.navy }}>{brl(tot)}</div></div>
               <Chip cor={corPic} fundo={fundoPic}>{abertos.length ? `${abertos.length} sem cotação` : "em cotação / OC"}</Chip>
+              <button onClick={(e) => { e.stopPropagation(); setFotoPic({ ...p, itens: p.itens.map((i) => ({ ...i, _forn: val(i).fornecedor, _valor: lerNum(val(i).valor), _qtd: lerNum(val(i).qtd) ?? Number(i.quantidade) })) }); }} title="Card do PIC em imagem (copiar, PNG ou PDF)" className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.line}`, color: C.text, background: C.panel }}><ImagePlus size={13} /> Card</button>   {/* v1054 */}
               {abertos.length > 0 && (() => {   // v527 — cotação e OC deste PIC: os marcados dele, ou todos os sem OC
                 const doPic = abertos.map((i) => ({ ...i, picNumero: p.numero }));
                 const marc = doPic.filter((i) => sel.has(i.id));
@@ -1369,7 +1372,7 @@ export function PicCompras({ user, fases, ir }) {
             </div>
             {abertoPic && <>
             <div className="flex px-4 py-2 text-xs font-semibold gap-2" style={{ color: C.sub, background: C.panel2 }}>
-              <div className="w-5">{abertos.length > 0 && <input type="checkbox" title="Marcar todos deste PIC" checked={abertos.every((i) => sel.has(i.id))} onChange={(e) => setSel((s0) => { const n = new Set(s0); abertos.forEach((i) => (e.target.checked ? n.add(i.id) : n.delete(i.id))); return n; })} />}</div><div className="flex-1">Artigo</div><div className="w-28 text-right">Quantidade</div><div className="w-56">Fornecedor</div><div className="w-28 text-right">Valor unit.</div><div className="w-28 text-right">Total</div>
+              <div className="w-5">{abertos.length > 0 && <input type="checkbox" title="Marcar todos deste PIC" checked={abertos.every((i) => sel.has(i.id))} onChange={(e) => setSel((s0) => { const n = new Set(s0); abertos.forEach((i) => (e.target.checked ? n.add(i.id) : n.delete(i.id))); return n; })} />}</div><div className="flex-1">Artigo</div><div className="w-28 text-right">Quantidade</div><div className="w-56">Fornecedor</div><div className="w-28 text-right">Valor unit.</div><div className="w-28 text-right">Total</div><div className="w-7" />
             </div>
             {p.itens.map((i) => {
               const v = val(i), trav = !!i.oc, inf = i.info || {};
@@ -1383,7 +1386,6 @@ export function PicCompras({ user, fases, ir }) {
                       {(inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${x.cliente?.split("·")[0]?.replace("AVULSA", "").trim() || x.pedido}` : rotOrigem(x))).filter((x, k, a) => a.indexOf(x) === k).join(" · ")}
                       {inf.embalagem ? ` · grosa de ${inf.embalagem}` : ""}
                     </div>
-                    <div className="mt-0.5"><BotaoDispensar origens={inf.pedidos} user={user} onFeito={carregar} /></div>
                     {(i.cotacoes || []).length > 0 && !trav && (   // v484 — como está a cotação deste item
                       <div className="text-[11px] mt-0.5 flex flex-wrap gap-1">
                         {i.semCotacao && <span className="font-semibold px-1.5 rounded" style={{ background: C.redSoft, color: C.red }}>nenhum fornecedor tem · escolha outro e cote de novo</span>}
@@ -1406,6 +1408,7 @@ export function PicCompras({ user, fases, ir }) {
                       </div>}</div>
                   <div className="w-28 text-right">{trav ? brl(i.valorUnitario) : <input value={v.valor} onChange={(e) => set(i, "valor", e.target.value)} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} />}</div>
                   <div className="w-28 text-right font-semibold" style={{ color: C.navy }}>{lerNum(v.valor) && lerNum(v.qtd) ? brl(lerNum(v.valor) * lerNum(v.qtd)) : "—"}</div>
+                  <div className="w-7 flex justify-end"><BotaoDispensar origens={inf.pedidos} user={user} onFeito={carregar} /></div>   {/* v1054 — D à direita do valor */}
                 </div>
               );
             })}
@@ -1598,6 +1601,84 @@ async function desenharCotacao(g, pic) {
   x.fillStyle = "#3e5066"; x.font = "22px Arial"; x.fillText("Compras Meridian · Belo Horizonte / MG", P, y + 34); x.fillText("meridianpro.com.br", P, y + 66);
   x.strokeStyle = "#ee6500"; x.setLineDash([10, 10]); x.lineWidth = 3; x.beginPath(); x.moveTo(P, H - 60); x.lineTo(W - P, H - 60); x.stroke(); x.setLineDash([]);
   return cv;
+}
+// v1054 — card do PIC em imagem, no padrão do card da cotação: artigos, origens, quantidade, fornecedor, valores e situação
+async function desenharPic(p) {
+  const W = 1400, P = 56, LH = 26;
+  const c0 = document.createElement("canvas"); const x0 = c0.getContext("2d");
+  const quebra = (ctx, t, w) => { const ps = String(t || "").split(/\s+/); const ls = []; let l = ""; for (const q of ps) { const n = l ? `${l} ${q}` : q; if (ctx.measureText(n).width > w && l) { ls.push(l); l = q; } else l = n; } if (l) ls.push(l); return ls.length ? ls : [""]; };
+  const col = { n: P, art: P + 44, qtd: 860, forn: 890, vu: 1150, tot: W - P };
+  const wArt = col.qtd - 150 - col.art;
+  const origem = (i) => [...new Set((i.info?.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${String(x.cliente || "").split("·")[0].replace("AVULSA", "").trim() || x.pedido}` : `Ped. ${x.pedido}${x.cliente ? ` · ${String(x.cliente).trim()}` : ""}`)))].join(" · ");
+  const situ = (i) => (i.oc ? `${i.oc.numero}` : (i.cotacoes || []).length && !i.semCotacao ? `${(i.cotacoes || []).map((c) => c.numero).filter((v, k, a) => a.indexOf(v) === k).join(", ")}` : "sem cotação");
+  const linhas = p.itens.map((i) => {
+    x0.font = "600 22px Arial"; const a = quebra(x0, i.info?.nome || `Artigo #${i.artigoId}`, wArt);
+    x0.font = "18px Arial"; const d = quebra(x0, [[i.info?.cor, i.info?.codigo].filter(Boolean).join(" · "), origem(i)].filter(Boolean).join(" — "), wArt);
+    x0.font = "18px Arial"; const f = quebra(x0, i._forn || "—", col.vu - 130 - col.forn);
+    return { i, a, d, f, h: Math.max(60, 18 + a.length * LH + d.length * 22, 18 + f.length * 22 + 24) };
+  });
+  const total = p.itens.reduce((s0, i) => s0 + (i._valor || 0) * (i._qtd || 0), 0);
+  const H = 250 + 60 + linhas.reduce((s0, l) => s0 + l.h, 0) + 150;
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H; const x = cv.getContext("2d");
+  x.fillStyle = "#ffffff"; x.fillRect(0, 0, W, H); x.fillStyle = "#0c2342"; x.fillRect(0, 0, W, 14);
+  const logo = await logoCot();
+  if (logo) { const h = 44, w = (logo.naturalWidth || 4117) / (logo.naturalHeight || 601) * h; x.drawImage(logo, P, 50, w, h); }
+  else { x.fillStyle = "#0c2342"; x.font = "800 40px Arial"; x.fillText("MERIDIAN", P, 88); }
+  x.textAlign = "right"; x.fillStyle = "#ee6500"; x.font = "700 22px Arial"; x.fillText("PEDIDO INTERNO DE COMPRA", W - P, 68);
+  x.fillStyle = "#667085"; x.font = "20px Arial"; x.fillText(`${new Date(p.data).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}${p.criadoPorNome ? ` · ${p.criadoPorNome}` : ""}`, W - P, 98); x.textAlign = "left";
+  x.fillStyle = "#0c2342"; x.font = "700 40px Arial"; x.fillText(p.numero, P, 170);
+  x.fillStyle = "#3e5066"; x.font = "22px Arial"; x.fillText(`${p.itens.length} artigo(s) · ${p.status === "OC" ? "todos em OC" : `${p.itens.filter((i) => !i.oc).length} sem OC`}`, P, 206);
+  let y = 250;
+  x.fillStyle = "#f1f6fe"; x.fillRect(P - 16, y, W - P * 2 + 32, 50);
+  x.fillStyle = "#3d6799"; x.font = "700 18px Arial";
+  x.fillText("#", col.n, y + 32); x.fillText("ARTIGO / ORIGEM", col.art, y + 32); x.fillText("FORNECEDOR / SITUAÇÃO", col.forn, y + 32);
+  x.textAlign = "right"; x.fillText("QUANTIDADE", col.qtd, y + 32); x.fillText("VALOR UNIT.", col.vu + 110, y + 32); x.fillText("TOTAL", col.tot, y + 32); x.textAlign = "left";
+  y += 60;
+  const brlS = (n) => (n ? n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—");
+  linhas.forEach((l, k) => {
+    x.fillStyle = "#ee6500"; x.font = "700 22px Arial"; x.fillText(String(k + 1), col.n, y + 26);
+    x.fillStyle = "#0c2342"; x.font = "600 22px Arial"; l.a.forEach((t, j) => x.fillText(t, col.art, y + 26 + j * LH));
+    x.fillStyle = "#667085"; x.font = "18px Arial"; l.d.forEach((t, j) => x.fillText(t, col.art, y + 26 + l.a.length * LH + j * 22));
+    x.fillStyle = "#0c2342"; x.font = "18px Arial"; l.f.forEach((t, j) => x.fillText(t, col.forn, y + 24 + j * 22));
+    const st = situ(l.i); x.fillStyle = l.i.oc ? "#12A150" : st === "sem cotação" ? "#B54708" : "#C08401"; x.font = "700 16px Arial"; x.fillText(st, col.forn, y + 24 + l.f.length * 22 + 4);
+    x.textAlign = "right"; x.fillStyle = "#0c2342"; x.font = "700 24px Arial"; x.fillText(qtdU(l.i._qtd, l.i.info?.unidade), col.qtd, y + 28);
+    x.font = "20px Arial"; x.fillText(brlS(l.i._valor), col.vu + 110, y + 28);
+    x.font = "700 22px Arial"; x.fillText(brlS((l.i._valor || 0) * (l.i._qtd || 0)), col.tot, y + 28); x.textAlign = "left";
+    y += l.h; x.strokeStyle = "#e4e7ec"; x.lineWidth = 2; x.beginPath(); x.moveTo(P - 16, y - 8); x.lineTo(W - P + 16, y - 8); x.stroke();
+  });
+  y += 30;
+  x.textAlign = "right"; x.fillStyle = "#667085"; x.font = "20px Arial"; x.fillText("TOTAL DO PIC", col.tot - 260, y + 6); x.fillStyle = "#0c2342"; x.font = "800 32px Arial"; x.fillText(brlS(total), col.tot, y + 8); x.textAlign = "left";
+  x.strokeStyle = "#ee6500"; x.setLineDash([10, 10]); x.lineWidth = 3; x.beginPath(); x.moveTo(P, H - 50); x.lineTo(W - P, H - 50); x.stroke(); x.setLineDash([]);
+  return cv;
+}
+function PicFotoModal({ p, onClose }) {
+  const [img, setImg] = useState(null);
+  const [cv, setCv] = useState(null);
+  const [msg, setMsg] = useState("");
+  useEffect(() => { desenharPic(p).then((c) => { setCv(c); setImg(c.toDataURL("image/png")); }); }, []);
+  const nomeArq = `${p.numero.replace(/\s+/g, "")}-meridian`;
+  const blob = () => new Promise((ok) => cv.toBlob(ok, "image/png"));
+  const baixar = (href, nome) => { const a = document.createElement("a"); a.href = href; a.download = nome; a.click(); };
+  async function copiar() { try { await navigator.clipboard.write([new ClipboardItem({ "image/png": blob() })]); setMsg("Imagem copiada!"); setTimeout(() => setMsg(""), 2500); } catch { alerta("O navegador não deixou copiar a imagem. Use Baixar PNG."); } }
+  async function pdf() {
+    try { const { jsPDF } = await carregarJsPdf(); const w = 297, h = (cv.height / cv.width) * w; const d = new jsPDF({ unit: "mm", format: [w, Math.max(h, 100)], orientation: h > w ? "portrait" : "landscape" }); d.addImage(img, "PNG", 0, 0, w, h); d.save(`${nomeArq}.pdf`); }
+    catch { alerta("Não consegui gerar o PDF. Use Baixar PNG."); }
+  }
+  async function compartilhar() { try { const f = new File([await blob()], `${nomeArq}.png`, { type: "image/png" }); await navigator.share({ files: [f], title: p.numero }); } catch {} }
+  const podeShare = typeof navigator !== "undefined" && !!navigator.canShare && (() => { try { return navigator.canShare({ files: [new File([""], "a.png", { type: "image/png" })] }); } catch { return false; } })();
+  const b = "text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1";
+  return (
+    <Modal titulo={`${p.numero} · card em imagem`} onClose={onClose} largo>
+      {img ? <img src={img} alt={p.numero} className="w-full rounded" style={{ border: `1px solid ${C.line}` }} /> : <div className="flex items-center gap-2 text-sm py-6" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Montando…</div>}
+      {img && <div className="flex flex-wrap items-center gap-2 mt-2">
+        {podeShare && <button onClick={compartilhar} className={b} style={{ background: "#25D366", color: "#fff" }}>Compartilhar</button>}
+        <button onClick={copiar} className={b} style={{ background: C.navy, color: "#fff" }}><Copy size={13} /> Copiar imagem</button>
+        <button onClick={() => baixar(img, `${nomeArq}.png`)} className={b} style={{ border: `1px solid ${C.line}`, color: C.text }}>Baixar PNG</button>
+        <button onClick={pdf} className={b} style={{ border: `1px solid ${C.line}`, color: C.text }}><FileText size={13} /> Baixar PDF</button>
+        {msg && <span className="text-xs font-semibold" style={{ color: C.green }}>{msg}</span>}
+      </div>}
+    </Modal>
+  );
 }
 let _jspdf = null;
 const carregarJsPdf = () => (_jspdf ||= new Promise((ok, nok) => { if (window.jspdf) return ok(window.jspdf); const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"; sc.onload = () => ok(window.jspdf); sc.onerror = nok; document.head.appendChild(sc); }));
