@@ -251,9 +251,36 @@ async function concluirRecebimento(pp, cliente) {
 }
 
 export const ST_PORTAL = {
-  EM_ABERTO: "Em aberto", RECEBENDO_DETALHES: "Recebendo detalhes", LIBERADO: "Liberado para produção", EM_PRODUCAO: "Em produção", FINALIZADO: "Finalizado", CANCELADO: "Cancelado",
+  EM_ABERTO: "Em aberto", RECEBENDO_DETALHES: "Recebendo detalhes", LIBERADO: "Liberado para produção", EM_PRODUCAO: "Em produção", FINALIZADO: "Finalizado",
+  DESPACHADO: "Despachado", ENTREGUE: "Entregue", CANCELADO: "Cancelado",
 };
-const statusDe = (p) => (p.status === "CANCELADO" ? "CANCELADO" : p.status === "FATURADO" ? "FINALIZADO" : p.efetivadoEm ? "EM_PRODUCAO" : p.portalStatus || "LIBERADO");
+// v1074 — faturado (ou sem NF) → FINALIZADO; com código de rastreio → DESPACHADO; o cliente marca → ENTREGUE
+const statusDe = (p, pv) => (p.status === "CANCELADO" ? "CANCELADO" : p.entregueEm ? "ENTREGUE" : p.rastreio ? "DESPACHADO"
+  : p.status === "FATURADO" || pv?.status === "FATURADO" || pv?.semNota ? "FINALIZADO" : p.efetivadoEm ? "EM_PRODUCAO" : p.portalStatus || "LIBERADO");
+
+// v1074 — interno: grava (ou apaga) o código de rastreio do pedido do portal
+export async function gravarRastreio(numero, codigo, quem) {
+  const pp = await prisma.pp.findFirst({ where: { numero: String(numero), portalClienteId: { not: null }, status: { not: "EXCLUIDO" } }, orderBy: { id: "desc" },
+    select: { id: true, portalClienteId: true, rastreio: true } });
+  if (!pp) return { error: "Este pedido não é do portal do cliente." };
+  const cod = String(codigo || "").trim().toUpperCase().slice(0, 120);
+  await prisma.pp.update({ where: { id: pp.id }, data: cod
+    ? { rastreio: cod, despachadoEm: new Date(), despachadoPor: quem || null }
+    : { rastreio: null, despachadoEm: null, despachadoPor: null, entregueEm: null, entreguePor: null } });
+  return { ok: true, rastreio: cod || null };
+}
+// v1074 — portal: o cliente (Loja Way) marca o pedido despachado como entregue ao cliente final (ou desfaz)
+export async function marcarEntregue(cliente, ppId, u, valor = true) {
+  const pp = await prisma.pp.findFirst({ where: { id: Number(ppId) || 0, portalClienteId: cliente.id }, select: { id: true, rastreio: true, status: true, numero: true, portalNumero: true } });
+  if (!pp) return { error: "Pedido não encontrado." };
+  if (valor) {
+    const pv = pp.numero ? await prisma.pedidoVenda.findFirst({ where: { numero: pp.numero }, select: { status: true, semNota: true } }) : null;
+    if (!pp.rastreio && pp.status !== "FATURADO" && pv?.status !== "FATURADO" && !pv?.semNota) return { error: "O pedido ainda não foi despachado." };
+  }
+  await prisma.pp.update({ where: { id: pp.id }, data: valor ? { entregueEm: new Date(), entreguePor: nomeU(u) || null } : { entregueEm: null, entreguePor: null } });
+  if (valor) await avisar(u, cliente, pp.id, `pedido marcado como ENTREGUE ao cliente final${pp.numero ? ` (pedido Meridian ${pp.numero})` : ""}`).catch(() => null);
+  return { ok: true };
+}
 
 // valores do pedido: CMV = valor da FPP × peças · vendido = valor vendido × peças · MC = vendido − CMV
 export function valoresPedido(itens, fppValor) {
@@ -271,7 +298,7 @@ export function valoresPedido(itens, fppValor) {
 
 export async function pedidosDoCliente(clienteId, cliente) {
   await numerarAntigos(clienteId).catch(() => null);
-  const sel = { id: true, numero: true, portalNumero: true, portalLiberadoEm: true, status: true, createdAt: true, efetivadoEm: true, dtDespacho: true, oc: true, portalEnviadoPor: true, clienteFinal: true, portalStatus: true, portalEnviadoEm: true, portalObs: true,
+  const sel = { id: true, numero: true, portalNumero: true, portalLiberadoEm: true, status: true, createdAt: true, efetivadoEm: true, dtDespacho: true, oc: true, portalEnviadoPor: true, clienteFinal: true, portalStatus: true, portalEnviadoEm: true, portalObs: true, rastreio: true, despachadoEm: true, entregueEm: true, entreguePor: true,
     itens: { select: { descricao: true, gradeJson: true, dadosUnitarios: true, quantidade: true, valorUnitario: true, valorVenda: true, fppId: true, itemPadraoId: true }, orderBy: { id: "asc" } } };
   let pps = await prisma.pp.findMany({ where: { portalClienteId: clienteId, status: { not: "EXCLUIDO" } }, orderBy: { createdAt: "desc" }, take: 300, select: sel });
   const { ppsRecebendoDetalhes } = await import("@/lib/dadosLink");
@@ -289,15 +316,19 @@ export async function pedidosDoCliente(clienteId, cliente) {
   const fppValor = Object.fromEntries(fpps.filter((f) => f.valorProposto != null).map((f) => [f.id, f.valorProposto]));
   const links = await prisma.dadoUnitarioLink.findMany({ where: { ppId: { in: pps.map((p) => p.id) } }, select: { ppId: true, itemIdx: true, limite: true, token: true, aberto: true, id: true } });
   const js = (s) => { try { return JSON.parse(s || "[]"); } catch { return []; } };
+  const nums = pps.filter((p) => p.efetivadoEm && p.numero).map((p) => p.numero);   // v1074 — faturado / sem NF vem do pedido de venda
+  const pvs = nums.length ? await prisma.pedidoVenda.findMany({ where: { numero: { in: nums } }, select: { numero: true, status: true, semNota: true } }) : [];
+  const pvDe = Object.fromEntries(pvs.map((v) => [v.numero, v]));
   return pps.map((p) => {
-    const st = statusDe(p);
+    const st = statusDe(p, p.numero ? pvDe[p.numero] : null);
     const v = valoresPedido(p.itens, fppValor);
     const cf = p.clienteFinal || null;
     const lks = links.filter((l) => l.ppId === p.id);
     return {
       id: p.id, numero: fmtNumPortal(p.portalNumero), numeroMeridian: p.efetivadoEm ? p.numero : null, status: st, situacao: ST_PORTAL[st] || st,
       lancadoEm: p.portalEnviadoEm || p.createdAt, criadoEm: p.createdAt,
-      despacho: ["LIBERADO", "EM_PRODUCAO", "FINALIZADO"].includes(st) ? p.dtDespacho : null,   // v714 — só depois de ir para a produção
+      despacho: ["LIBERADO", "EM_PRODUCAO", "FINALIZADO", "DESPACHADO", "ENTREGUE"].includes(st) ? p.dtDespacho : null,
+      rastreio: p.rastreio || null, despachadoEm: p.despachadoEm || null, entregueEm: p.entregueEm || null, entreguePor: p.entreguePor || null,   // v1074   // v714 — só depois de ir para a produção
       liberadoEm: p.portalLiberadoEm || null, leadTime: Math.max(0, ...p.itens.map((i) => (i.fppId && leadDe[i.fppId]) || 0)), oc: p.oc, obs: p.portalObs, enviadoPor: p.portalEnviadoPor,
       cliente: cf ? (cf.tipo === "PJ" ? cf.razaoSocial : cf.nome) || "" : "", clienteFinal: cf,
       editavel: !p.efetivadoEm && p.status === "EM_LANCAMENTO", recebendoDetalhes: st === "RECEBENDO_DETALHES",

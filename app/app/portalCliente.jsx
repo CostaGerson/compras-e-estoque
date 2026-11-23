@@ -40,7 +40,8 @@ const pctTxt = (p) => (p == null ? "" : `${String(p).replace(".", ",")}%`);
 const entregaEm = (dias) => (dias > 0 ? new Date(Date.now() + dias * 86400000).toLocaleDateString("pt-BR") : "");   // lead time em dias corridos
 export const STATUS = {
   EM_ABERTO: ["Em aberto", C.yellow, C.yellowSoft], RECEBENDO_DETALHES: ["Recebendo detalhes", C.accent, C.accentSoft], LIBERADO: ["Liberado para produção", C.blue, C.blueSoft],
-  EM_PRODUCAO: ["Em produção", C.green, C.greenSoft], FINALIZADO: ["Finalizado", C.navy, C.steelSoft], CANCELADO: ["Cancelado", C.sub, C.panel2],
+  EM_PRODUCAO: ["Em produção", C.green, C.greenSoft], FINALIZADO: ["Finalizado", C.navy, C.steelSoft],
+  DESPACHADO: ["Despachado", C.accent, C.accentSoft], ENTREGUE: ["Entregue", C.green, C.greenSoft], CANCELADO: ["Cancelado", C.sub, C.panel2],   // v1074
 };
 const Chip = ({ s }) => { const [t, c, f] = STATUS[s] || [s, C.sub, C.panel2]; return <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap" style={{ background: f, color: c }}>{t}</span>; };
 const paraLocal = (d) => { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); };
@@ -342,7 +343,11 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
         const p = d.pedidos.find((x) => x.id === detalhe);
         return p ? <DetalhePedido p={p} user={user} tamanhos={tamanhos} nomeCliente={d.cliente.nome} mobile={mobile} onFechar={() => setDetalhe(null)} onEditar={() => editar(p.id)}
           onExcluir={() => excluirPedido(p)}
-          salvarItem={async (k, body) => { const j = await api("/api/portal", { method: "PUT", body: JSON.stringify({ ppId: p.id, idx: k, ...body }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); }} /> : null;
+          salvarItem={async (k, body) => { const j = await api("/api/portal", { method: "PUT", body: JSON.stringify({ ppId: p.id, idx: k, ...body }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); }}
+          onEntregue={async (valor) => {   // v1074 — o cliente marca o pedido despachado como entregue
+            if (!(await confirmar(valor ? "Marcar este pedido como ENTREGUE ao cliente final?" : "Desfazer o \"entregue\" deste pedido?"))) return;
+            try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ acao: "entregue", ppId: p.id, valor }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); } catch (e) { alerta(e.message); }
+          }} /> : null;
       })()}
     </div>
   );
@@ -442,6 +447,7 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
             <div className="flex items-center gap-2"><b style={{ color: C.navy }}>{p.numero || "sem nº"}</b><Chip s={p.status} /><span className="ml-auto text-[11px]" style={{ color: C.sub }}>{dBR(p.lancadoEm)}</span></div>
             <div className="text-xs mt-1 font-semibold">{p.cliente || "—"}</div>
             <div className="text-[11px] mt-1" style={{ color: C.sub }}>{p.pecas} pç · CMV {money(p.cmv)} · vendido {money(p.venda)} · MC <b style={{ color: p.mc >= 0 ? C.green : C.red }}>{money(p.mc)}</b>{p.despacho ? ` · despacho ${p.despacho}` : ""}</div>
+            {p.rastreio && <div className="text-[11px] mt-1" style={{ color: C.text }}>Rastreio <b className="font-mono">{p.rastreio}</b></div>}
           </button>
         ))
       ) : (
@@ -462,7 +468,8 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
                   <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: p.mc >= 0 ? C.green : C.red }}>{money(p.mc)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: p.mc >= 0 ? C.green : C.red }}>{pctTxt(p.mcPct) || "—"}</td>
                   <td className="px-3 py-2.5 whitespace-nowrap">{p.despacho || <span style={{ color: C.sub }}>{p.leadTime ? "após liberar" : "—"}</span>}</td>
-                  <td className="px-3 py-2.5"><Chip s={p.status} />{p.status === "RECEBENDO_DETALHES" && p.limite && <div className="text-[10px] mt-0.5" style={{ color: C.sub }}>até {limiteTxt(p.limite)}</div>}</td>
+                  <td className="px-3 py-2.5"><Chip s={p.status} />{p.status === "RECEBENDO_DETALHES" && p.limite && <div className="text-[10px] mt-0.5" style={{ color: C.sub }}>até {limiteTxt(p.limite)}</div>}
+                    {p.rastreio && <div className="text-[11px] mt-0.5 font-mono font-semibold whitespace-nowrap" style={{ color: C.text }} title="Código de rastreio">{p.rastreio}</div>}</td>
                   <td className="px-2">{p.editavel && <button onClick={(e) => { e.stopPropagation(); onExcluir(p); }} title="Excluir pedido" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
                 </tr>
               ))}
@@ -481,7 +488,7 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
 }
 
 // v711 — dados gerais do pedido + edição
-function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEditar, onExcluir, salvarItem }) {
+function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEditar, onExcluir, salvarItem, onEntregue }) {
   const url = (t) => `${typeof window !== "undefined" ? window.location.origin : ""}/dados/${t}`;
   const copiar = async (t) => { try { await navigator.clipboard.writeText(url(t)); alerta("Link copiado."); } catch { window.prompt("Copie o link:", url(t)); } };
   return (
@@ -489,6 +496,8 @@ function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEdi
       rodape={<>
         {p.editavel && <button onClick={onExcluir} className="mr-auto flex items-center gap-1 px-3 py-2 rounded-lg text-sm" style={{ color: C.red, border: `1px solid ${C.line}` }}><Trash2 size={14} /> Excluir</button>}
         <button onClick={onFechar} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Fechar</button>
+        {(p.status === "DESPACHADO" || p.status === "FINALIZADO") && <button onClick={() => onEntregue(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-sm" style={{ background: C.green, color: "#fff" }}><Package size={14} /> Marcar como entregue</button>}
+        {p.status === "ENTREGUE" && <button onClick={() => onEntregue(false)} className="px-3 py-2 rounded-lg text-sm" style={{ color: C.sub, border: `1px solid ${C.line}` }}>Desfazer entregue</button>}
         {p.editavel && <button onClick={onEditar} className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-sm" style={{ background: C.accent, color: "#fff" }}><Pencil size={14} /> Editar pedido</button>}
       </>}>
       <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -498,6 +507,15 @@ function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEdi
       </div>
       <ResumoValores v={{ pecas: p.pecas, cmv: p.cmv, venda: p.venda, mc: p.mc, mcPct: p.mcPct, lead: p.leadTime }} mobile={mobile} despacho={p.despacho} />
       {p.liberadoEm && <div className="text-xs mt-2" style={{ color: C.sub }}>Liberado para a produção em <b style={{ color: C.text }}>{dBR(p.liberadoEm)}</b></div>}
+      {p.rastreio && (   // v1074 — despachado com código de rastreio
+        <div className="flex flex-wrap items-center gap-2 mt-2 text-xs rounded-lg px-3 py-2" style={{ background: p.entregueEm ? C.greenSoft : C.accentSoft }}>
+          <span style={{ color: C.sub }}>Despachado{p.despachadoEm ? ` em ${dBR(p.despachadoEm)}` : ""} · rastreio</span>
+          <b className="font-mono" style={{ color: C.text }}>{p.rastreio}</b>
+          <button onClick={async () => { try { await navigator.clipboard.writeText(p.rastreio); alerta("Código copiado."); } catch { window.prompt("Copie o código:", p.rastreio); } }} className="flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Copy size={12} /> copiar</button>
+          {p.entregueEm && <span className="font-semibold" style={{ color: C.green }}>Entregue em {dBR(p.entregueEm)}{p.entreguePor ? ` por ${p.entreguePor}` : ""}</span>}
+        </div>
+      )}
+      {!p.rastreio && p.entregueEm && <div className="text-xs mt-2 font-semibold" style={{ color: C.green }}>Entregue em {dBR(p.entregueEm)}{p.entreguePor ? ` por ${p.entreguePor}` : ""}</div>}
       {p.clienteFinal && <div className="mt-3"><ClienteFinalResumo c={p.clienteFinal} /></div>}
       {p.obs && <div className="text-xs mt-2"><span style={{ color: C.sub }}>Observações:</span> {p.obs}</div>}
       <div className="mt-4 text-xs font-bold uppercase tracking-wide" style={{ color: C.sub }}>Itens</div>

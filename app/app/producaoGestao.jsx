@@ -301,6 +301,67 @@ function LixeiraPedidos({ user, onClose, onRestaurado }) {
   );
 }
 
+// v1073 — pedido SEM NF: contas a receber lançadas à mão (sugestão pelo prazo de pagamento do pedido, editável)
+function SemNfModal({ numero, user, onClose, onFim }) {
+  const [d, setD] = useState(null);
+  const [linhas, setLinhas] = useState([]);
+  const [erro, setErro] = useState("");
+  const [salv, setSalv] = useState(false);
+  const post = (b) => fetch("/api/producao/gestao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ numero, autorNome: nomeU(user), ...b }) }).then((x) => x.json()).catch(() => ({ error: "falha de conexão" }));
+  useEffect(() => { post({ acao: "semNotaPrevia" }).then((r) => { if (r.error) return setErro(r.error); setD(r); setLinhas(r.parcelas.length ? r.parcelas.map((x) => ({ valor: String(x.valor.toFixed(2)).replace(".", ","), venc: x.venc, obs: "" })) : [{ valor: "", venc: new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10), obs: "" }]); }); }, [numero]);
+  const nv = (s) => Number(String(s || "").replace(/\./g, "").replace(",", ".")) || 0;
+  const soma = Math.round(linhas.reduce((a, l) => a + nv(l.valor), 0) * 100) / 100;
+  const set = (i, k, v) => setLinhas((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
+  async function gravar() {
+    setErro("");
+    const ps = linhas.map((l) => ({ valor: nv(l.valor), venc: l.venc, obs: l.obs }));
+    if (ps.some((l) => !(l.valor > 0) || !l.venc)) return setErro("Preencha valor e vencimento de todas as parcelas.");
+    if (d && Math.abs(soma - d.aFaturar) > 0.01 && !(await confirmar(`A soma das parcelas (${brl(soma)}) é diferente do valor a faturar (${brl(d.aFaturar)}). Lançar mesmo assim?`))) return;
+    setSalv(true);
+    const r = await post({ acao: "semNota", valor: true, parcelas: ps });
+    setSalv(false);
+    if (r.error) return setErro(r.error);
+    onFim(`Pedido ${numero} faturado sem NF. Lançado no contas a receber: ${(r.lancadas || []).map((l) => `${l.tipo} ${brl(l.valor)} vence ${dBR(l.data)}`).join(" · ")}.`);
+  }
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ background: "rgba(0,30,65,.45)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="rounded-xl w-full max-w-2xl flex flex-col overflow-hidden shadow-2xl" style={{ background: C.panel, maxHeight: "85vh" }}>
+        <div className="flex items-center px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="flex-1"><div className="font-bold" style={{ color: C.navy }}>Faturar sem NF · pedido {numero}</div>
+            {d && <div className="text-xs" style={{ color: C.sub }}>{d.cliente} · total {brl(d.total)} · a faturar {brl(d.aFaturar)}</div>}</div>
+          <button onClick={onClose}><X size={18} style={{ color: C.sub }} /></button>
+        </div>
+        <div className="p-5 overflow-auto text-sm">
+          {!d && !erro && <Loader2 className="animate-spin" size={18} style={{ color: C.sub }} />}
+          {d && <>
+            <div className="text-xs mb-3" style={{ color: C.sub }}>O pedido sai do "a faturar" e a demanda de faturamento é concluída. Confira e ajuste as contas a receber abaixo (sugestão pelo prazo de pagamento do pedido).</div>
+            {d.jaLanc?.length > 0 && <div className="text-xs mb-3 rounded-lg px-3 py-2" style={{ background: C.panel2, color: C.sub }}>Já no contas a receber (na emissão do pedido): {d.jaLanc.map((x) => `PARC ${x.n}/${x.de} ${brl(x.valor)} · ${dBR(x.venc)}`).join(" · ")}</div>}
+            <table className="w-full text-sm"><thead><tr className="text-xs" style={{ color: C.sub }}><th className="text-left py-1 w-10">#</th><th className="text-left py-1">Valor (R$)</th><th className="text-left py-1">Vencimento</th><th className="text-left py-1">Obs.</th><th /></tr></thead>
+              <tbody>{linhas.map((l, i) => (
+                <tr key={i}>
+                  <td className="py-1 text-xs" style={{ color: C.sub }}>{i + 1}/{linhas.length}</td>
+                  <td className="py-1 pr-2"><input value={l.valor} onChange={(e) => set(i, "valor", e.target.value)} inputMode="decimal" className="w-28 px-2 py-1 rounded text-right" style={{ border: `1px solid ${C.line}` }} /></td>
+                  <td className="py-1 pr-2"><input type="date" value={l.venc} onChange={(e) => set(i, "venc", e.target.value)} className="px-2 py-1 rounded" style={{ border: `1px solid ${C.line}` }} /></td>
+                  <td className="py-1 pr-2"><input value={l.obs} onChange={(e) => set(i, "obs", e.target.value)} placeholder="ex.: PIX, boleto…" className="w-full px-2 py-1 rounded" style={{ border: `1px solid ${C.line}` }} /></td>
+                  <td className="py-1">{linhas.length > 1 && <button onClick={() => setLinhas((ls) => ls.filter((_, j) => j !== i))} title="Remover parcela"><Trash2 size={14} style={{ color: C.sub }} /></button>}</td>
+                </tr>))}</tbody>
+            </table>
+            <div className="flex items-center gap-3 mt-2">
+              <button onClick={() => setLinhas((ls) => [...ls, { valor: "", venc: ls[ls.length - 1]?.venc || "", obs: "" }])} className="text-xs font-semibold px-2 py-1 rounded" style={{ color: C.accent, border: `1px solid ${C.accent}` }}>+ parcela</button>
+              <span className="ml-auto text-xs" style={{ color: Math.abs(soma - d.aFaturar) > 0.01 ? C.red : C.green }}>Soma {brl(soma)} {Math.abs(soma - d.aFaturar) > 0.01 ? `· diferença ${brl(soma - d.aFaturar)}` : "· confere com o a faturar"}</span>
+            </div>
+          </>}
+          {erro && <div className="text-xs mt-3 font-semibold" style={{ color: C.red }}>{erro}</div>}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
+          <button onClick={onClose} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+          <button onClick={gravar} disabled={!d || salv} className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff", opacity: !d || salv ? 0.6 : 1 }}>{salv && <Loader2 size={14} className="animate-spin" />} Lançar contas e faturar sem NF</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------- pedido em tela grande ----------
 let _usuarios = null;
 function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) {
@@ -313,8 +374,18 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
   const [imprimindo, setImprimindo] = useState("");
   const [fatura, setFatura] = useState(false);   // v450 — Incluir faturamento
   const [casarNf, setCasarNf] = useState(false);   // v555
+  const [semNf, setSemNf] = useState(false);   // v1073 — pedido sem NF: contas a receber lançadas à mão
   const carregar = () => fetch(`/api/producao/gestao?numero=${encodeURIComponent(numero)}`).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setP(x); setObs(x.obs || ""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, [numero]);
+  // v1074 — pedido do portal (Loja Way): código de rastreio → no portal aparece DESPACHADO com o código
+  async function pedirRastreio(atual = "", aposFaturar = false) {
+    const cod = await perguntar(`${aposFaturar ? "Pedido do portal faturado. " : ""}Código de rastreio do envio do pedido ${numero}${aposFaturar ? " (deixe em branco se ainda não tiver — dá para incluir depois no botão Rastreio)" : " (em branco apaga)"}:`, atual || "");
+    if (cod == null) return;
+    if (aposFaturar && !String(cod).trim()) return;
+    const r = await fetch("/api/producao/gestao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "rastreio", numero, codigo: cod, autorNome: nomeU(user) }) }).then((x) => x.json()).catch(() => ({ error: "falha de conexão" }));
+    if (r.error) return alerta(r.error);
+    carregar();
+  }
   async function salvarObs() {
     setSalvObs(true);
     await fetch("/api/producao/gestao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "obs", numero, obs, autorNome: nomeU(user) }) });
@@ -349,15 +420,18 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-lg font-bold" style={{ color: C.navy }}>Pedido {numero}</span>
               {p && <ChipStatus s={p.status} />}{p && <ChipFase f={p.fase} />}{p?.layout && <span className="text-xs font-semibold" style={{ color: "#7E3AF2" }}>{p.layout.texto}</span>}{p && <ChipFaturar f={p.faturar} />}
-              {/* v819 — a faturar → "sem nota" (sai do a faturar e da demanda FATURAR); desfazer volta */}
-              {p && (p.faturar === "A_FATURAR" || p.faturar === "SEM_NOTA") && <button onClick={async () => {
-                const v = p.faturar !== "SEM_NOTA";
-                if (!(await confirmar(v ? `Marcar o pedido ${numero} como SEM NOTA? Ele sai do "a faturar", a demanda de faturamento é concluída e as parcelas que esperavam a NF vão para o contas a receber com a data de hoje como base.` : `Desfazer o "sem nota" do pedido ${numero}? Ele volta para o "a faturar".`))) return;
-                const r = await fetch("/api/producao/gestao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "semNota", numero, valor: v, autorNome: nomeU(user) }) }).then((x) => x.json()).catch(() => ({ error: "falha de conexão" }));
+{/* v819 — a faturar → "sem nota" (sai do a faturar e da demanda FATURAR); desfazer volta
+                  v1073 — marcar abre o lançamento manual das contas a receber; vale também para pedido ainda em produção */}
+              {p && !p.interno && p.statusPedido !== "FATURADO" && (p.faturar === "A_FATURAR" || p.faturar === "SEM_NOTA" || !p.faturar) && <button onClick={async () => {
+                if (p.faturar !== "SEM_NOTA") return setSemNf(true);
+                if (!(await confirmar(`Desfazer o "sem NF" do pedido ${numero}? Ele volta para o "a faturar". As contas já lançadas continuam no contas a receber (ajuste lá se precisar).`))) return;
+                const r = await fetch("/api/producao/gestao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "semNota", numero, valor: false, autorNome: nomeU(user) }) }).then((x) => x.json()).catch(() => ({ error: "falha de conexão" }));
                 if (r.error) return alerta(r.error);
-                if (v) alerta(r.lancadas?.length ? `Pedido sem nota. Lançado no contas a receber: ${r.lancadas.map((l) => `${l.tipo} R$ ${Number(l.valor).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} vence ${String(l.data).split("-").reverse().join("/")}`).join(" · ")}.` : "Pedido sem nota. Nenhuma parcela nova para lançar (as do pedido já estão no contas a receber).");
                 carregar();
-              }} className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ border: `1px solid ${C.line}`, color: C.sub, background: "#fff" }}>{p.faturar === "SEM_NOTA" ? "Desfazer sem nota" : "Marcar sem nota"}</button>}
+              }} className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ border: `1px solid ${C.line}`, color: C.sub, background: "#fff" }}>{p.faturar === "SEM_NOTA" ? "Desfazer sem NF" : "Faturar sem NF"}</button>}
+              {p?.portal && <button onClick={() => pedirRastreio(p.portal.rastreio)} title={p.portal.rastreio ? `Rastreio ${p.portal.rastreio}${p.portal.entregueEm ? " · entregue" : ""}` : "Incluir código de rastreio (aparece no portal da loja)"}
+                className="text-xs px-2 py-0.5 rounded-full font-semibold flex items-center gap-1" style={{ border: `1px solid ${p.portal.rastreio ? C.green : C.accent}`, color: p.portal.rastreio ? C.green : C.accent, background: "#fff" }}>
+                <Truck size={12} /> {p.portal.rastreio ? <span className="font-mono">{p.portal.rastreio}</span> : "Rastreio"}{p.portal.entregueEm ? " · entregue" : ""}</button>}
             </div>
             {p && <div className="text-sm" style={{ color: C.text }}>{p.cliente}</div>}
           </div>
@@ -534,7 +608,8 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
         )}
         {verFpp && <FppResumo fppId={verFpp.fppId} item={verFpp} veValores onClose={() => setVerFpp(null)} onUsar={null} />}
         {casarNf && <CasarPedidoModal user={user} pedido={numero} onClose={() => setCasarNf(false)} onFeito={carregar} />}
-        {fatura && <ImportarNfs user={user} pedidoNumero={numero} onClose={() => { setFatura(false); carregar(); }} onFim={() => { setFatura(false); carregar(); }} />}
+        {fatura && <ImportarNfs user={user} pedidoNumero={numero} onClose={() => { setFatura(false); carregar(); }} onFim={() => { setFatura(false); carregar(); if (p?.portal && !p.portal.rastreio) pedirRastreio("", true); }} />}
+        {semNf && <SemNfModal numero={numero} user={user} onClose={() => setSemNf(false)} onFim={(msg) => { setSemNf(false); carregar(); alerta(msg); if (p?.portal && !p.portal.rastreio) pedirRastreio("", true); }} />}
       </div>
     </div>
   );

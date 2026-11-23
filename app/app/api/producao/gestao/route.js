@@ -32,10 +32,24 @@ export async function POST(req) {
     const v = !!b.valor;
     await prisma.pedidoVenda.update({ where: { id: p.id }, data: { semNota: v, semNotaPor: v ? b.autorNome || null : null, semNotaEm: v ? new Date() : null } });
     let lanc = { lancadas: [] };
-    if (v) { try { lanc = await (await import("@/lib/pedidoEfetivar")).lancarSemNota(p.numero, b.autorNome || "SISTEMA"); } catch (e) { console.log("semNota/contas:", e.message); return Response.json({ error: `Marcado sem nota, mas as contas não foram lançadas: ${e.message}` }, { status: 500 }); } }   // v820 — sem nota continua no contas a receber
+    if (v && Array.isArray(b.parcelas)) {   // v1073 — contas a receber lançadas à mão
+      const r = await (await import("@/lib/pedidoEfetivar")).lancarSemNotaManual(p.numero, b.autorNome || "SISTEMA", b.parcelas).catch((e) => ({ error: e.message }));
+      if (r.error) { await prisma.pedidoVenda.update({ where: { id: p.id }, data: { semNota: false, semNotaPor: null, semNotaEm: null } }); return Response.json({ error: r.error }, { status: 400 }); }
+      lanc = r;
+    } else if (v) { try { lanc = await (await import("@/lib/pedidoEfetivar")).lancarSemNota(p.numero, b.autorNome || "SISTEMA"); } catch (e) { console.log("semNota/contas:", e.message); return Response.json({ error: `Marcado sem nota, mas as contas não foram lançadas: ${e.message}` }, { status: 500 }); } }   // v820 — sem nota continua no contas a receber
     if (v) await prisma.admDemanda.updateMany({ where: { pedidoNumero: p.numero, tipo: "FATURAR", status: { not: "CONCLUIDA" } },
       data: { status: "CONCLUIDA", concluidaEm: new Date(), concluidaPorNome: b.autorNome || "SISTEMA", retorno: "PEDIDO MARCADO SEM NOTA" } }).catch(() => null);
     return Response.json({ ok: true, lancadas: lanc.lancadas });
+  }
+  // v1073 — prévia das contas a receber do pedido sem NF (sugestão pelo prazo de pagamento, editável na tela)
+  if (b.acao === "semNotaPrevia") {
+    const r = await (await import("@/lib/pedidoEfetivar")).previaSemNota(p.numero);
+    return Response.json(r, { status: r.error ? 400 : 200 });
+  }
+  // v1074 — pedido do portal (Loja Way): código de rastreio → no portal aparece DESPACHADO com o código
+  if (b.acao === "rastreio") {
+    const r = await (await import("@/lib/portalCliente")).gravarRastreio(p.numero, b.codigo, b.autorNome || null);
+    return Response.json(r, { status: r.error ? 400 : 200 });
   }
   if (b.acao === "obs") {
     await prisma.pedidoVenda.update({ where: { id: p.id }, data: { obs: String(b.obs || "").slice(0, 1000) || null, atualizadoPorNome: b.autorNome || null } });

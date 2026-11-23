@@ -418,6 +418,59 @@ export async function lancarSemNota(numero, quem, data) {
   return { lancadas };
 }
 
+// v1073 — pedido SEM NF com contas a receber lançadas à mão: prévia (sugestão pelo prazo do pedido) e gravação
+//   As linhas sugeridas usam a mesma chave das parcelas do pedido (atualiza o título previsto, não duplica);
+//   linhas a mais ganham chave própria; parcelas sugeridas que saíram da lista são canceladas (se ainda em aberto).
+function sugestaoSemNota(ped, dBase) {
+  const entrega = ped.entregaPrevista ? ped.entregaPrevista.toISOString().slice(0, 10) : dBase;
+  const calc = ped.pagamento ? parcelasCalc(ped.pagamento, Number(ped.total), { emissao: ped.emissao?.toISOString().slice(0, 10), nf: dBase, entrega }) : null;
+  if (calc && (calc.parcelas.length || calc.entrada)) {
+    const jaLanc = calc.parcelas.filter((x) => x.base === "EMISSAO").map((x) => ({ n: x.n, de: x.de, valor: r2(x.valor), venc: x.data }));
+    const pend = calc.parcelas.filter((x) => x.base !== "EMISSAO").map((x) => ({ chave: chaveParcela(ped.numero, x.n), rotulo: `PARC ${x.n}/${x.de}`, valor: r2(x.valor), venc: x.data }));
+    return { jaLanc, pend };
+  }
+  const v = ped.vlEntregar != null ? Number(ped.vlEntregar) : Number(ped.total);
+  return { jaLanc: [], pend: v > 0 ? [{ chave: `PV:${ped.numero}:SEMNOTA`, rotulo: "ÚNICA", valor: r2(v), venc: dBase }] : [] };
+}
+export async function previaSemNota(numero) {
+  const ped = await prisma.pedidoVenda.findUnique({ where: { numero: String(numero) } });
+  if (!ped) return { error: "Pedido não encontrado." };
+  if (ped.interno) return { error: "Pedido interno não gera contas a receber." };
+  const { jaLanc, pend } = sugestaoSemNota(ped, hojeISO());
+  return { ok: true, numero: ped.numero, cliente: ped.cliente, total: r2(ped.total), aFaturar: ped.vlEntregar != null ? r2(ped.vlEntregar) : r2(ped.total), jaLanc,
+    parcelas: pend.map((x) => ({ valor: x.valor, venc: x.venc, rotulo: x.rotulo })) };
+}
+export async function lancarSemNotaManual(numero, quem, linhas) {
+  const ped = await prisma.pedidoVenda.findUnique({ where: { numero: String(numero) } });
+  if (!ped) return { error: "Pedido não encontrado." };
+  if (ped.interno) return { error: "Pedido interno não gera contas a receber." };
+  const ls = (Array.isArray(linhas) ? linhas : []).map((l) => ({ valor: r2(num(l.valor)), venc: String(l.venc || "").slice(0, 10), obs: String(l.obs || "").trim().slice(0, 300) }));
+  if (!ls.length) return { error: "Informe ao menos uma parcela." };
+  for (const [i, l] of ls.entries()) {
+    if (!(l.valor > 0)) return { error: `Parcela ${i + 1}: valor inválido.` };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(l.venc)) return { error: `Parcela ${i + 1}: informe o vencimento.` };
+  }
+  const dBase = hojeISO();
+  const { pend } = sugestaoSemNota(ped, dBase);
+  const de = ls.length, lancadas = [];
+  for (const [i, l] of ls.entries()) {
+    const chave = i < pend.length ? pend[i].chave : `PED|${ped.numero}|SEMNOTA|${i + 1}`;
+    await titulo({ chave, numero: ped.numero, cliente: ped.cliente, cnpj: ped.cnpj, emissao: dBase, valor: l.valor, venc: l.venc,
+      nome: `SEM NOTA - PEDIDO ${ped.numero} - PARC ${i + 1}/${de}`, numeroDoc: `SEM NOTA · PARC ${i + 1}/${de}`, quem,
+      obs: [`PARCELA ${i + 1}/${de} DO PEDIDO ${ped.numero} · PEDIDO SEM NF · LANÇADA À MÃO POR ${String(quem || "—").toUpperCase()}`, l.obs].filter(Boolean).join(" · ") });
+    lancadas.push({ tipo: `PARC ${i + 1}/${de}`, valor: l.valor, data: l.venc });
+  }
+  // sugeridas que ficaram de fora e linhas extras de um lançamento anterior maior → canceladas (só se em aberto)
+  for (const x of pend.slice(ls.length)) await cancelarTitulo(x.chave, quem);
+  for (let i = Math.max(ls.length, pend.length) + 1; i <= 60; i++) {
+    const ch = `PED|${ped.numero}|SEMNOTA|${i}`;
+    if (!(await prisma.finTitulo.findFirst({ where: { chaveImport: ch }, select: { id: true } }))) break;
+    await cancelarTitulo(ch, quem);
+  }
+  try { const { sincronizarComissoes } = await import("@/lib/comissoes"); await sincronizarComissoes(ped.numero, quem); } catch (e) { console.log("comissao/semNota:", e.message); }
+  return { ok: true, lancadas };
+}
+
 // ---------- catálogo de itens do KM ----------
 // KmProduto (enviado pelo agente) + itens dos pedidos que já vieram do KM (código, descrição e parâmetros de produção)
 export async function catalogoItens(q, max = 15) {

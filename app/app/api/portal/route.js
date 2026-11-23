@@ -1,6 +1,6 @@
 // v699/v711 — portal do cliente: itens padrão, pedidos (com status e valores), rascunho, envio e edição
 export const dynamic = "force-dynamic";
-import { usuarioPortal, negadoPortal, itensDoCliente, pedidosDoCliente, enviarPedido, salvarRascunho, nomeCliente, salvarItemPortal, pedidoParaEditar, excluirRascunho } from "@/lib/portalCliente";
+import { usuarioPortal, negadoPortal, itensDoCliente, pedidosDoCliente, enviarPedido, salvarRascunho, nomeCliente, salvarItemPortal, pedidoParaEditar, excluirRascunho, marcarEntregue } from "@/lib/portalCliente";
 
 // GET → { cliente, itens, pedidos } · ?editar=ID → pedido para editar
 export async function GET(req) {
@@ -19,6 +19,11 @@ export async function POST(req) {
   const b = await req.json().catch(() => null);
   if (!b) return Response.json({ error: "Requisição inválida." }, { status: 400 });
   try {
+    if (b.acao === "entregue") {   // v1074 — pedido despachado entregue ao cliente final
+      const r = await marcarEntregue(p.cliente, b.ppId, p.u, b.valor !== false);
+      if (r.error) return Response.json(r, { status: 400 });
+      return Response.json({ ok: true, pedidos: await pedidosDoCliente(p.cliente.id, p.cliente) });
+    }
     const r = b.acao === "rascunho" ? await salvarRascunho(p, b) : await enviarPedido(p, b);
     if (r.error) return Response.json(r, { status: 400 });
     return Response.json({ ...r, pedidos: await pedidosDoCliente(p.cliente.id, p.cliente) });

@@ -1234,6 +1234,8 @@ function NovoFornecedorModal({ nome, onClose, onCriado }) {
   );
 }
 const numBR = (v) => (v == null || v === "" ? "" : String(v).replace(".", ","));
+// v1075 — valor unitário da cotação com vírgula e milhar (1.393,00; até 6 casas quando houver)
+const valBR = (v) => (v == null || v === "" || !Number.isFinite(Number(v)) ? "" : Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 6 }));
 const lerNum = (v) => { if (v === "" || v == null) return null; const n = Number(String(v).replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : null; };
 // v1048 — item do PIC já seguido: tem cotação (sem "ninguém tem") ou OC. Daí em diante o acompanhamento é em Cotações / OC.
 const picItemSeguido = (i) => !!i.oc || ((i.cotacoes || []).length > 0 && !i.semCotacao);
@@ -1985,8 +1987,9 @@ export function Cotacoes({ user, fases, ir }) {
   const [abertos, setAbertos] = useState({});   // v509
   const carregar = () => fetch("/api/compras/cotacoes").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); }).catch(() => setL([]));
   useEffect(() => { carregar(); }, []);
-  const dados = (c) => ed[c.id] || { itens: c.itens.map((i) => ({ valorUnitario: numBR(i.valorUnitario), prazo: i.prazo || "", obs: i.obs || "", naoTem: !!i.naoTem })), condicao: c.condicao || "", prazoEntrega: c.prazoEntrega || "", obs: c.obs || "" };
+  const dados = (c) => ed[c.id] || { itens: c.itens.map((i) => ({ valorUnitario: valBR(i.valorUnitario), prazo: i.prazo || "", obs: i.obs || "", naoTem: !!i.naoTem })), condicao: c.condicao || "", prazoEntrega: c.prazoEntrega || "", obs: c.obs || "" };
   const setD = (c, f) => setEd((e) => ({ ...e, [c.id]: f(dados(c)) }));
+  const [prazoU, setPrazoU] = useState(null);   // v1075 — cotação com o campo do prazo único aberto
   const post = async (body, ok) => { const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const x = await r.json().catch(() => ({})); if (!r.ok) { alerta(x.error || "Erro."); return null; } if (ok) await alerta(ok(x)); carregar(); return x; };
   // menor preço de cada artigo entre as cotações (para comparar fornecedores)
   const melhor = useMemo(() => { const m = {}; for (const c of l || []) for (const i of c.itens) if (i.valorUnitario != null && !i.naoTem) { const k = `${i.nome}|${i.det}|${i.unidade}`; const vb = i.valorUnitario / fatorC(i); if (!m[k] || vb < m[k].v) m[k] = { v: vb, f: c.fornecedorNome, n: c.numero }; } /* v1070 — compara pela unidade base */ return m; }, [l]);
@@ -2046,11 +2049,19 @@ export function Cotacoes({ user, fases, ir }) {
               {/* itens */}
               <div className="px-5 pb-2" style={{ borderTop: `1px solid ${C.line}` }}>
                 <div className="flex gap-3 pt-3 pb-1.5" style={{ color: C.sub }}>
-                  <div className={`flex-1 ${lbl}`}>Artigo</div><div className={`w-36 text-right ${lbl}`}>Quantidade</div><div className={`w-28 text-right ${lbl}`}>Valor unit.</div><div className="w-36"><div className={lbl}>Prazo</div>
-                    {/* v1001 — prazo único: o mesmo prazo de entrega para todos os itens da cotação */}
-                    {(() => { const ps = d.itens.filter((y) => !y.naoTem).map((y) => y.prazo || ""); const igual = ps.length && ps.every((p) => p === ps[0]) ? ps[0] : "";
-                      return <label className="flex items-center gap-1 mt-1 text-[10px] font-semibold normal-case" style={{ color: C.accent }} title="Prazo único: coloca o mesmo prazo de entrega em todos os itens (menos os que o fornecedor não tem)">único
-                        <input type="date" value={igual} onChange={(e) => { const v = e.target.value; setD(c, (x) => ({ ...x, itens: x.itens.map((y) => (y.naoTem ? y : { ...y, prazo: v })) })); }} className={`${inp} flex-1 min-w-0`} style={{ border: `1px solid ${C.accent}`, background: "#fff", fontSize: 11, padding: "1px 4px" }} /></label>; })()}
+                  <div className={`flex-1 ${lbl}`}>Artigo</div><div className={`w-36 text-right ${lbl}`}>Quantidade</div><div className={`w-28 text-right ${lbl}`}>Valor unit.</div><div className="w-36 relative flex items-center gap-1.5"><span className={lbl}>Prazo</span>
+                    {/* v1001 — prazo único · v1075 — só um "U": abre o campo, ao escolher a data todos os artigos recebem e fecha; laranja = prazo único aplicado */}
+                    {(() => { const ps = d.itens.filter((y) => !y.naoTem).map((y) => y.prazo || ""); const igual = ps.length && ps[0] && ps.every((p) => p === ps[0]) ? ps[0] : "";
+                      const aberto = prazoU === c.id;
+                      const aplicar = (v) => { if (v) setD(c, (x) => ({ ...x, itens: x.itens.map((y) => (y.naoTem ? y : { ...y, prazo: v })) })); setPrazoU(null); };
+                      return <>
+                        <button type="button" onClick={() => setPrazoU(aberto ? null : c.id)} title={igual ? `Prazo único aplicado: ${igual.split("-").reverse().join("/")} (clique para trocar)` : "Prazo único: o mesmo prazo de entrega para todos os artigos (menos os que o fornecedor não tem)"}
+                          className="rounded font-bold flex items-center justify-center" style={{ width: 18, height: 18, fontSize: 10, lineHeight: 1, background: igual ? C.accent : "#fff", color: igual ? "#fff" : C.sub, border: `1px solid ${igual ? C.accent : C.line}` }}>U</button>
+                        {aberto && <div className="absolute left-0 top-full mt-1 z-20 rounded-md shadow-lg p-1.5" style={{ background: "#fff", border: `1px solid ${C.accent}` }}>
+                          <input type="date" autoFocus defaultValue={igual} onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && Number(e.target.value.slice(0, 4)) > 2000) aplicar(e.target.value); }}
+                            onBlur={(e) => aplicar(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") aplicar(e.currentTarget.value); if (e.key === "Escape") setPrazoU(null); }}
+                            className={inp} style={{ border: `1px solid ${C.line}`, background: "#fff", fontSize: 12 }} /></div>}
+                      </>; })()}
                   </div><div className={`w-16 text-center ${lbl}`}>Não tem</div><div className={`w-28 text-right ${lbl}`}>Total</div>
                 </div>
                 {c.itens.map((i, k) => {
@@ -2073,7 +2084,7 @@ export function Cotacoes({ user, fases, ir }) {
                             const dif = v != null && !ok ? (v / i.previstoFpp - 1) * 100 : null;
                             return <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>previsto na FPP: <b style={{ color: C.navy }}>{brl(i.previstoFpp)}</b>
                               {ok ? <span className="font-semibold" style={{ color: C.green }}>✓ confirmado</span>
-                                : <button type="button" onClick={() => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: numBR(i.previstoFpp) } : y)) }))} className="px-1.5 rounded font-semibold" style={{ border: `1px solid ${C.green}`, color: C.green }}>confirmar valor da FPP</button>}
+                                : <button type="button" onClick={() => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: valBR(i.previstoFpp) } : y)) }))} className="px-1.5 rounded font-semibold" style={{ border: `1px solid ${C.green}`, color: C.green }}>confirmar valor da FPP</button>}
                               {dif != null && <span style={{ color: dif > 0 ? C.red : C.green }}>{dif > 0 ? "+" : ""}{dif.toFixed(1).replace(".", ",")}% vs FPP</span>}</div>;
                           })()}
                         </div>
@@ -2082,7 +2093,9 @@ export function Cotacoes({ user, fases, ir }) {
                         {i.comercial ? <><div className="text-[11px]" style={{ color: C.sub }} title="Demanda real">{qtdU(i.quantidade, i.unidade)}</div><div className="font-semibold" style={{ color: C.accent }} title="Quantidade comercial (vai para a OC)">{txtComercial(i.comercial)}</div></> : qtdU(i.quantidade, i.unidade)}
                         {!comOc && <button type="button" onClick={() => setEdCom(`${c.id}|${k}`)} className="text-[10px] underline decoration-dotted" style={{ color: C.accent }}>{i.comercial ? "editar unidade" : "unidade comercial"}</button>}
                       </div>
-                      <div className="w-28 text-right">{di.naoTem ? <span className="text-xs font-semibold" style={{ color: C.red }}>não tem</span> : <input value={di.valorUnitario} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: e.target.value } : y)) }))} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${eMelhor ? C.green : C.line}`, background: eMelhor ? C.greenSoft : "#fff" }} />}{!di.naoTem && porEmb(i) && <div className="text-[10px]" style={{ color: C.accent }}>{porEmb(i)}</div>}</div>
+                      <div className="w-28 text-right relative">{di.naoTem ? <span className="text-xs font-semibold" style={{ color: C.red }}>não tem</span> : <input value={di.valorUnitario} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: e.target.value } : y)) }))}
+                        onBlur={(e) => { const n = lerNum(e.target.value); if (n != null) setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: valBR(n) } : y)) })); }}
+                        placeholder="0,00" className={`${inp} w-full text-right`} style={{ border: `1px solid ${eMelhor ? C.green : C.line}`, background: eMelhor ? C.greenSoft : "#fff" }} />}{!di.naoTem && porEmb(i) && <div className="absolute right-0 top-full text-[10px] whitespace-nowrap" style={{ color: C.accent }}>{porEmb(i)}</div>}</div>
                       <div className="w-36">{di.naoTem ? "" : <input type="date" value={di.prazo} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, prazo: e.target.value } : y)) }))} className={`${inp} w-full`} style={{ border: `1px solid ${C.line}`, background: "#fff" }} />}</div>
                       <div className="w-16 text-center">{/* v484 */}<input type="checkbox" checked={!!di.naoTem} title="O fornecedor não tem este item" onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, naoTem: e.target.checked, ...(e.target.checked ? { valorUnitario: "", prazo: "" } : {}) } : y)) }))} /></div>
                       <div className="w-28 text-right font-semibold" style={{ color: v && !di.naoTem ? C.navy : C.sub }}>{v && !di.naoTem ? brl(v * qPreco(i)) : "—"}</div>
@@ -2097,7 +2110,7 @@ export function Cotacoes({ user, fases, ir }) {
 
               {c.itens.some((i, k) => i.previstoFpp != null && !d.itens[k]?.naoTem && lerNum(d.itens[k]?.valorUnitario) !== i.previstoFpp) && (   // v528
                 <div className="px-5 pb-2 flex justify-end">
-                  <button type="button" onClick={() => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (c.itens[j]?.previstoFpp != null && !y.naoTem && !lerNum(y.valorUnitario) ? { ...y, valorUnitario: numBR(c.itens[j].previstoFpp) } : y)) }))}
+                  <button type="button" onClick={() => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (c.itens[j]?.previstoFpp != null && !y.naoTem && !lerNum(y.valorUnitario) ? { ...y, valorUnitario: valBR(c.itens[j].previstoFpp) } : y)) }))}
                     className="text-xs px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.green}`, color: C.green, background: C.panel }} title="Preenche os itens ainda sem valor com o valor previsto na FPP">Confirmar valores da FPP nos itens sem valor</button>
                 </div>
               )}

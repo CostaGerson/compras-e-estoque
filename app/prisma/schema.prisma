@@ -417,6 +417,11 @@ model Pp {
   portalLiberadoEm  DateTime? // v714 — quando foi para a produção (liberado): o despacho conta o lead time a partir daqui
   portalEnviadoEm   DateTime? // v711 — quando o cliente enviou (liberou ou abriu o recebimento de dados)
   portalObs         String?   // v711 — observação digitada pelo cliente no portal
+  rastreio          String?   // v1074 — código de rastreio do envio (portal: DESPACHADO com o código)
+  despachadoEm      DateTime?
+  despachadoPor     String?
+  entregueEm        DateTime? // v1074 — o cliente do portal (Loja Way) marca como entregue ao cliente final
+  entreguePor       String?
   extRef            String?   @unique   // v906 — pedido vindo de sistema de fora: "NORT|<ref>" (não duplica; o editor não apaga)
   clienteFinal      Json?     // v709 — cliente final e envio (portal): { tipo: PF|PJ, nome/cpf | razaoSocial/cnpj/ie/contato/cargo, endereço, whatsapp, email }
 
