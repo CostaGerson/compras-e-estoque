@@ -2040,7 +2040,7 @@ export function Cotacoes({ user, fases, ir }) {
                         <div className="min-w-0">
                           <div className="font-semibold truncate" style={{ color: C.text, textDecoration: di.naoTem ? "line-through" : "none" }} title={i.nome}>{i.nome}</div>
                           {i.det && <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.det}</div>}
-                          {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{(i.origens || []).map((o) => (o.avulsa ? "Avulsa" : rotOrigem(o))).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{!comOc && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} />}</div>}   {/* v913 */}
+                          {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{(i.origens || []).map((o) => (o.avulsa ? "Avulsa" : rotOrigem(o))).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{!comOc && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} artigo={i.artigoId ? { id: i.artigoId, nome: i.nome } : undefined} />}</div>}   {/* v913 */}
                           {comOc && i.valorNegociado != null && !di.naoTem && <div className="text-[11px] font-semibold" style={{ color: C.green }}>negociado na {c.ocNumero}: {brl(i.valorNegociado)}</div>}
                           {m && m.n !== c.numero && <div className="text-[11px]" style={{ color: C.sub }}>menor preço: <b style={{ color: C.green }}>{brl(m.v)}</b> · {m.f}</div>}
                           {i.previstoFpp != null && !di.naoTem && (() => {   // v528 — valor previsto na FPP: confirmar com um clique
