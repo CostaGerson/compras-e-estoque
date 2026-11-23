@@ -3284,7 +3284,7 @@ function Ref({ label, grupo, chave, campo, pget, over, setOver, modo, full }) {
   const val = over[path] != null && over[path] !== "" ? over[path] : "";
   return (
     <div>
-      <div className="text-xs mb-1 flex items-center gap-1" style={{ color: C.sub }}>{label}{modo && <Pencil size={11} />}</div>
+      <div className="text-xs mb-1 flex items-center gap-1 whitespace-nowrap" title={typeof label === "string" ? label : undefined} style={{ color: C.sub }}><span className="overflow-hidden text-ellipsis">{label}</span>{modo && <Pencil size={11} className="shrink-0" />}</div>   {/* v1040 — rótulo numa linha só, alinhado aos demais */}
       {modo ? (
         <input value={val} placeholder={String(base)} onChange={(e) => setOver((s) => ({ ...s, [path]: e.target.value }))} inputMode="decimal"
           className={`${full ? "w-full" : "w-36"} px-2 py-1.5 rounded text-sm`} style={{ background: "#fff", border: `1px dashed ${C.accent}`, color: C.text }} />
