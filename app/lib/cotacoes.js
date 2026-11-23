@@ -11,12 +11,48 @@ export async function criarCotacoes(grupos, pics, quem) {
     const itens = (g.itens || []).map((i) => ({ nome: String(i.nome || ""), det: i.det || "", quantidade: Number(i.quantidade) || 0, unidade: i.unidade || null,
       picItemIds: (i.picItemIds || []).map(Number).filter(Boolean), valorUnitario: null, prazo: null, obs: null }));
     if (!itens.length) continue;
+    // v1051 — juntar na cotação aberta do mesmo fornecedor (sem OC): soma as linhas iguais; a cotação volta a "gerada" para reenviar
+    if (g.juntarEm) {
+      const ex = await prisma.cotacao.findUnique({ where: { id: Number(g.juntarEm) } });
+      if (ex && ["GERADA", "ENVIADA", "RESPONDIDA"].includes(ex.status)) {
+        const novos = juntarItens(Array.isArray(ex.itens) ? ex.itens : [], itens);
+        const ps = [...new Set(`${ex.pics || ""}, ${pics || ""}`.split(",").map((x) => x.trim()).filter(Boolean))].join(", ");
+        criadas.push({ ...out(await prisma.cotacao.update({ where: { id: ex.id }, data: { itens: novos, pics: ps || null, status: "GERADA" } })), juntada: true });
+        continue;
+      }
+    }
     const c = await prisma.cotacao.create({ data: { numero: `TMP-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, fornecedorId: g.fornecedor?.id ? Number(g.fornecedor.id) : null,
       fornecedorNome: String(g.fornecedor?.nomeFantasia || g.fornecedor?.nome || g.fornecedor?.razaoSocial || "").toUpperCase() || "SEM NOME", pics: pics || null, itens, criadoPorNome: quem || null } });
     const numero = `COT ${String(c.id).padStart(4, "0")}`;
     criadas.push(out(await prisma.cotacao.update({ where: { id: c.id }, data: { numero } })));
   }
   return { ok: true, cotacoes: criadas };
+}
+
+const chaveLinha = (i) => `${String(i.nome || "").trim().toUpperCase()}|${String(i.det || "").trim().toUpperCase()}|${i.unidade || ""}`;
+function juntarItens(atuais, novos) {
+  const l = atuais.map((i) => ({ ...i, picItemIds: [...(i.picItemIds || [])] }));
+  for (const n of novos) {
+    const x = l.find((i) => chaveLinha(i) === chaveLinha(n));
+    if (x) { x.quantidade = Math.round(((Number(x.quantidade) || 0) + (Number(n.quantidade) || 0)) * 1000) / 1000; x.picItemIds = [...new Set([...x.picItemIds, ...n.picItemIds])]; }
+    else l.push(n);
+  }
+  return l;
+}
+// v1051 — juntar cotações abertas do mesmo fornecedor numa só (as outras são canceladas)
+export async function juntarCotacoes(destId, ids) {
+  const d = await prisma.cotacao.findUnique({ where: { id: Number(destId) || 0 } });
+  if (!d || !["GERADA", "ENVIADA", "RESPONDIDA"].includes(d.status)) return { error: "Cotação de destino não encontrada ou já com OC." };
+  const os = await prisma.cotacao.findMany({ where: { id: { in: (ids || []).map(Number).filter((x) => x && x !== d.id) }, status: { in: ["GERADA", "ENVIADA", "RESPONDIDA"] } } });
+  const fora = os.filter((o) => (d.fornecedorId ? o.fornecedorId !== d.fornecedorId : o.fornecedorNome !== d.fornecedorNome));
+  if (fora.length) return { error: `${fora.map((o) => o.numero).join(", ")} é de outro fornecedor.` };
+  if (!os.length) return { error: "Nada para juntar." };
+  let itens = Array.isArray(d.itens) ? d.itens : [];
+  for (const o of os) itens = juntarItens(itens, (Array.isArray(o.itens) ? o.itens : []).map((i) => ({ ...i, picItemIds: i.picItemIds || [] })));
+  const ps = [...new Set([d.pics, ...os.map((o) => o.pics)].join(",").split(",").map((x) => x.trim()).filter(Boolean))].join(", ");
+  const novo = await prisma.cotacao.update({ where: { id: d.id }, data: { itens, pics: ps || null, status: "GERADA", obs: [d.obs, `Juntou ${os.map((o) => o.numero).join(", ")}`].filter(Boolean).join(" · ").slice(0, 2000) } });
+  await prisma.cotacao.updateMany({ where: { id: { in: os.map((o) => o.id) } }, data: { status: "CANCELADA", obs: `Juntada na ${d.numero}` } });
+  return { ok: true, cotacao: out(novo), juntadas: os.map((o) => o.numero) };
 }
 
 export async function listarCotacoes() {

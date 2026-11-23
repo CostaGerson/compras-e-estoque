@@ -1291,7 +1291,7 @@ export function PicCompras({ user, fases, ir }) {
     if (acao === "ocsItens") { await alerta(`${x.ocs.map((o) => o.numero).join(", ")} gerada(s).${x.faltam ? ` ${x.faltam} item(ns) continuam no PIC.` : ""}`); setSel(new Set()); }
     carregar();
   }
-  function cotacao(alvo = alvoGeral) {
+  async function cotacao(alvo = alvoGeral) {
     const g = {};
     // v482 — cada item vai para o card de cada um dos seus fornecedores (principal + até 4 extras)
     for (const i of alvo) { const v = val(i);
@@ -1306,8 +1306,15 @@ export function PicCompras({ user, fases, ir }) {
     // v478 — cada card vira uma cotação registrada (guia Cotações), com número próprio
     const pics = [...new Set(alvo.map((i) => i.picNumero))].join(", ");
     const grupos = Object.values(g);
+    // v1051 — já há cotação aberta (sem OC) do mesmo fornecedor: pergunta se junta os itens nela em vez de abrir outra
+    const abertas = (await fetch("/api/compras/cotacoes").then((r) => r.json()).catch(() => [])).filter?.((c) => ["GERADA", "ENVIADA", "RESPONDIDA"].includes(c.status)) || [];
+    for (const gr of grupos) {
+      const fid = gr.fornecedor?.id, nomeG = norm(gr.fornecedor?.nomeFantasia || gr.fornecedor?.nome || gr.fornecedor?.razaoSocial);
+      const ex = abertas.filter((c) => (fid ? c.fornecedorId === fid : norm(c.fornecedorNome) === nomeG)).sort((a, b) => b.id - a.id)[0];
+      if (ex && (await confirmar(`${ex.fornecedorNome} já tem a ${ex.numero} aberta (${ST_COT[ex.status]?.[0] || ex.status}, ${ex.itens.length} item(ns)).\n\nJuntar estes ${gr.itens.length} item(ns) nela, numa cotação só?${ex.status !== "GERADA" ? "\nEla volta para \"gerada\": reenvie ao fornecedor com os itens novos." : ""}`))) gr.juntarEm = ex.id;
+    }
     fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "criar", grupos, pics, quem: nomeUser(user) }) })
-      .then((r) => r.json()).then((x) => { (x.cotacoes || []).forEach((c, k) => { if (grupos[k]) { grupos[k].numero = c.numero; grupos[k].id = c.id; } }); setCot({ pic: pics, grupos, semF: alvo.filter((i) => !val(i).fornecedor.trim()).length }); setSel(new Set()); carregar(); })
+      .then((r) => r.json()).then((x) => { (x.cotacoes || []).forEach((c, k) => { if (grupos[k]) { grupos[k].numero = c.numero; grupos[k].id = c.id; if (c.juntada) grupos[k].itens = c.itens; } }); setCot({ pic: pics, grupos, semF: alvo.filter((i) => !val(i).fornecedor.trim()).length }); setSel(new Set()); carregar(); })
       .catch(() => setCot({ pic: pics, grupos, semF: alvo.filter((i) => !val(i).fornecedor.trim()).length }));
   }
   const togSel = (id) => setSel((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -1920,16 +1927,34 @@ export function Cotacoes({ user, fases, ir }) {
                 {c.status === "GERADA" && <button onClick={() => post({ acao: "enviada", id: c.id })} className="text-xs px-3 py-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, color: C.text, background: C.panel }}>Marcar enviada</button>}
                 {!comOc && <button onClick={async () => { if (await confirmar(`Cancelar a ${c.numero}?`)) post({ acao: "cancelar", id: c.id }); }} className="text-xs px-3 py-1.5 rounded-md" style={{ color: C.red, background: "transparent" }}>Cancelar cotação</button>}
                 {comOc && c.ocNumero && <ChipRota r={c.rota} forma={c.ocForma} />}
+                {!comOc && (() => {   // v1051 — outras cotações abertas do mesmo fornecedor: juntar nesta
+                  const irm = (l || []).filter((y) => y.id !== c.id && !ehOc(y) && (c.fornecedorId ? y.fornecedorId === c.fornecedorId : norm(y.fornecedorNome) === norm(c.fornecedorNome)));
+                  if (!irm.length) return null;
+                  return <button onClick={async () => {
+                    if (!(await confirmar(`Juntar ${irm.map((y) => y.numero).join(", ")} nesta ${c.numero} (${c.fornecedorNome})?\nOs itens iguais são somados, as outras cotações são canceladas e esta volta para "gerada" para reenviar ao fornecedor.`))) return;
+                    const x = await post({ acao: "juntar", id: c.id, ids: irm.map((y) => y.id) }); if (!x) return;
+                    await alerta(`${x.juntadas.join(", ")} juntada(s) na ${c.numero}.`); carregar();
+                  }} title="Uma cotação só por fornecedor" className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><Merge size={14} /> Juntar {irm.map((y) => y.numero).join(", ")}</button>;
+                })()}
                 <div className="flex-1" />
                 <button onClick={() => post({ acao: "responder", id: c.id, ...d })} className="text-sm px-4 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>Salvar resposta</button>
                 {!comOc && <button onClick={async () => {   // v479 — OC a partir da cotação respondida
                   if (!d.itens.some((x) => !x.naoTem && lerNum(x.valorUnitario) > 0)) return alerta(d.itens.every((x) => x.naoTem) ? "O fornecedor não tem nenhum item: não há OC a gerar." : "Registre a resposta do fornecedor (valor unitário) antes de gerar a OC.");
                   const x = await post({ acao: "responder", id: c.id, ...d }); if (!x) return;
                   const atual = { ...c, ...x.cotacao, itens: x.cotacao.itens };
-                  // v488 — outras cotações respondidas do mesmo fornecedor, ainda sem OC: juntar numa OC só
-                  const irmas = (l || []).filter((y) => y.id !== c.id && y.fornecedorId && y.fornecedorId === c.fornecedorId && y.status === "RESPONDIDA" && y.itens.some((i) => !i.naoTem && i.valorUnitario != null));
-                  if (irmas.length && (await confirmar(`${c.fornecedorNome} também respondeu ${irmas.map((y) => y.numero).join(", ")}. Juntar tudo numa OC só?`))) setGerOc([atual, ...irmas]);
-                  else setGerOc([atual]);
+                  // v488 · v1051 — outras cotações do mesmo fornecedor ainda sem OC (geradas, enviadas ou respondidas, com valor salvo
+                  //   ou digitado na tela): pergunta se consolida tudo numa OC só; as respostas digitadas são salvas antes
+                  const mesmoForn = (y) => y.id !== c.id && !ehOc(y) && (c.fornecedorId ? y.fornecedorId === c.fornecedorId : norm(y.fornecedorNome) === norm(c.fornecedorNome));
+                  const comValor = (y) => dados(y).itens.some((i) => !i.naoTem && lerNum(i.valorUnitario) > 0);
+                  const outras = (l || []).filter(mesmoForn);
+                  const irmas = outras.filter(comValor), semResp = outras.filter((y) => !comValor(y));
+                  let junta = [];
+                  if (irmas.length) {
+                    const tot = (y) => brl(y.itens.reduce((s0, i, k) => s0 + (dados(y).itens[k]?.naoTem ? 0 : (lerNum(dados(y).itens[k]?.valorUnitario) || 0) * (Number(i.quantidade) || 0)), 0));
+                    const ok = await confirmar(`${c.fornecedorNome} tem outras cotações sem OC:\n${irmas.map((y) => `• ${y.numero} · ${y.pics || ""} · ${y.itens.length} item(ns) · ${tot(y)}`).join("\n")}${semResp.length ? `\n(${semResp.map((y) => y.numero).join(", ")} ainda sem valor: fica(m) fora)` : ""}\n\nConsolidar tudo numa OC só?`);
+                    if (ok) for (const y of irmas) { const r = await post({ acao: "responder", id: y.id, ...dados(y) }); if (r) junta.push({ ...y, ...r.cotacao, itens: r.cotacao.itens }); }
+                  }
+                  setGerOc([atual, ...junta]);
                 }} className="text-sm px-4 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ background: C.accent, color: "#fff" }}><ShoppingCart size={14} /> Gerar OC</button>}
               </div>
             </>}
