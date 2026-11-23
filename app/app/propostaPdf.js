@@ -136,8 +136,8 @@ table.it tr.lay td { padding: 0 3mm 3mm; }
 .info div { font-size: 8.5pt; padding: 2.2mm 0; border-bottom: .3mm solid #D3D9E2; }
 .info b { font-weight: 700; }
 .dados h4 { font-size: 11pt; margin: 0 0 4mm; display: inline-block; padding-bottom: 1mm; border-bottom: .6mm solid #FF6B1A; }
-.dados p { margin: 0 0 2.6mm; font-size: 9.5pt; line-height: 1.5; }
-.dados p b { color: #5C6B82; }
+.dados p { margin: 0 0 2.6mm; font-size: 9.5pt; line-height: 1.5; text-transform: none; }   /* v1063 — conteúdo como é escrito (1ª maiúscula) */
+.dados p b { color: #5C6B82; text-transform: uppercase; }   /* rótulos e títulos em maiúsculas */
 `;
 
 function pagina(conteudo, n, total, { wm = "dir" } = {}) {
