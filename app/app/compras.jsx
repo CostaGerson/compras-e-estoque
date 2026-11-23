@@ -1605,17 +1605,17 @@ async function desenharCotacao(g, pic) {
 }
 // v1054 — card do PIC em imagem, no padrão do card da cotação: artigos, origens, quantidade, fornecedor, valores e situação
 async function desenharPic(p) {
-  const W = 1400, P = 56, LH = 26;
+  const W = 1500, P = 56, LH = 26;   // v1057 — valor unitário e total com espaço próprio (não se sobrepõem)
   const c0 = document.createElement("canvas"); const x0 = c0.getContext("2d");
   const quebra = (ctx, t, w) => { const ps = String(t || "").split(/\s+/); const ls = []; let l = ""; for (const q of ps) { const n = l ? `${l} ${q}` : q; if (ctx.measureText(n).width > w && l) { ls.push(l); l = q; } else l = n; } if (l) ls.push(l); return ls.length ? ls : [""]; };
-  const col = { n: P, art: P + 44, qtd: 860, forn: 890, vu: 1150, tot: W - P };
+  const col = { n: P, art: P + 44, qtd: 820, forn: 850, vu: 1250, tot: W - P };
   const wArt = col.qtd - 150 - col.art;
   const origem = (i) => [...new Set((i.info?.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${String(x.cliente || "").split("·")[0].replace("AVULSA", "").trim() || x.pedido}` : `Ped. ${x.pedido}${x.cliente ? ` · ${String(x.cliente).trim()}` : ""}`)))].join(" · ");
   const situ = (i) => (i.oc ? `${i.oc.numero}` : (i.cotacoes || []).length && !i.semCotacao ? `${(i.cotacoes || []).map((c) => c.numero).filter((v, k, a) => a.indexOf(v) === k).join(", ")}` : "sem cotação");
   const linhas = p.itens.map((i) => {
     x0.font = "600 22px Arial"; const a = quebra(x0, i.info?.nome || `Artigo #${i.artigoId}`, wArt);
     x0.font = "18px Arial"; const d = quebra(x0, [[i.info?.cor, i.info?.codigo].filter(Boolean).join(" · "), origem(i)].filter(Boolean).join(" — "), wArt);
-    x0.font = "18px Arial"; const f = quebra(x0, i._forn || "—", col.vu - 130 - col.forn);
+    x0.font = "18px Arial"; const f = quebra(x0, i._forn || "—", col.vu - 150 - col.forn);
     return { i, a, d, f, h: Math.max(60, 18 + a.length * LH + d.length * 22, 18 + f.length * 22 + 24) };
   });
   const total = p.itens.reduce((s0, i) => s0 + (i._valor || 0) * (i._qtd || 0), 0);
@@ -1633,7 +1633,7 @@ async function desenharPic(p) {
   x.fillStyle = "#f1f6fe"; x.fillRect(P - 16, y, W - P * 2 + 32, 50);
   x.fillStyle = "#3d6799"; x.font = "700 18px Arial";
   x.fillText("#", col.n, y + 32); x.fillText("ARTIGO / ORIGEM", col.art, y + 32); x.fillText("FORNECEDOR / SITUAÇÃO", col.forn, y + 32);
-  x.textAlign = "right"; x.fillText("QUANTIDADE", col.qtd, y + 32); x.fillText("VALOR UNIT.", col.vu + 110, y + 32); x.fillText("TOTAL", col.tot, y + 32); x.textAlign = "left";
+  x.textAlign = "right"; x.fillText("QUANTIDADE", col.qtd, y + 32); x.fillText("VALOR UNIT.", col.vu, y + 32); x.fillText("TOTAL", col.tot, y + 32); x.textAlign = "left";
   y += 60;
   const brlS = (n) => (n ? n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—");
   linhas.forEach((l, k) => {
@@ -1643,7 +1643,7 @@ async function desenharPic(p) {
     x.fillStyle = "#0c2342"; x.font = "18px Arial"; l.f.forEach((t, j) => x.fillText(t, col.forn, y + 24 + j * 22));
     const st = situ(l.i); x.fillStyle = l.i.oc ? "#12A150" : st === "sem cotação" ? "#B54708" : "#C08401"; x.font = "700 16px Arial"; x.fillText(st, col.forn, y + 24 + l.f.length * 22 + 4);
     x.textAlign = "right"; x.fillStyle = "#0c2342"; x.font = "700 24px Arial"; x.fillText(qtdU(l.i._qtd, l.i.info?.unidade), col.qtd, y + 28);
-    x.font = "20px Arial"; x.fillText(brlS(l.i._valor), col.vu + 110, y + 28);
+    x.font = "20px Arial"; x.fillText(brlS(l.i._valor), col.vu, y + 28);
     x.font = "700 22px Arial"; x.fillText(brlS((l.i._valor || 0) * (l.i._qtd || 0)), col.tot, y + 28); x.textAlign = "left";
     y += l.h; x.strokeStyle = "#e4e7ec"; x.lineWidth = 2; x.beginPath(); x.moveTo(P - 16, y - 8); x.lineTo(W - P + 16, y - 8); x.stroke();
   });
