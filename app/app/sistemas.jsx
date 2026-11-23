@@ -8,7 +8,9 @@ import { ArrowLeft, ExternalLink, RefreshCw } from "lucide-react";
 const SIS = [
   { chave: "PCP", nome: "PCP · Cronograma", dono: "Maycon", desc: "Programação de corte, costura, personalização e expedição", url: "https://pcp.meridianpro.com.br", x: 17, y: 24, cor: "#3B82F6" },
   { chave: "CRM", nome: "CRM Meridian", dono: "Pedro", desc: "Clientes, oportunidades e propostas comerciais", url: "https://crm.meridianpro.com.br", x: 83, y: 24, cor: "#38E1D1" },
-  { chave: "NORT", nome: "Dashboard NORT Sports", dono: "Gerson", desc: "Loja NORT: vendas, peças prontas e encomendas", url: "https://dashboard.nortsports.com.br", x: 50, y: 86, cor: "#EE6500" },
+  { chave: "NORT", nome: "Dashboard NORT Sports", dono: "Gerson", desc: "Loja NORT: vendas, peças prontas e encomendas", url: "https://dashboard.nortsports.com.br", x: 22, y: 82, cor: "#EE6500" },
+  // v1076 — portal da Loja Way aberto dentro do ERP (acesso interno: despacho e etiqueta de envio)
+  { chave: "PORTAL", nome: "Portal Loja Way", dono: "Meridian", desc: "Pedidos da Way: datas de despacho, rastreio e etiqueta de envio", interno: true, x: 78, y: 82, cor: "#A78BFA" },
 ];
 const ERP = { x: 50, y: 47 };
 const quando = (s) => {
@@ -44,7 +46,7 @@ const CSS = `
 @media (prefers-reduced-motion: reduce){.sx-pulso,.sx-respira,.sx-anel,.sx-esporo,.sx-dot.on{animation:none}}
 `;
 
-export default function Sistemas({ user, onVoltar }) {
+export default function Sistemas({ user, onVoltar, onPortal }) {
   const [st, setSt] = useState(null);
   const [lendo, setLendo] = useState(false);
   const ler = () => { setLendo(true); fetch(`/api/sistemas?u=${user.id}`, { cache: "no-store" }).then((r) => r.json()).then((j) => setSt(Object.fromEntries((j.sistemas || []).map((s) => [s.chave, s])))).catch(() => setSt({})).finally(() => setLendo(false)); };
@@ -72,7 +74,7 @@ export default function Sistemas({ user, onVoltar }) {
             <radialGradient id="sxNucleo"><stop offset="0%" stopColor="#E6F6FF" /><stop offset="35%" stopColor="#60A5FA" /><stop offset="100%" stopColor="#0C2342" stopOpacity="0" /></radialGradient>
           </defs>
           {SIS.map((s, i) => {
-            const k = [-140, 140, 0][i], d = curva(ERP, s, k), on = !!st?.[s.chave]?.ativo;
+            const k = [-140, 140, -90, 90][i] || 0, d = curva(ERP, s, k), on = s.interno || !!st?.[s.chave]?.ativo;
             return (
               <g key={s.chave}>
                 <path d={d} className="sx-fibra" stroke={s.cor} strokeOpacity={on ? 0.22 : 0.1} strokeWidth="14" filter="url(#sxBrilho)" />
@@ -96,25 +98,46 @@ export default function Sistemas({ user, onVoltar }) {
         </div>
         {/* sistemas */}
         {SIS.map((s) => {
-          const x = st?.[s.chave], on = !!x?.ativo;
+          const x = st?.[s.chave], on = s.interno || !!x?.ativo;
           return (
-            <button key={s.chave} className="sx-card" onClick={() => window.open(s.url, "_blank", "noopener")} title={`Abrir ${s.nome}`}
+            <button key={s.chave} className="sx-card" onClick={() => (s.interno ? onPortal?.() : window.open(s.url, "_blank", "noopener"))} title={`Abrir ${s.nome}`}
               style={{ left: `${s.x}%`, top: `${s.y}%`, border: `1px solid ${s.cor}66`, boxShadow: `0 0 28px ${s.cor}${on ? "55" : "22"}, inset 0 0 24px ${s.cor}18` }}>
               <div className="flex items-center gap-2">
-                <span className={`sx-dot ${st ? (on ? "on" : "off") : "off"}`} title={on ? "Integração ativa" : "Integração inativa"} />
+                <span className={`sx-dot ${st || s.interno ? (on ? "on" : "off") : "off"}`} title={on ? "Integração ativa" : "Integração inativa"} />
                 <span style={{ color: "#F1F6FE", fontWeight: 800, fontSize: 15 }} className="flex-1">{s.nome}</span>
-                <ExternalLink size={14} style={{ color: s.cor }} />
+                {!s.interno && <ExternalLink size={14} style={{ color: s.cor }} />}
               </div>
               <div style={{ color: "#AFC3E0", fontSize: 11.5, marginTop: 4, lineHeight: 1.35 }}>{s.desc}</div>
               <div className="flex items-center gap-2" style={{ marginTop: 10, fontSize: 11 }}>
                 <span style={{ color: s.cor, fontWeight: 700, letterSpacing: 1 }}>{s.dono.toUpperCase()}</span>
                 <span style={{ color: "#5B6B82" }}>·</span>
-                <span style={{ color: on ? "#A7F3D0" : "#8193AD" }}>{!st ? "verificando…" : `${on ? "integração ativa" : "integração inativa"} · última leitura ${quando(x?.ultima)}`}</span>
+                <span style={{ color: on ? "#A7F3D0" : "#8193AD" }}>{s.interno ? "abre dentro do ERP" : !st ? "verificando…" : `${on ? "integração ativa" : "integração inativa"} · última leitura ${quando(x?.ultima)}`}</span>
               </div>
               {x?.detalhe && <div style={{ color: "#6F86A6", fontSize: 10.5, marginTop: 3 }}>{x.detalhe}</div>}
             </button>);
         })}
       </div>
+    </div>
+  );
+}
+
+// v1076 — Portal Way pelo ERP: escolhe o cliente do portal (Loja Way primeiro) e abre o portal em tela cheia, em modo interno
+export function PortalInterno({ user, tamanhos, onVoltar, Portal }) {
+  const [cs, setCs] = useState(null);
+  const [id, setId] = useState(null);
+  const [erro, setErro] = useState("");
+  useEffect(() => {
+    fetch("/api/portal?clientes=1", { cache: "no-store", headers: { "x-usuario-id": String(user.id) } }).then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error || "Sem acesso."); return j.clientes; })
+      .then((l) => { setCs(l); const way = l.find((c) => /\bWAY\b/.test(c.nome)); if (way || l.length === 1) setId((way || l[0]).id); }).catch((e) => setErro(e.message));
+  }, []);
+  if (id) return <div className="fixed inset-0 z-[45]" style={{ background: "#F5F6F8" }}><Portal key={id} user={user} tamanhos={tamanhos} interno={id} onSair={onVoltar} /></div>;
+  return (
+    <div className="rounded-xl p-6 max-w-lg" style={{ background: "#fff", border: "1px solid #E4E7EC" }}>
+      <button onClick={onVoltar} className="flex items-center gap-1 text-sm font-semibold mb-3" style={{ color: "#001E41" }}><ArrowLeft size={15} /> Sistemas</button>
+      {erro ? <div style={{ color: "#D92D20" }}>{erro}</div> : !cs ? "Carregando…" : !cs.length ? "Nenhum cliente com portal cadastrado." : <>
+        <div className="font-bold mb-2" style={{ color: "#0C2342" }}>Abrir o portal de qual cliente?</div>
+        {cs.map((c) => <button key={c.id} onClick={() => setId(c.id)} className="block w-full text-left px-3 py-2 rounded-lg mb-1.5 font-semibold" style={{ border: "1px solid #E4E7EC" }}>{c.nome}</button>)}
+      </>}
     </div>
   );
 }

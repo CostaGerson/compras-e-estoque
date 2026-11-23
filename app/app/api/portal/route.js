@@ -1,15 +1,22 @@
 // v699/v711 — portal do cliente: itens padrão, pedidos (com status e valores), rascunho, envio e edição
 export const dynamic = "force-dynamic";
-import { usuarioPortal, negadoPortal, itensDoCliente, pedidosDoCliente, enviarPedido, salvarRascunho, nomeCliente, salvarItemPortal, pedidoParaEditar, excluirRascunho, marcarEntregue } from "@/lib/portalCliente";
+import { usuarioPortal, negadoPortal, itensDoCliente, pedidosDoCliente, enviarPedido, salvarRascunho, nomeCliente, salvarItemPortal, pedidoParaEditar, excluirRascunho, marcarEntregue, clientesComPortal, acessoInternoPortal, alterarDespacho } from "@/lib/portalCliente";
+import { usuarioAtivoFin } from "@/lib/fin";
 
 // GET → { cliente, itens, pedidos } · ?editar=ID → pedido para editar
 export async function GET(req) {
+  // v1076 — acesso interno: lista dos clientes com portal
+  if (new URL(req.url).searchParams.get("clientes")) {
+    const u = await usuarioAtivoFin(req.headers.get("x-usuario-id"));
+    if (!acessoInternoPortal(u) || u.setor === "CLIENTE") return negadoPortal();
+    return Response.json({ clientes: await clientesComPortal() });
+  }
   const p = await usuarioPortal(req);
   if (!p) return negadoPortal();
   const ed = new URL(req.url).searchParams.get("editar");
   if (ed) { const r = await pedidoParaEditar(p.cliente, ed); return Response.json(r, { status: r.error ? 400 : 200 }); }
   const [itens, pedidos] = await Promise.all([itensDoCliente(p.cliente.id), pedidosDoCliente(p.cliente.id, p.cliente)]);
-  return Response.json({ cliente: { id: p.cliente.id, nome: nomeCliente(p.cliente) }, itens, pedidos });
+  return Response.json({ cliente: { id: p.cliente.id, nome: nomeCliente(p.cliente) }, itens, pedidos, interno: !!p.interno });
 }
 
 // POST { acao: "rascunho" | "enviar", ppId?, clienteFinal, itens: [{ itemPadraoId, grade, artes, dadosUnitarios, valorVenda }], obs, oc, modo?, limite? }
@@ -19,6 +26,12 @@ export async function POST(req) {
   const b = await req.json().catch(() => null);
   if (!b) return Response.json({ error: "Requisição inválida." }, { status: 400 });
   try {
+    if (b.acao === "despacho") {   // v1076 — só pelo acesso interno (ERP)
+      if (!p.interno) return Response.json({ error: "Só a Meridian altera a data de despacho." }, { status: 403 });
+      const r = await alterarDespacho(p.cliente, b.ppId, b.data, p.u);
+      if (r.error) return Response.json(r, { status: 400 });
+      return Response.json({ ok: true, pedidos: await pedidosDoCliente(p.cliente.id, p.cliente) });
+    }
     if (b.acao === "entregue") {   // v1074 — pedido despachado entregue ao cliente final
       const r = await marcarEntregue(p.cliente, b.ppId, p.u, b.valor !== false);
       if (r.error) return Response.json(r, { status: 400 });

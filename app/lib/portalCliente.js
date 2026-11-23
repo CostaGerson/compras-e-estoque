@@ -7,6 +7,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { usuarioAtivoFin } from "@/lib/fin";
+import { gerencial, tem } from "@/lib/acesso";
 import { listarItensPadrao } from "@/lib/itensPadrao";
 import { salvarPp } from "@/lib/pedidoEfetivar";
 import { paramFora, qtdGrade, num, hojeISO, somaDias } from "@/lib/pedidoLanc";
@@ -43,11 +44,40 @@ export async function usuarioPortal(req) {
   let id = req.headers.get("x-usuario-id");
   if (!id) { try { id = new URL(req.url).searchParams.get("_u"); } catch {} }
   const u = await usuarioAtivoFin(id);
+  // v1076 — acesso interno pelo ERP (Gestão › S › Portal Way): usuário da Meridian com gestão, escolhendo o cliente do portal
+  if (u && u.setor !== "CLIENTE") {
+    const cid = Number(req.headers.get("x-portal-cliente")) || 0;
+    if (!cid || !acessoInternoPortal(u)) return null;
+    const cliente = await prisma.cliente.findUnique({ where: { id: cid } });
+    return cliente ? { u, cliente, interno: true } : null;
+  }
   if (!u || u.setor !== "CLIENTE" || !u.portalClienteId) return null;
   const cliente = await prisma.cliente.findUnique({ where: { id: u.portalClienteId } });
   return cliente ? { u, cliente } : null;
 }
 
+export const acessoInternoPortal = (u) => !!u && (gerencial(u) || tem(u, "ppStatus"));
+// v1076 — clientes que têm portal (usuário CLIENTE ativo ligado a eles), para o acesso interno
+export async function clientesComPortal() {
+  const us = await prisma.usuario.findMany({ where: { setor: "CLIENTE", portalClienteId: { not: null } }, select: { portalClienteId: true } });
+  const ids = [...new Set(us.map((x) => x.portalClienteId))];
+  const cs = ids.length ? await prisma.cliente.findMany({ where: { id: { in: ids } }, select: { id: true, nomeFantasia: true, razaoSocial: true } }) : [];
+  return cs.map((c) => ({ id: c.id, nome: nomeCliente(c) })).sort((a, b) => a.nome.localeCompare(b.nome));
+}
+// v1076 — interno: troca a data de despacho do pedido do portal (portal + pedido de venda, se já efetivado)
+export async function alterarDespacho(cliente, ppId, data, u) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data || ""))) return { error: "Data de despacho inválida." };
+  const pp = await prisma.pp.findFirst({ where: { id: Number(ppId) || 0, portalClienteId: cliente.id }, select: { id: true, numero: true, dtDespacho: true, efetivadoEm: true } });
+  if (!pp) return { error: "Pedido não encontrado." };
+  const br = data.split("-").reverse().join("/");
+  await prisma.pp.update({ where: { id: pp.id }, data: { dtDespacho: br } });
+  if (pp.efetivadoEm && pp.numero) {
+    const pv = await prisma.pedidoVenda.findFirst({ where: { numero: pp.numero }, select: { id: true, obs: true } });
+    if (pv) await prisma.pedidoVenda.update({ where: { id: pv.id }, data: { despacho: new Date(`${data}T00:00:00Z`), atualizadoPorNome: nomeU(u) || null,
+      obs: [pv.obs, `DESPACHO ALTERADO ${pp.dtDespacho || "—"} → ${br} POR ${nomeU(u) || "—"} (PORTAL)`].filter(Boolean).join(" · ").slice(0, 1000) } });
+  }
+  return { ok: true };
+}
 export const nomeCliente = (c) => String(c?.nomeFantasia || c?.razaoSocial || "").toUpperCase();
 
 // itens padrão do cliente: lead time e CMV (valor da FPP) — sem os nossos custos
@@ -328,6 +358,7 @@ export async function pedidosDoCliente(clienteId, cliente) {
       id: p.id, numero: fmtNumPortal(p.portalNumero), numeroMeridian: p.efetivadoEm ? p.numero : null, status: st, situacao: ST_PORTAL[st] || st,
       lancadoEm: p.portalEnviadoEm || p.createdAt, criadoEm: p.createdAt,
       despacho: ["LIBERADO", "EM_PRODUCAO", "FINALIZADO", "DESPACHADO", "ENTREGUE"].includes(st) ? p.dtDespacho : null,
+      despachoISO: p.dtDespacho && /^\d{2}\/\d{2}\/\d{4}$/.test(p.dtDespacho) ? p.dtDespacho.split("/").reverse().join("-") : null,
       rastreio: p.rastreio || null, despachadoEm: p.despachadoEm || null, entregueEm: p.entregueEm || null, entreguePor: p.entreguePor || null,   // v1074   // v714 — só depois de ir para a produção
       liberadoEm: p.portalLiberadoEm || null, leadTime: Math.max(0, ...p.itens.map((i) => (i.fppId && leadDe[i.fppId]) || 0)), oc: p.oc, obs: p.portalObs, enviadoPor: p.portalEnviadoPor,
       cliente: cf ? (cf.tipo === "PJ" ? cf.razaoSocial : cf.nome) || "" : "", clienteFinal: cf,

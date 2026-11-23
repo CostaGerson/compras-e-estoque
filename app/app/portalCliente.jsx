@@ -4,15 +4,17 @@
 //        valor vendido por item, CMV (valor da FPP × peças), MC e despacho pelo lead time; envio pergunta
 //        "data limite para receber os dados" ou "direto para a produção"; lista "Pedidos" no estilo do painel de produção.
 import React, { useEffect, useMemo, useState } from "react";
-import { LogOut, ChevronsLeft, ChevronsRight, Plus, X, Paperclip, Send, Package, ClipboardList, Image as Img, FileText, RotateCcw, Save, Pencil, Search, CalendarClock, Factory, Trash2, Copy } from "lucide-react";
-import { alerta, confirmar } from "./dialogo";
+import { LogOut, ChevronsLeft, ChevronsRight, Plus, X, Paperclip, Send, Package, ClipboardList, Image as Img, FileText, RotateCcw, Save, Pencil, Search, CalendarClock, Factory, Trash2, Copy, Printer } from "lucide-react";
+import { alerta, confirmar, perguntar } from "./dialogo";
+const perguntarVol = async () => { const v = await perguntar("Quantos volumes (caixas)? Sai uma etiqueta por volume.", "1"); if (v == null) return null; const n = Math.round(Number(String(v).replace(",", "."))); return n > 0 ? Math.min(n, 50) : 1; };
 import { useMobile } from "./useMobile";
 import { GradeEditor } from "./pedidoEditor";
 import DadosUnitarios, { resumoDU, limiteTxt } from "./dadosUnitarios";
 import ClienteFinalForm, { ClienteFinalResumo } from "./clienteFinal";
 import { vazioClienteFinal, validarClienteFinal } from "@/lib/clienteFinal";
 import { qtdGrade, num } from "@/lib/pedidoLanc";
-import { subirArquivo, tokenDe, urlDoArquivo, LIMITE_MB } from "@/lib/arquivosCliente";   // v865 — arquivos grandes em partes
+import { subirArquivo, tokenDe, urlDoArquivo, LIMITE_MB } from "@/lib/arquivosCliente";
+import { abrirEtiqueta, destinatarioDe, faltasDestinatario } from "@/lib/etiquetaEnvio";   // v1076   // v865 — arquivos grandes em partes
 import { temDU, conferirComGrade } from "@/lib/dadosUnitarios";
 
 // paleta padrão do sistema Meridian (identidade visual)
@@ -54,7 +56,8 @@ function calcValores(itens) {
   return { pecas, cmv, venda, mc, mcPct: venda > 0 ? Math.round((mc / venda) * 1000) / 10 : null, lead: Math.max(0, ...itens.map((it) => it.padrao.leadTime || 0)) };
 }
 
-export default function PortalCliente({ user, onSair, tamanhos }) {
+// v1076 — interno: id do cliente do portal acessado pelo ERP (Gestão › S › Portal Way); muda despacho e gera etiqueta
+export default function PortalCliente({ user, onSair, tamanhos, interno = null }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [aba, setAba] = useState("NOVO");
@@ -74,9 +77,22 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
   const [recolhido, setRecolhido] = useState(false);
   useEffect(() => { try { setRecolhido(localStorage.getItem("portalMenuRecolhido") === "1"); } catch {} }, []);
   const alternarMenu = () => setRecolhido((x) => { try { localStorage.setItem("portalMenuRecolhido", x ? "0" : "1"); } catch {} return !x; });
-  const api = (url, o = {}) => fetch(url, { cache: "no-store", ...o, headers: { "Content-Type": "application/json", "x-usuario-id": String(user.id) } })
+  const api = (url, o = {}) => fetch(url, { cache: "no-store", ...o, headers: { "Content-Type": "application/json", "x-usuario-id": String(user.id), ...(interno ? { "x-portal-cliente": String(interno) } : {}) } })
     .then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Erro."); return j; });
   const carregar = () => api("/api/portal").then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
+  // v1076 — interno: data de despacho e etiqueta de envio
+  const mudarDespacho = async (p, data) => {
+    try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ acao: "despacho", ppId: p.id, data }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); }
+    catch (e) { alerta(e.message); }
+  };
+  const etiqueta = async (p) => {
+    const dest = destinatarioDe(p.clienteFinal);
+    const f = faltasDestinatario(dest);
+    if (f.length && !(await confirmar(`Endereço do cliente final incompleto (falta: ${f.join(", ")}). Gerar a etiqueta mesmo assim?`))) return;
+    const vol = await perguntarVol();
+    if (vol == null) return;
+    if (!abrirEtiqueta({ dest, pedido: p.numeroMeridian || p.numero, pedidoPortal: p.numero, cliente: d?.cliente?.nome, rastreio: p.rastreio, volumes: vol, pecas: p.pecas })) alerta("O navegador bloqueou a janela da etiqueta: libere pop-ups para este site.");
+  };
   useEffect(() => { carregar(); }, []);
 
   const gradeVazia = () => tamanhos.map((t) => ({ tam: t, qtd: "" }));
@@ -164,7 +180,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
             {recolhido ? <img src="/meridian-emblema.svg" alt="MERIDIAN" style={{ height: 26, width: "auto" }} /> : <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 24, width: "auto" }} />}
           </div>
           {!recolhido && <div className="px-4 py-3 shrink-0" style={{ borderBottom: `1px solid ${C.navyLine}` }}>
-            <div className="text-[11px] uppercase tracking-wide" style={{ color: C.navySub }}>Portal do cliente</div>
+            <div className="text-[11px] uppercase tracking-wide" style={{ color: interno ? C.accent : C.navySub }}>{interno ? "Acesso interno · ERP" : "Portal do cliente"}</div>
             <div className="font-bold text-sm mt-0.5" style={{ color: "#fff" }}>{d?.cliente?.nome || "…"}</div>
           </div>}
           <nav className="flex-1 py-2 overflow-y-auto scroll-escuro">
@@ -183,7 +199,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
           <div className={`py-2.5 shrink-0 flex items-center gap-2 ${recolhido ? "justify-center px-1" : "px-3"}`} style={{ borderTop: `1px solid ${C.navyLine}` }}>
             {!recolhido && <span className="text-xs flex-1 truncate" style={{ color: C.navySub }}>{nomeUser}</span>}
             <button onClick={onSair} title="Sair" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0"
-              style={{ color: "#fff", border: `1px solid ${C.navyLine}`, background: "rgba(255,255,255,.06)" }}><LogOut size={14} />{!recolhido && " Sair"}</button>
+              style={{ color: "#fff", border: `1px solid ${C.navyLine}`, background: "rgba(255,255,255,.06)" }}><LogOut size={14} />{!recolhido && (interno ? " Voltar ao ERP" : " Sair")}</button>
           </div>
         </aside>
       )}
@@ -333,7 +349,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
           </>
         )}
 
-        {d && aba === "PEDIDOS" && <ListaPedidos pedidos={d.pedidos} mobile={mobile} onAbrir={setDetalhe} onExcluir={excluirPedido} />}
+        {d && aba === "PEDIDOS" && <ListaPedidos pedidos={d.pedidos} mobile={mobile} onAbrir={setDetalhe} onExcluir={excluirPedido} interno={!!interno} onDespacho={mudarDespacho} />}
         </div>
         </div>
       </main>
@@ -344,6 +360,7 @@ export default function PortalCliente({ user, onSair, tamanhos }) {
         return p ? <DetalhePedido p={p} user={user} tamanhos={tamanhos} nomeCliente={d.cliente.nome} mobile={mobile} onFechar={() => setDetalhe(null)} onEditar={() => editar(p.id)}
           onExcluir={() => excluirPedido(p)}
           salvarItem={async (k, body) => { const j = await api("/api/portal", { method: "PUT", body: JSON.stringify({ ppId: p.id, idx: k, ...body }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); }}
+          interno={!!interno} onDespacho={(v) => mudarDespacho(p, v)} onEtiqueta={() => etiqueta(p)}
           onEntregue={async (valor) => {   // v1074 — o cliente marca o pedido despachado como entregue
             if (!(await confirmar(valor ? "Marcar este pedido como ENTREGUE ao cliente final?" : "Desfazer o \"entregue\" deste pedido?"))) return;
             try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ acao: "entregue", ppId: p.id, valor }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); } catch (e) { alerta(e.message); }
@@ -421,7 +438,7 @@ function EnvioModal({ envio, setEnvio, val, st, onEnviar, onFechar }) {
 }
 
 // v711 — lista no estilo do painel de produção
-function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
+function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir, interno, onDespacho }) {
   const [filtro, setFiltro] = useState("TODOS");
   const [busca, setBusca] = useState("");
   const cont = useMemo(() => pedidos.reduce((m, p) => ({ ...m, [p.status]: (m[p.status] || 0) + 1 }), {}), [pedidos]);
@@ -467,7 +484,10 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
                   <td className="px-3 py-2.5 text-right tabular-nums">{money(p.venda)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: p.mc >= 0 ? C.green : C.red }}>{money(p.mc)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: p.mc >= 0 ? C.green : C.red }}>{pctTxt(p.mcPct) || "—"}</td>
-                  <td className="px-3 py-2.5 whitespace-nowrap">{p.despacho || <span style={{ color: C.sub }}>{p.leadTime ? "após liberar" : "—"}</span>}</td>
+                  <td className="px-3 py-2.5 whitespace-nowrap">{interno && !["CANCELADO", "EM_ABERTO"].includes(p.status)   /* v1076 — interno muda o despacho na lista */
+                    ? <input type="date" defaultValue={p.despachoISO || ""} key={p.despachoISO || "x"} onClick={(e) => e.stopPropagation()} onBlur={(e) => { if (e.target.value && e.target.value !== p.despachoISO) onDespacho(p, e.target.value); }}
+                        title="Data de despacho (só a Meridian altera)" className="rounded px-1.5 py-1 text-xs" style={{ border: `1px solid ${C.accent}`, background: "#fff" }} />
+                    : p.despacho || <span style={{ color: C.sub }}>{p.leadTime ? "após liberar" : "—"}</span>}</td>
                   <td className="px-3 py-2.5"><Chip s={p.status} />{p.status === "RECEBENDO_DETALHES" && p.limite && <div className="text-[10px] mt-0.5" style={{ color: C.sub }}>até {limiteTxt(p.limite)}</div>}
                     {p.rastreio && <div className="text-[11px] mt-0.5 font-mono font-semibold whitespace-nowrap" style={{ color: C.text }} title="Código de rastreio">{p.rastreio}</div>}</td>
                   <td className="px-2">{p.editavel && <button onClick={(e) => { e.stopPropagation(); onExcluir(p); }} title="Excluir pedido" style={{ color: C.sub }}><Trash2 size={14} /></button>}</td>
@@ -488,7 +508,7 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir }) {
 }
 
 // v711 — dados gerais do pedido + edição
-function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEditar, onExcluir, salvarItem, onEntregue }) {
+function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEditar, onExcluir, salvarItem, onEntregue, interno, onDespacho, onEtiqueta }) {
   const url = (t) => `${typeof window !== "undefined" ? window.location.origin : ""}/dados/${t}`;
   const copiar = async (t) => { try { await navigator.clipboard.writeText(url(t)); alerta("Link copiado."); } catch { window.prompt("Copie o link:", url(t)); } };
   return (
@@ -496,6 +516,7 @@ function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEdi
       rodape={<>
         {p.editavel && <button onClick={onExcluir} className="mr-auto flex items-center gap-1 px-3 py-2 rounded-lg text-sm" style={{ color: C.red, border: `1px solid ${C.line}` }}><Trash2 size={14} /> Excluir</button>}
         <button onClick={onFechar} className="px-4 py-2 text-sm" style={{ color: C.sub }}>Fechar</button>
+        {interno && ["FINALIZADO", "DESPACHADO", "ENTREGUE", "EM_PRODUCAO"].includes(p.status) && <button onClick={onEtiqueta} title="Etiqueta de envio 10 × 15 cm (padrão Correios)" className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-sm" style={{ color: C.navy, border: `1px solid ${C.navy}` }}><Printer size={14} /> Gerar etiqueta</button>}
         {(p.status === "DESPACHADO" || p.status === "FINALIZADO") && <button onClick={() => onEntregue(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-sm" style={{ background: C.green, color: "#fff" }}><Package size={14} /> Marcar como entregue</button>}
         {p.status === "ENTREGUE" && <button onClick={() => onEntregue(false)} className="px-3 py-2 rounded-lg text-sm" style={{ color: C.sub, border: `1px solid ${C.line}` }}>Desfazer entregue</button>}
         {p.editavel && <button onClick={onEditar} className="flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-sm" style={{ background: C.accent, color: "#fff" }}><Pencil size={14} /> Editar pedido</button>}
@@ -506,6 +527,10 @@ function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEdi
         {p.status === "RECEBENDO_DETALHES" && p.limite && <span className="text-xs font-semibold" style={{ color: C.accent }}>recebendo dados até {limiteTxt(p.limite)}</span>}
       </div>
       <ResumoValores v={{ pecas: p.pecas, cmv: p.cmv, venda: p.venda, mc: p.mc, mcPct: p.mcPct, lead: p.leadTime }} mobile={mobile} despacho={p.despacho} />
+      {interno && !["CANCELADO", "EM_ABERTO"].includes(p.status) && (   // v1076 — só pelo ERP
+        <label className="flex items-center gap-2 mt-2 text-xs font-semibold" style={{ color: C.accent }}>Data de despacho
+          <input type="date" defaultValue={p.despachoISO || ""} key={p.despachoISO || "x"} onBlur={(e) => { if (e.target.value && e.target.value !== p.despachoISO) onDespacho(e.target.value); }} className="rounded px-2 py-1" style={{ border: `1px solid ${C.accent}`, background: "#fff", color: C.text }} />
+          <span className="font-normal" style={{ color: C.sub }}>altera o portal e o pedido de venda</span></label>)}
       {p.liberadoEm && <div className="text-xs mt-2" style={{ color: C.sub }}>Liberado para a produção em <b style={{ color: C.text }}>{dBR(p.liberadoEm)}</b></div>}
       {p.rastreio && (   // v1074 — despachado com código de rastreio
         <div className="flex flex-wrap items-center gap-2 mt-2 text-xs rounded-lg px-3 py-2" style={{ background: p.entregueEm ? C.greenSoft : C.accentSoft }}>

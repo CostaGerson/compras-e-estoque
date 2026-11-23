@@ -8,6 +8,7 @@ import { ImportarNfs } from "./adm";
 import { imprimirPedido, dadosImpressaoPp, dadosImpressaoPedido } from "./impressaoPedido";   // v638 — Imprimir PV / OP no card
 import { CasarPedidoModal, descasar } from "./casamentoNf";   // v555   // v450 — Incluir faturamento (XML e PDF, como no movimento fiscal)
 import { lancaPP } from "@/lib/acesso";
+import { abrirEtiqueta, destinatarioDe, faltasDestinatario } from "@/lib/etiquetaEnvio";   // v1076
 import ConteudoImportacao from "./conteudoImportacao";   // v1034   // v728 — botão Editar no card do pedido
 
 const C = {
@@ -432,6 +433,16 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
               {p?.portal && <button onClick={() => pedirRastreio(p.portal.rastreio)} title={p.portal.rastreio ? `Rastreio ${p.portal.rastreio}${p.portal.entregueEm ? " · entregue" : ""}` : "Incluir código de rastreio (aparece no portal da loja)"}
                 className="text-xs px-2 py-0.5 rounded-full font-semibold flex items-center gap-1" style={{ border: `1px solid ${p.portal.rastreio ? C.green : C.accent}`, color: p.portal.rastreio ? C.green : C.accent, background: "#fff" }}>
                 <Truck size={12} /> {p.portal.rastreio ? <span className="font-mono">{p.portal.rastreio}</span> : "Rastreio"}{p.portal.entregueEm ? " · entregue" : ""}</button>}
+              {/* v1076 — pedido do portal concluído: etiqueta de envio 10 × 15 (padrão Correios) */}
+              {p?.portal && (p.fase === "CONCLUIDO" || p.statusPedido === "FATURADO" || p.faturar === "SEM_NOTA") && <button onClick={async () => {
+                const dest = destinatarioDe(p.portal.clienteFinal);
+                const f = faltasDestinatario(dest);
+                if (f.length && !(await confirmar(`Endereço do cliente final incompleto (falta: ${f.join(", ")}). Gerar a etiqueta mesmo assim?`))) return;
+                const v = await perguntar("Quantos volumes (caixas)? Sai uma etiqueta por volume.", "1");
+                if (v == null) return;
+                const vol = Math.max(1, Math.min(50, Math.round(Number(String(v).replace(",", "."))) || 1));
+                if (!abrirEtiqueta({ dest, pedido: numero, pedidoPortal: p.portal.numero, cliente: String(p.cliente || "").split(" - ")[0], rastreio: p.portal.rastreio, volumes: vol, pecas: p.pecas })) alerta("O navegador bloqueou a janela da etiqueta: libere pop-ups para este site.");
+              }} title="Etiqueta de envio 10 × 15 cm (padrão Correios)" className="text-xs px-2 py-0.5 rounded-full font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: "#fff" }}><Printer size={12} /> Etiqueta</button>}
             </div>
             {p && <div className="text-sm" style={{ color: C.text }}>{p.cliente}</div>}
           </div>
