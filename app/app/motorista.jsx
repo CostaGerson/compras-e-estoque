@@ -121,6 +121,7 @@ export default function MotoristaApp({ user, onSair }) {
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [oc, setOc] = useState(false);
+  const [verImg, setVerImg] = useState(null);   // v1060 — anexo em imagem (OC) em tela cheia
   const [ret, setRet] = useState(null);   // v521 — justificativa do retorno à fábrica no meio da rota (null = fechado)
   const [pedeKm, setPedeKm] = useState(null);   // v778 — #67: { titulo, body } — km atual antes de partir / ao chegar
   const [abast, setAbast] = useState(false);    // v778 — #68: abastecimento
@@ -159,6 +160,18 @@ export default function MotoristaApp({ user, onSair }) {
 
   return (
     <div className="min-h-screen pb-10" style={{ background: C.bg, fontFamily: "Montserrat, system-ui, sans-serif" }}>
+      {verImg && (   /* v1060 — anexo em tela cheia (pinça para ampliar; fechar no X) */
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "rgba(0,0,0,.92)" }} onClick={() => setVerImg(null)}>
+          <div className="flex items-center gap-2 px-4 py-3" style={{ color: "#fff" }}>
+            <div className="flex-1 font-bold truncate">{verImg.nome}</div>
+            <a href={verImg.src} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-sm underline">abrir</a>
+            <button type="button" onClick={() => setVerImg(null)} className="text-3xl leading-none px-2" aria-label="Fechar">×</button>
+          </div>
+          <div className="flex-1 overflow-auto" onClick={(e) => e.stopPropagation()} style={{ touchAction: "pinch-zoom" }}>
+            <img src={verImg.src} alt={verImg.nome} className="w-full h-auto" style={{ background: "#fff" }} />
+          </div>
+        </div>
+      )}
       <div className="flex items-center gap-3 px-4 py-3 sticky top-0 z-10" style={{ background: C.navy }}>
         <img src="/meridian-logo.svg" alt="MERIDIAN" style={{ height: 20, width: "auto" }} />
         <div className="flex-1 text-right text-sm font-semibold" style={{ color: "#fff" }}>Olá, {sc(user.nome)} 👋</div>
@@ -211,7 +224,10 @@ export default function MotoristaApp({ user, onSair }) {
                     <div className="mt-2 flex items-center gap-2 text-base" style={{ color: C.sub }}><Clock size={18} /> {atual.horario}{atual.tempoLocal != null ? ` · ~${atual.tempoLocal} min no local` : ""}</div>
                     {atual.telefone && <a href={`tel:${tel(atual.telefone)}`} className="mt-2 flex items-center gap-2 text-base font-bold" style={{ color: C.green }}><Phone size={18} /> {atual.contato ? `${sc(atual.contato)} · ` : ""}{atual.telefone}</a>}
                     {atual.obs && <div className="mt-2 rounded-xl px-3 py-2 text-base" style={{ background: C.yellowSoft, color: C.yellow }}>📝 {atual.obs}</div>}
-                    {(atual.anexos || []).length > 0 && <div className="mt-2 flex flex-col gap-1">{atual.anexos.map((a) => <a key={a.id} href={`/api/rotas?u=${user.id}&anexo=${a.id}`} target="_blank" rel="noreferrer" className="text-base font-semibold truncate" style={{ color: C.blue }}>📎 {a.nome}</a>)}</div>}   {/* v788 — #70 */}
+                    {(atual.anexos || []).length > 0 && <div className="mt-2 flex flex-col gap-2">{atual.anexos.map((a) => (/^image\//.test(a.mime || "")
+                      // v1060 — imagem (ex.: a OC da coleta/compra): botão grande que abre em tela cheia
+                      ? <button key={a.id} type="button" onClick={() => setVerImg({ src: `/api/rotas?u=${user.id}&anexo=${a.id}`, nome: a.nome })} className="w-full rounded-xl px-4 py-3 text-lg font-extrabold flex items-center justify-center gap-2" style={{ background: C.navy, color: "#fff", minHeight: 52 }}>🧾 {/^OC/i.test(a.nome) ? `Ver ${a.nome.replace(/\.png$/i, "").replace(/^OC/i, "OC ")}` : `Ver ${a.nome}`}</button>
+                      : <a key={a.id} href={`/api/rotas?u=${user.id}&anexo=${a.id}`} target="_blank" rel="noreferrer" className="text-base font-semibold truncate" style={{ color: C.blue }}>📎 {a.nome}</a>))}</div>}   {/* v788 — #70 */}
                   </div>
                   <div className="px-4 pb-4 space-y-3">
                     {!indo ? (

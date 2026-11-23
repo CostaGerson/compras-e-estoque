@@ -601,6 +601,12 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
   const [salv, setSalv] = useState(false);
   const [erro, setErro] = useState("");
   const [novosArq, setNovosArq] = useState([]);   // v788 — #70: anexos escolhidos antes de salvar a demanda nova
+  // v1060 — coleta/compra criada a partir da OC: a OC em PNG já vem anexada (o motorista confere itens e valores no celular)
+  useEffect(() => {
+    const o = novo && inicial.ocId && typeof window !== "undefined" ? window.__ocRota?.[inicial.ocId] : null;
+    if (!o) return;
+    import("./ocImagem").then(({ anexoDaOc }) => anexoDaOc(o)).then((a) => setNovosArq((l) => (l.some((x) => x.nome === a.nome) ? l : [a, ...l]))).catch(() => {});
+  }, []);
   async function confirmarDem() {
     try { await postRotas(user, { acao: "confirmar", id: inicial.id }); onOk(); alerta("Demanda confirmada: já pode entrar numa rota."); } catch (e) { setErro(e.message); }
   }

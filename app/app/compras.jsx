@@ -1795,6 +1795,7 @@ const ST_COT = { GERADA: ["gerada · não enviada", C.sub, C.panel2], ENVIADA: [
 const FORMAS_REC = [["COLETA", "Coleta (nós buscamos)"], ["TRANSPORTADORA", "Entrega por transportadora"], ["ENTREGA_PROPRIA", "Entrega própria do fornecedor"]];
 // v479 — rota de coleta a partir da OC: abre a demanda de rota preenchida (fornecedor, endereço, "COLETA OC x · NF y")
 export function criarRotaColeta(o) {
+  try { (window.__ocRota ||= {})[o.id] = o; } catch {}   // v1060 — a demanda nova anexa a OC em PNG
   window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "rota", nova: { objetivo: "COLETA", destinoTipo: "FORNECEDOR", destinoId: o.fornecedor.id, destinoNome: String(o.fornecedor.nome || "").toUpperCase(),
     endereco: o.fornecedor.endereco || "", contato: o.fornecedor.contato || "", telefone: o.fornecedor.telefone || "", horarioTipo: "LIVRE",
     tarefa: `COLETA ${o.numero}${o.nfNumero ? ` · NF ${o.nfNumero}` : ""}`, ocId: o.id } } }));
