@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle, Boxes, CheckCircle2, ShoppingCart, KeyRound, Copy, Undo2, ClipboardList, PackageCheck, Paperclip, ImagePlus, Trash2, Send, Clock, MessageSquare } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";
+import { desenharOc } from "./ocImagem";   // v1068 — OC em PNG para enviar
 import { ImportarNfs } from "./adm";   // v494 — NF subida pela OC passa pelo mesmo lançamento do movimento fiscal   // v424 — popups do sistema
 
 const C = {
@@ -1507,6 +1508,7 @@ export function OrdensCompra({ user, fases, ir }) {
   const vis = (l || []).filter((o) => (filtro === "ativas" ? ["ABERTA", "ENVIADA", "NF_EMITIDA"].includes(o.status) : filtro === "baixadas" ? o.status === "RECEBIDA" : true));   // v532 — Baixadas
   const [nf, setNf] = useState({});   // v479 — { ocId: { numero, emissao } }
   const [edIt, setEdIt] = useState({});   // v487 — itens da OC em edição
+  const [fotoOc, setFotoOc] = useState(null);   // v1068 — OC em PNG
   return (
     <div className="w-full">
       <FasesCompras atual="oc" fases={fases} ir={ir} />
@@ -1514,6 +1516,7 @@ export function OrdensCompra({ user, fases, ir }) {
         direita={<><span className="text-sm" style={{ color: C.sub }}>Total: <b style={{ color: C.navy }}>{brl(vis.reduce((s0, o) => s0 + o.total, 0))}</b></span>
           <button onClick={carregar} title="Atualizar" className="p-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button></>} />
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
+      {fotoOc && <PicFotoModal p={fotoOc} desenhar={desenharOc} aoEnviar={() => fotoOc.status === "ABERTA" && salvar(fotoOc, { status: "ENVIADA" })} onClose={() => setFotoOc(null)} />}
       {l && !vis.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma OC. Elas são geradas no PIC, uma por fornecedor.</div>}
       {vis.map((o) => {
         const [txt, cor, fundo] = ST_OC[o.status] || ST_OC.ABERTA;
@@ -1582,6 +1585,7 @@ export function OrdensCompra({ user, fases, ir }) {
                 <NfsDaOc o={o} user={user} onMudou={carregar} />   {/* v494 — NFs da OC: movimento fiscal, contas, conferência */}
                 <BaixaOc o={o} user={user} onMudou={carregar} />   {/* v532 — baixa (material recebido) */}
                 <div className="flex justify-end mt-3">
+                  <button onClick={() => setFotoOc(o)} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.line}`, color: C.navy, background: C.panel }}><FileText size={14} /> Card / WhatsApp</button>
                   <button onClick={() => imprimirOc(o)} className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.accent}`, color: C.accent }}><FileText size={14} /> Imprimir / PDF</button>
                 </div>
               </div>
@@ -1684,20 +1688,22 @@ async function desenharPic(p) {
   x.strokeStyle = "#ee6500"; x.setLineDash([10, 10]); x.lineWidth = 3; x.beginPath(); x.moveTo(P, H - 50); x.lineTo(W - P, H - 50); x.stroke(); x.setLineDash([]);
   return cv;
 }
-function PicFotoModal({ p, onClose }) {
+function PicFotoModal({ p, onClose, desenhar = desenharPic, aoEnviar = null }) {   // v1068 — também a OC
   const [img, setImg] = useState(null);
   const [cv, setCv] = useState(null);
   const [msg, setMsg] = useState("");
-  useEffect(() => { desenharPic(p).then((c) => { setCv(c); setImg(c.toDataURL("image/png")); }); }, []);
+  useEffect(() => { desenhar(p).then((c) => { setCv(c); setImg(c.toDataURL("image/png")); }); }, []);
   const nomeArq = `${p.numero.replace(/\s+/g, "")}-meridian`;
+  const enviou = () => { try { aoEnviar && aoEnviar(); } catch {} };
   const blob = () => new Promise((ok) => cv.toBlob(ok, "image/png"));
   const baixar = (href, nome) => { const a = document.createElement("a"); a.href = href; a.download = nome; a.click(); };
-  async function copiar() { try { await navigator.clipboard.write([new ClipboardItem({ "image/png": blob() })]); setMsg("Imagem copiada!"); setTimeout(() => setMsg(""), 2500); } catch { alerta("O navegador não deixou copiar a imagem. Use Baixar PNG."); } }
+  async function copiar() { try { await navigator.clipboard.write([new ClipboardItem({ "image/png": blob() })]); enviou(); setMsg("Imagem copiada! Cole no WhatsApp (Ctrl+V)."); setTimeout(() => setMsg(""), 2500); } catch { alerta("O navegador não deixou copiar a imagem. Use Baixar PNG."); } }
   async function pdf() {
-    try { const { jsPDF } = await carregarJsPdf(); const w = 297, h = (cv.height / cv.width) * w; const d = new jsPDF({ unit: "mm", format: [w, Math.max(h, 100)], orientation: h > w ? "portrait" : "landscape" }); d.addImage(img, "PNG", 0, 0, w, h); d.save(`${nomeArq}.pdf`); }
+    try { const { jsPDF } = await carregarJsPdf(); const w = 297, h = (cv.height / cv.width) * w; const d = new jsPDF({ unit: "mm", format: [w, Math.max(h, 100)], orientation: h > w ? "portrait" : "landscape" }); d.addImage(img, "PNG", 0, 0, w, h); d.save(`${nomeArq}.pdf`); enviou(); }
     catch { alerta("Não consegui gerar o PDF. Use Baixar PNG."); }
   }
-  async function compartilhar() { try { const f = new File([await blob()], `${nomeArq}.png`, { type: "image/png" }); await navigator.share({ files: [f], title: p.numero }); } catch {} }
+  async function compartilhar() { try { const f = new File([await blob()], `${nomeArq}.png`, { type: "image/png" }); await navigator.share({ files: [f], title: p.numero }); enviou(); } catch {} }
+  const tel = p.fornecedor ? telWa(p.fornecedor.telefone || p.fornecedor.telefones) : null;
   const podeShare = typeof navigator !== "undefined" && !!navigator.canShare && (() => { try { return navigator.canShare({ files: [new File([""], "a.png", { type: "image/png" })] }); } catch { return false; } })();
   const b = "text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1";
   return (
@@ -1706,8 +1712,9 @@ function PicFotoModal({ p, onClose }) {
       {img && <div className="flex flex-wrap items-center gap-2 mt-2">
         {podeShare && <button onClick={compartilhar} className={b} style={{ background: "#25D366", color: "#fff" }}>Compartilhar</button>}
         <button onClick={copiar} className={b} style={{ background: C.navy, color: "#fff" }}><Copy size={13} /> Copiar imagem</button>
-        <button onClick={() => baixar(img, `${nomeArq}.png`)} className={b} style={{ border: `1px solid ${C.line}`, color: C.text }}>Baixar PNG</button>
+        <button onClick={() => { baixar(img, `${nomeArq}.png`); enviou(); }} className={b} style={{ border: `1px solid ${C.line}`, color: C.text }}>Baixar PNG</button>
         <button onClick={pdf} className={b} style={{ border: `1px solid ${C.line}`, color: C.text }}><FileText size={13} /> Baixar PDF</button>
+        {aoEnviar && <a href={tel ? `https://wa.me/${tel}?text=${encodeURIComponent(`Olá! Segue a ordem de compra ${p.numero} da Meridian. Por favor, confirme o recebimento. Obrigado!`)}` : "https://wa.me/"} target="_blank" rel="noreferrer" className={b} style={{ border: "1px solid #25D366", color: "#128C7E" }} title={tel ? `WhatsApp ${tel}` : "Fornecedor sem telefone no cadastro"}>Abrir WhatsApp{tel ? "" : " (sem telefone)"}</a>}
         {msg && <span className="text-xs font-semibold" style={{ color: C.green }}>{msg}</span>}
       </div>}
     </Modal>
