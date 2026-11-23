@@ -5,6 +5,7 @@ import { KeyRound, Copy, Eye, EyeOff, RefreshCw, Loader2, CheckCircle2 } from "l
 import { alerta, confirmar } from "./dialogo";
 import IntegracaoEmail from "./integracaoEmail";   // v895
 import { IntegracaoNort } from "./pecasProntas";   // v906
+import { IntegracaoArtes } from "./artesLayouts";   // v1039 — Google Drive dos layouts
 import { AtalhoModal, WhatsModal } from "./contas";   // v1032 — comprovantes: atalho do iPhone e WhatsApp da empresa
 import { gerencial, temAlguma } from "@/lib/acesso";
 
@@ -14,14 +15,14 @@ const C = { panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733
 export default function Integracoes({ user }) {
   const [aba, setAba] = useState("pcp");
   const fin = !!user && (gerencial(user) || temAlguma(user, "contasPagar", "contasReceber", "docsFinanceiros", "nfEntrada", "faturamento"));
-  const abas = [["pcp", "PCP"], ...(fin ? [["comprovantes", "Comprovantes"]] : []), ...(user?.isMaster ? [["nort", "NORT"], ["email", "E-mail"]] : [])];
+  const abas = [["pcp", "PCP"], ...(fin ? [["comprovantes", "Comprovantes"]] : []), ...(user?.isMaster ? [["nort", "NORT"], ["email", "E-mail"], ["artes", "Artes e layouts"]] : [])];
   return (
     <div>
       <div className="text-lg font-bold mb-2" style={{ color: C.navy }}>Integrações</div>
       <div className="flex gap-1 mb-4">{abas.map(([k, t]) => <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 text-sm font-semibold rounded-md"
         style={{ background: aba === k ? "#EAF2FC" : "transparent", color: aba === k ? "#2E7CD6" : C.text }}>{t}</button>)}</div>
       {aba === "comprovantes" ? <><WhatsModal user={user} embutido /><AtalhoModal user={user} embutido /></>
-        : aba === "email" ? <IntegracaoEmail user={user} /> : aba === "nort" ? <IntegracaoNort user={user} /> : <IntegracaoPcp user={user} />}
+        : aba === "email" ? <IntegracaoEmail user={user} /> : aba === "nort" ? <IntegracaoNort user={user} /> : aba === "artes" ? <IntegracaoArtes user={user} /> : <IntegracaoPcp user={user} />}
     </div>
   );
 }

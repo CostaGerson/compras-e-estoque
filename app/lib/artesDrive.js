@@ -31,10 +31,10 @@ export async function salvarConfig(b) {
 
 async function chamar(corpo, cfg0) {
   const cfg = cfg0 || (await configDrive());
-  if (!cfg.url) throw new Error("Google Drive não configurado (Dados › Artes e layouts › Configurar).");
+  if (!cfg.url) throw new Error("Google Drive não configurado (Dados › Integrações › Artes e layouts).");
   const r = await fetch(cfg.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ segredo: cfg.segredo, pasta: cfg.pasta, ...corpo }), redirect: "follow" });
   const t = await r.text();
-  let j; try { j = JSON.parse(t); } catch { throw new Error(r.ok ? "O Apps Script pediu login em vez de responder: na implantação, 'Quem pode acessar' precisa ser 'Qualquer pessoa' (não 'Qualquer pessoa em meridianpro.com.br'). Se essa opção não aparecer, o administrador do Google Workspace bloqueou o compartilhamento externo." : `Apps Script respondeu ${r.status}.`); }
+  let j; try { j = JSON.parse(t); } catch { throw new Error(r.ok ? "O Apps Script pediu login em vez de responder: na implantação, 'Quem pode acessar' precisa ser 'Qualquer pessoa' (não 'Qualquer pessoa em meridianpro.com.br'). Se essa opção não aparecer, o administrador do Google Workspace bloqueou o compartilhamento externo." : r.status === 401 || r.status === 403 ? `Apps Script recusou o acesso (${r.status}): na implantação, "Quem pode acessar" precisa ser "Qualquer pessoa" — crie uma nova versão em Implantar → Gerenciar implantações.` : r.status === 404 ? "URL do Apps Script não encontrado (404): confira se copiou o URL do app da Web (termina em /exec)." : `Apps Script respondeu ${r.status}.`); }
   if (j.error) throw new Error(j.error);
   return j;
 }

@@ -19,7 +19,6 @@ export default function ArtesLayouts({ user }) {
   const [q, setQ] = useState("");
   const [tipo, setTipo] = useState("");
   const [origem, setOrigem] = useState("");
-  const [cfg, setCfg] = useState(false);
   const [ocup, setOcup] = useState("");
   const [novo, setNovo] = useState({ tipo: "ARTE", pedidoNumero: "", cliente: "", item: "" });
   const [sobre, setSobre] = useState(false);
@@ -56,12 +55,11 @@ export default function ArtesLayouts({ user }) {
             <span>· {R.ENVIADO || 0} no Drive · {R.PENDENTE || 0} aguardando{R.ERRO ? ` · ${R.ERRO} com erro` : ""}{R.LOCAL ? ` · ${R.LOCAL} grandes no servidor` : ""}</span>
           </div>
         </div>
-        {d.master && <button onClick={() => setCfg((x) => !x)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }}><Settings size={14} /> Configurar Drive</button>}
         <button onClick={sincronizar} disabled={!!ocup} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.accent}`, background: C.panel, color: C.accent }}>
           {ocup === "sinc" ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Enviar pendentes agora</button>
       </div>
 
-      {cfg && d.master && <ConfigDrive K={K} post={post} onSalvo={() => { carregar(); }} />}
+      {!K.configurado && d.master && <div className="rounded-lg px-3 py-2 mb-3 text-xs flex items-center gap-2" style={{ background: C.yellowSoft, color: C.text }}><Settings size={13} style={{ color: C.yellow }} /> A conexão com o Google Drive fica em <b>Dados › Integrações › Artes e layouts</b>.</div>}
 
       {/* envio manual */}
       <div onDragOver={(e) => { if (e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); setSobre(true); } }} onDragLeave={() => setSobre(false)}
@@ -131,8 +129,8 @@ function ConfigDrive({ K, post, onSalvo }) {
     <div className="rounded-lg p-4 mb-3 text-sm" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
       <div className="font-bold mb-2" style={{ color: C.navy }}>Conectar o Google Drive (uma vez só, na conta Google dona da pasta)</div>
       <ol className="list-decimal pl-5 space-y-1 text-xs" style={{ color: C.text }}>
-        <li>Abra <a href="https://script.google.com/home/projects/create" target="_blank" rel="noreferrer" style={{ color: C.blue }}>script.google.com → Novo projeto</a>, apague o que estiver lá e cole o código abaixo.</li>
-        <li>Clique em <b>Implantar → Nova implantação</b> → tipo <b>App da Web</b> · Executar como: <b>Eu</b> · Quem pode acessar: <b>Qualquer pessoa</b> → <b>Implantar</b> e autorize o acesso ao Drive.</li>
+        <li>Abra o projeto no <a href="https://script.google.com/home" target="_blank" rel="noreferrer" style={{ color: C.blue }}>script.google.com</a> (ou crie um novo), apague tudo do <b>Código.gs</b>, cole o código abaixo e salve (Ctrl+S).</li>
+        <li>Clique em <b>Implantar → Nova implantação</b> → engrenagem → <b>App da Web</b> · Executar como: <b>Eu</b> · Quem pode acessar: <b>Qualquer pessoa</b> (não "Qualquer pessoa em Meridian") → <b>Implantar</b> e autorize o acesso ao Drive (em "app não verificado": Avançado → Acessar).</li>
         <li>Copie o <b>URL do app da Web</b> (termina em <code>/exec</code>), cole aqui e clique em <b>Salvar e testar</b>.</li>
       </ol>
       <div className="relative mt-2">
@@ -145,6 +143,30 @@ function ConfigDrive({ K, post, onSalvo }) {
         <button onClick={salvarTestar} disabled={ocup || !url.trim()} className="flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: ocup || !url.trim() ? 0.6 : 1 }}>{ocup && <Loader2 size={14} className="animate-spin" />} Salvar e testar</button>
       </div>
       {msg && <div className="text-xs mt-2 font-semibold" style={{ color: msg.ok ? C.green : C.red }}>{msg.t}</div>}
+    </div>
+  );
+}
+
+// v1039 — Dados › Integrações › Artes e layouts: a conexão com o Google Drive (só master)
+export function IntegracaoArtes({ user }) {
+  const [d, setD] = useState(null);
+  const carregar = () => fetch(`/api/artes?u=${user.id}`, { cache: "no-store" }).then((r) => r.json()).then(setD).catch((e) => setD({ error: e.message }));
+  useEffect(() => { carregar(); }, []);
+  const post = async (corpo) => { const r = await fetch("/api/artes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, ...corpo }) }); const j = await r.json().catch(() => ({})); if (!r.ok || j.error) throw new Error(j.error || `Erro ${r.status}`); return j; };
+  if (!d) return <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>;
+  if (d.error) return <div className="text-sm" style={{ color: C.red }}>{d.error}</div>;
+  if (!d.master) return <div className="text-sm" style={{ color: C.sub }}>Só o master configura o Google Drive.</div>;
+  const R = d.resumo || {}, K = d.config || {};
+  return (
+    <div>
+      <div className="text-sm mb-2" style={{ color: C.sub }}>Layouts, artes e mockups vão para o <b>Google Drive</b> da empresa, numa pasta por pedido. A lista dos arquivos fica em <b>Dados › Artes e layouts</b>.</div>
+      <div className="text-xs mb-3 flex items-center gap-2 flex-wrap" style={{ color: C.sub }}>
+        {K.configurado ? <span className="flex items-center gap-1 font-semibold" style={{ color: C.green }}><Cloud size={13} /> Conectado{K.pastaNome ? ` · pasta "${K.pastaNome}"` : ""}{K.testadoEm ? ` · testado em ${dh(K.testadoEm)}` : ""}</span>
+          : <span className="flex items-center gap-1 font-semibold" style={{ color: C.yellow }}><AlertTriangle size={13} /> Ainda não conectado — os arquivos ficam aguardando</span>}
+        <a href={`https://drive.google.com/drive/folders/${K.pasta}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 font-semibold" style={{ color: C.blue }}><ExternalLink size={12} /> abrir a pasta no Drive</a>
+        <span>· {R.ENVIADO || 0} no Drive · {R.PENDENTE || 0} aguardando{R.ERRO ? ` · ${R.ERRO} com erro` : ""}{R.LOCAL ? ` · ${R.LOCAL} grandes no servidor` : ""}</span>
+      </div>
+      <ConfigDrive K={K} post={post} onSalvo={carregar} />
     </div>
   );
 }
