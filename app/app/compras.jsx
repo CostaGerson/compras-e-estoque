@@ -1777,7 +1777,7 @@ function ArquivosCotacao({ c, user, onMudou }) {
 }
 export function Cotacoes({ user, fases, ir }) {
   const [l, setL] = useState(null);
-  const [filtro, setFiltro] = useState("todas");
+  const [filtro, setFiltro] = useState("andamento");   // v1049 — abre em andamento (sem OC)
   const [ed, setEd] = useState({});   // { cotId: { itens: [...], condicao, prazoEntrega, obs } }
   const [card, setCard] = useState(null);
   const [gerOc, setGerOc] = useState(null);   // v479
@@ -1793,9 +1793,10 @@ export function Cotacoes({ user, fases, ir }) {
   // menor preço de cada artigo entre as cotações (para comparar fornecedores)
   const melhor = useMemo(() => { const m = {}; for (const c of l || []) for (const i of c.itens) if (i.valorUnitario != null && !i.naoTem) { const k = `${i.nome}|${i.det}|${i.unidade}`; if (!m[k] || i.valorUnitario < m[k].v) m[k] = { v: i.valorUnitario, f: c.fornecedorNome, n: c.numero }; } return m; }, [l]);
   const ehOc = (c) => c.status === "OC" || c.status === "APLICADA";
-  const ABAS = [["GERADA", "Geradas", FileText], ["ENVIADA", "Enviadas", Send], ["RESPONDIDA", "Respondidas", MessageSquare], ["OC", "Com OC", ShoppingCart], ["todas", "Todas", Layers]];
-  const conta = (k) => (l || []).filter((c) => (k === "OC" ? ehOc(c) : c.status === k)).length;
-  const vis = (l || []).filter((c) => filtro === "todas" || (filtro === "OC" ? ehOc(c) : c.status === filtro));
+  // v1049 — guias iguais às de PIC e OC: em andamento (ainda sem OC) · baixadas (com OC) · todas
+  const ABAS = [["andamento", "Em andamento", Clock], ["OC", "Baixadas", PackageCheck], ["todas", "Todas", Layers]];
+  const conta = (k) => (l || []).filter((c) => (k === "OC" ? ehOc(c) : !ehOc(c))).length;
+  const vis = (l || []).filter((c) => filtro === "todas" || (filtro === "OC" ? ehOc(c) : !ehOc(c)));
   const inp = "px-2 py-1 rounded text-sm outline-none";
   return (
     <div className="w-full">
