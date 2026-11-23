@@ -1992,7 +1992,20 @@ export function PainelCompras({ ir, soAvulsas, acoes }) {   // v495 — soAvulsa
   useEffect(() => { carregar(); const f = () => carregar(); window.addEventListener("ce:avulsasMudou", f); return () => window.removeEventListener("ce:avulsasMudou", f); }, []);
   const conta = (k) => (l || []).filter((i) => i.etapa === k).length;
   const t = norm(q);
-  const vis = (l || []).filter((i) => (f ? i.etapa === f : i.etapa !== "RECEBIDA") && (!t || norm(`${i.nome} ${i.det} ${i.fornecedor || ""} ${i.pic} ${i.oc?.numero || ""} ${i.pedidos.join(" ")}`).includes(t)));
+  // v1050 — ordenar clicando no título da coluna (clicar de novo inverte)
+  const [ord, setOrd] = useState({ k: null, d: 1 });
+  const ordemEtapa = Object.fromEntries([...ETAPAS_PRE, ...ETAPAS].map(([k], n) => [k, n]));
+  const chaveOrd = {
+    artigo: (i) => norm(`${i.nome} ${i.det}`), orig: (i) => i.origem || "", qtd: (i) => Number(i.quantidade) || 0, fornecedor: (i) => norm(i.fornecedor || "~"),
+    pic: (i) => `${i.pic || "~"} ${i.oc?.numero || ""}`, para: (i) => (i.destinos || []).join(" "), etapa: (i) => ordemEtapa[i.etapa] ?? 99,
+  };
+  const vis0 = (l || []).filter((i) => (f ? i.etapa === f : i.etapa !== "RECEBIDA") && (!t || norm(`${i.nome} ${i.det} ${i.fornecedor || ""} ${i.pic} ${i.oc?.numero || ""} ${i.pedidos.join(" ")}`).includes(t)));
+  const vis = !ord.k ? vis0 : [...vis0].sort((a, b) => { const x = chaveOrd[ord.k](a), y = chaveOrd[ord.k](b); return (typeof x === "number" ? x - y : String(x).localeCompare(String(y), "pt-BR", { numeric: true })) * ord.d; });
+  const Tit = ({ k, cls, children, title }) => (
+    <button type="button" onClick={() => setOrd((o) => (o.k === k ? (o.d === 1 ? { k, d: -1 } : { k: null, d: 1 }) : { k, d: 1 }))} title={title || "Ordenar"} className={`${cls} flex items-center gap-0.5 hover:text-black ${cls.includes("text-center") ? "justify-center" : ""}`} style={{ color: ord.k === k ? C.navy : undefined }}>
+      {children}{ord.k === k ? <span className="text-[10px]">{ord.d === 1 ? "▲" : "▼"}</span> : null}
+    </button>
+  );
   return (
     <div className={soAvulsas ? "mb-6" : "mt-6"}>   {/* v495 — largura da página toda */}
       <div className="flex items-center gap-2 mb-2">
@@ -2023,7 +2036,7 @@ export function PainelCompras({ ir, soAvulsas, acoes }) {   // v495 — soAvulsa
       {vis.length > 0 && (
         <div className="rounded-lg overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
           <div className="flex px-4 py-2 text-xs font-semibold gap-3 items-center" style={{ color: C.sub, background: C.panel2 }}>
-            <div className="flex-1">Artigo</div><div className="w-8 text-center" title="A = compra avulsa · P = pedido">Orig.</div><div className="w-24 text-center">Qtd</div><div className="w-40 text-center">Fornecedor</div><div className="w-28 text-center">PIC / OC</div><div className="w-32 text-center">Para</div><div className="w-36 text-center">Etapa</div>
+            <Tit k="artigo" cls="flex-1 text-left">Artigo</Tit><Tit k="orig" cls="w-8 text-center" title="A = compra avulsa · P = pedido">Orig.</Tit><Tit k="qtd" cls="w-24 text-center">Qtd</Tit><Tit k="fornecedor" cls="w-40 text-center">Fornecedor</Tit><Tit k="pic" cls="w-28 text-center">PIC / OC</Tit><Tit k="para" cls="w-32 text-center">Para</Tit><Tit k="etapa" cls="w-36 text-center">Etapa</Tit>
           </div>
           {vis.map((i) => {
             const e = [...ETAPAS_PRE, ...ETAPAS].find((x) => x[0] === i.etapa) || ETAPAS[0];
