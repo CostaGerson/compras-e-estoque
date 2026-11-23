@@ -21,6 +21,9 @@ const dBR = (s) => (s ? s.slice(0, 10).split("-").reverse().join("/") : "");
 const somaMes = (c, n) => { const [a, m] = c.split("-").map(Number); const d = new Date(Date.UTC(a, m - 1 + n, 1)); return iso(d).slice(0, 7); };
 const nomeMes = (c) => { const [a, m] = c.split("-").map(Number); return `${MESES[m - 1].toLowerCase()}/${a}`; };
 const empresaDe = (txt) => (/\bNORT\b/.test(normRegra(txt)) ? "NORT" : "MERIDIAN");
+// v1079 — folha / resumo de ADIANTAMENTO (Alterdata): o título do relatório fala em adiantamento (nas primeiras linhas;
+//   a rubrica "606 Adiantamento" que aparece como desconto na folha do 5º dia útil não conta)
+const ehAdiantamento = (L) => L.slice(0, 14).some((l) => /ADIANTAMENTO/.test(normRegra(l)) && !/^\d{3}\s/.test(l.trim()));
 const ref = (txt) => {   // "01/09/2026 a 30/09/2026" → { de, ate, comp }
   const m = txt.match(/(\d{2})\/(\d{2})\/(\d{4})\s*a\s*(\d{2})\/(\d{2})\/(\d{4})/);
   return m ? { de: `${m[3]}-${m[2]}-${m[1]}`, ate: `${m[6]}-${m[5]}-${m[4]}`, comp: `${m[6]}-${m[5]}` } : null;
@@ -42,12 +45,12 @@ const DETECTORES = [
       const funcionarios = [];
       for (const l of L) { const m = l.match(/^(\d{6})\s+(.+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})$/); if (m) funcionarios.push({ codigo: m[1], nome: m[2].toUpperCase(), liquido: num(m[3]) }); }
       const tot = t.match(/Total por Empresa\s*=>\s*([\d.]+,\d{2})/i);
-      return { empresa: empresaDe(L.slice(0, 3).join(" ")), ref: r, total: tot ? num(tot[1]) : r2(funcionarios.reduce((s, f) => s + f.liquido, 0)), funcionarios };
+      return { empresa: empresaDe(L.slice(0, 3).join(" ")), ref: r, total: tot ? num(tot[1]) : r2(funcionarios.reduce((s, f) => s + f.liquido, 0)), funcionarios, adiantamento: ehAdiantamento(L) };
     },
   },
   {
     tipo: "FOLHA",
-    casa: (L) => L.some((l) => /^FOLHA DE PAGAMENTO$/i.test(l)) && L.some((l) => /Total L[ií]quido/i.test(l)),
+    casa: (L) => L.some((l) => /^FOLHA DE (PAGAMENTO|ADIANTAMENTO)\b/i.test(l)) && L.some((l) => /Total L[ií]quido/i.test(l)),
     ler(L) {
       const t = L.join("\n");
       const emp = (L.find((l) => /^Empresa\s*:/i.test(l)) || "").replace(/^Empresa\s*:\s*/i, "");
@@ -66,7 +69,7 @@ const DETECTORES = [
       return {
         empresa: empresaDe(emp), ref: ref(t), total: liq ? num(liq[1]) : 0, bruto: bruto ? num(bruto[1]) : null,
         qtdFuncionarios: qtd ? Number(qtd[1]) : funcionarios.length,
-        funcionarios: funcionarios.filter((f) => f.liquido > 0),
+        funcionarios: funcionarios.filter((f) => f.liquido > 0), adiantamento: ehAdiantamento(L),
         semLiquido: funcionarios.filter((f) => !(f.liquido > 0)).map((f) => f.nome),
       };
     },
@@ -233,17 +236,18 @@ export async function analisarDocumentos(docs) {
   // folha + resumo de líquidos da mesma empresa e mês → um lançamento
   const folhas = new Map();
   for (const d of docs.filter((x) => x.tipo === "FOLHA" || x.tipo === "LIQUIDOS")) {
-    const k = `${d.empresa}|${d.ref?.comp || "?"}`;
+    const k = `${d.empresa}|${d.ref?.comp || "?"}${d.adiantamento ? "|ADIANT" : ""}`;
     if (!folhas.has(k)) folhas.set(k, []);
     folhas.get(k).push(d);
   }
-  const recs = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { in: ["MATRIZ|pessoal|SALARIO", "NORT|FOLHA5"] } }, select: { id: true, chaveOrigem: true } });
+  const recs = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { in: ["MATRIZ|pessoal|SALARIO", "NORT|FOLHA5", "MATRIZ|pessoal|ADIANTAMENTO", "NORT|ADIANTAMENTO"] } }, select: { id: true, chaveOrigem: true } });
   const recDe = Object.fromEntries(recs.map((r) => [r.chaveOrigem, r.id]));
   for (const [k, ds] of folhas) {
-    const [empresa, compRef] = k.split("|");
+    const [empresa, compRef, kindA] = k.split("|");
+    const adiant = kindA === "ADIANT";   // v1079 — adiantamento: pago no dia 20 do próprio mês
     const folha = ds.find((x) => x.tipo === "FOLHA"), liq = ds.find((x) => x.tipo === "LIQUIDOS");
     const valor = r2((folha || liq).total);
-    const comp = compRef !== "?" ? somaMes(compRef, 1) : null;   // folha de setembro → paga no 5º dia útil de outubro
+    const comp = compRef !== "?" ? (adiant ? compRef : somaMes(compRef, 1)) : null;   // folha de setembro → paga no 5º dia útil de outubro; adiantamento no dia 20 do mês
     const avisos = [];
     if (folha && liq) {
       if (Math.abs(folha.total - liq.total) > 0.01) avisos.push(`Folha (${folha.total.toFixed(2)}) e resumo de líquidos (${liq.total.toFixed(2)}) não batem.`);
@@ -264,7 +268,8 @@ export async function analisarDocumentos(docs) {
     const contas = await prisma.finConta.findMany({ select: { id: true, codigo: true } });
     const idConta = Object.fromEntries(contas.map((c) => [c.codigo, c.id]));
     let rateio;
-    if (empresa === "NORT") rateio = idConta["2154000"] ? [{ contaId: idConta["2154000"], pct: 100 }] : null;
+    const cNort = adiant ? "2155000" : "2154000";
+    if (empresa === "NORT") rateio = idConta[cNort] ? [{ contaId: idConta[cNort], pct: 100 }] : null;
     else {
       const setor = {};
       for (const o of matriz?.ok || []) setor[o.folha] = o.depto;
@@ -280,13 +285,20 @@ export async function analisarDocumentos(docs) {
       if (linhas.length) { const dif = r2(100 - linhas.reduce((a, l) => a + l.pct, 0)); linhas[0].pct = r2(linhas[0].pct + dif); }
       rateio = linhas.length ? linhas.map(({ contaId, pct }) => ({ contaId, pct })) : null;
     }
-    const chave = empresa === "NORT" ? "NORT|FOLHA5" : "MATRIZ|pessoal|SALARIO";
+    const chave = adiant ? (empresa === "NORT" ? "NORT|ADIANTAMENTO" : "MATRIZ|pessoal|ADIANTAMENTO") : empresa === "NORT" ? "NORT|FOLHA5" : "MATRIZ|pessoal|SALARIO";
     let alvo = opcoes.find((t) => recDe[chave] && t.recorrenciaId === recDe[chave]);
-    if (!alvo) alvo = opcoes.find((t) => /^SAL[AÁ]RIO/.test(t.titulo) && (empresa === "NORT") === /NORT/.test(`${t.titulo} ${t.parceiro}`))
+    if (!alvo && adiant) alvo = opcoes.find((t) => /ADIANT/.test(normRegra(t.titulo)) && (empresa === "NORT") === /NORT/.test(normRegra(`${t.titulo} ${t.parceiro}`)) && t.status === "ABERTO");
+    if (!alvo && !adiant) alvo = opcoes.find((t) => /^SAL[AÁ]RIO/.test(t.titulo) && (empresa === "NORT") === /NORT/.test(`${t.titulo} ${t.parceiro}`))
       || (empresa === "NORT" ? opcoes.find((t) => /NORT/.test(t.titulo) && /FOLHA|SAL[AÁ]RIO/.test(t.titulo) && !/ADIANT/.test(t.titulo)) : null);
+    // v1079 — um lançamento por pessoa (como os freelancers): líquido da fopag + chave PIX do cadastro do RH
+    const { pessoasDaFolha } = await import("@/lib/finFolhaMatriz");
+    const pessoas = await pessoasDaFolha(base, empresa, empresa === "NORT" ? { NORT: cNort } : CONTA_DEPTO);
+    const semPix = pessoas.filter((x) => !x.pix).map((x) => x.nome);
+    if (semPix.length) avisos.push(`Sem chave PIX no cadastro do RH (o lançamento da pessoa sai sem PIX): ${semPix.join(", ")}.`);
     itens.push({
-      chave: `FOLHA|${k}`, tipo: "FOLHA", empresa, comp, refTexto: compRef !== "?" ? nomeMes(compRef) : "?",
-      descricao: `Folha de ${compRef !== "?" ? nomeMes(compRef) : "?"} — ${empresa} · líquido de ${(liq || folha).funcionarios.length} funcionário(s)`,
+      chave: `FOLHA|${k}`, tipo: "FOLHA", adiantamento: adiant, empresa, comp, refTexto: compRef !== "?" ? nomeMes(compRef) : "?",
+      descricao: `${adiant ? "Adiantamento" : "Folha"} de ${compRef !== "?" ? nomeMes(compRef) : "?"} — ${empresa} · líquido de ${(liq || folha).funcionarios.length} funcionário(s) · um lançamento por pessoa com o PIX`,
+      pessoas: pessoas.map((x) => ({ nome: x.nome, liquido: x.liquido, depto: x.depto, pix: x.pix || null })),
       valor, arquivos: ds.map((x) => x.arquivo), docs: ds.map((x) => x.tipo),
       funcionarios: (liq || folha).funcionarios, bruto: folha?.bruto ?? null, avisos,
       nota: "Sócios (IGOR, PEDRO, MAYCON) não entram na folha — o pró-labore fixo de R$ 6.000 fica nas contas próprias.",
@@ -294,8 +306,8 @@ export async function analisarDocumentos(docs) {
       alvo: saida(alvo), opcoes: opcoes.map(saida),
       // v698 — sem conta da folha no mês (ex.: NORT sem funcionário na Matriz): já vem pronta para criar
       novo: alvo ? null : {
-        titulo: empresa === "NORT" ? "NORT - FOLHA 5º DIA ÚTIL" : "SALÁRIO", parceiro: empresa === "NORT" ? "FOLHA DE PAGAMENTO NORT" : "FOLHA DE PAGAMENTO",
-        vencimento: comp ? (() => { try { return vencNoMes(comp, 5, true, true).toISOString().slice(0, 10); } catch { return ""; } })() : "",
+        titulo: adiant ? (empresa === "NORT" ? "NORT - FOLHA ADIANTAMENTO" : "ADIANTAMENTO SALARIAL") : empresa === "NORT" ? "NORT - FOLHA 5º DIA ÚTIL" : "SALÁRIO", parceiro: empresa === "NORT" ? "FOLHA DE PAGAMENTO NORT" : "FOLHA DE PAGAMENTO",
+        vencimento: comp ? (adiant ? `${comp}-20` : (() => { try { return vencNoMes(comp, 5, true, true).toISOString().slice(0, 10); } catch { return ""; } })()) : "",
         contaId: rateio?.[0]?.contaId || null,
       },
     });
@@ -542,6 +554,11 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
       r.linhas.push(`${t.titulo}: criada com R$ ${valor.toFixed(2)}`);
     } else { r.ids.push(null); continue; }
     r.ids.push(id);
+    // v1079 — folha / adiantamento: um lançamento por pessoa dentro da conta (como os freelancers), líquido + PIX do cadastro
+    if (it.tipo === "FOLHA" && Array.isArray(it.funcionarios) && it.funcionarios.length && (await prisma.finTitulo.findUnique({ where: { id }, select: { status: true } }))?.status === "ABERTO") {
+      const p = await lancarFolhaPorPessoa(id, it, quem);
+      r.linhas.push(`${p.criados} lançamento(s) por pessoa${p.mantidos ? ` (${p.mantidos} já pago(s) mantido(s))` : ""}${p.semPix ? ` · ${p.semPix} sem PIX` : ""}`);
+    }
     // iFood: PIX vira anexo .txt e o financeiro é avisado
     if (it.tipo === "IFOOD") {
       try {
@@ -589,4 +606,34 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
     for (const [i, it] of itens.entries()) if (it.tipo === "GUIA" && r.ids[i]) await registrarValorGuia(r.ids[i], quem).catch(() => null);
   }
   return r;
+}
+
+// v1079 — itens por pessoa da folha / adiantamento (FinSemanaItem, grupo FOLHA | ADIANTAMENTO): refaz os em aberto,
+//   mantém os já pagos; o valor e o rateio da conta passam a ser a soma dos itens (recalcular)
+export async function lancarFolhaPorPessoa(tituloId, it, quem) {
+  const grupo = it.adiantamento ? "ADIANTAMENTO" : "FOLHA";
+  const empresa = it.empresa === "NORT" ? "NORT" : "MERIDIAN";
+  const cNort = it.adiantamento ? "2155000" : "2154000";
+  const { pessoasDaFolha } = await import("@/lib/finFolhaMatriz");
+  const pessoas = await pessoasDaFolha(it.funcionarios.filter((f) => Number(f.liquido) > 0), empresa, empresa === "NORT" ? { NORT: cNort } : CONTA_DEPTO);
+  const contas = await prisma.finConta.findMany({ where: { codigo: { in: [...new Set([...pessoas.map((x) => x.contaCodigo).filter(Boolean), "2128200"])] } }, select: { id: true, codigo: true } });
+  const idC = Object.fromEntries(contas.map((c) => [c.codigo, c.id]));
+  const existentes = await prisma.finSemanaItem.findMany({ where: { tituloId: Number(tituloId), grupo: { in: ["FOLHA", "ADIANTAMENTO"] } } });
+  const pagos = new Set(existentes.filter((x) => x.pago).map((x) => x.nome));
+  await prisma.finSemanaItem.deleteMany({ where: { tituloId: Number(tituloId), grupo: { in: ["FOLHA", "ADIANTAMENTO"] }, pago: false } });
+  const ref = it.refTexto ? String(it.refTexto).toUpperCase() : "";
+  let criados = 0, semPix = 0;
+  for (const p of pessoas) {
+    const nome = String(p.nome).trim().toUpperCase();
+    if (pagos.has(nome)) continue;
+    if (!p.pix) semPix++;
+    await prisma.finSemanaItem.create({ data: {
+      tituloId: Number(tituloId), grupo, nome, chavePix: p.pix || "", setor: p.depto || "ADM", contaId: idC[p.contaCodigo] || idC["2128200"],
+      valor: r2(p.liquido), linhas: [], descricao: `${grupo === "ADIANTAMENTO" ? "ADIANTAMENTO" : "SALÁRIO"}${ref ? ` ${ref}` : ""} · LÍQUIDO DA FOPAG`,
+      observacao: p.pix ? null : "SEM CHAVE PIX NO CADASTRO DO RH", criadoPorNome: quem || null } });
+    criados++;
+  }
+  const { recalcular } = await import("@/lib/finSemana");
+  await recalcular(tituloId);
+  return { criados, mantidos: pagos.size, semPix };
 }

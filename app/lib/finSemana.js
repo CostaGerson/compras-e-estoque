@@ -234,8 +234,8 @@ export async function listarItens(tituloId) {
     diaria: i.diaria == null ? null : Number(i.diaria),
     transporte: i.transporte == null ? null : Number(i.transporte),
     custoExtra: i.custoExtra == null ? null : Number(i.custoExtra),
-    setorNome: nomeSetor(i.grupo, i.setor),
-    grupoNome: (GRUPOS_ITEM[i.grupo] || {}).n || i.grupo,
+    setorNome: ["FOLHA", "ADIANTAMENTO"].includes(i.grupo) ? ({ DIR: "Diretoria", ADM: "Administrativo", COR: "Corte", SIL: "Silk", BOR: "Bordado", COS: "Costura", EXP: "Expedição", LOG: "Logística", NORT: "NORT" }[i.setor] || i.setor) : nomeSetor(i.grupo, i.setor),
+    grupoNome: (GRUPOS_ITEM[i.grupo] || {}).n || { FOLHA: "Salário (folha)", ADIANTAMENTO: "Adiantamento" }[i.grupo] || i.grupo,   // v1079
   }));
 }
 

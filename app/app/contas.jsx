@@ -67,7 +67,7 @@ function MarcaRec({ m, size = 12 }) {
     </span>
   );
 }
-const ehSemana = (t) => t?.forma === "SEMANAL" || String(t?.chaveImport || "").startsWith("SEMANA|");
+const ehSemana = (t) => t?.forma === "SEMANAL" || String(t?.chaveImport || "").startsWith("SEMANA|") || !!t?.porPessoa;   // v1079 — folha/adiantamento por pessoa
 const FORMA = { RH: ["Lançada pelo RH", Hand], MANUAL: ["Manual", Hand], NF_XML: ["Importação NF (XML)", FileCode2], EXCEL: ["Importação (planilha)", FileSpreadsheet], IMPORTACAO: ["Importação (posição de títulos)", FileSpreadsheet], RECORRENCIA: ["Recorrência", Repeat], SEMANAL: ["Conta da semana", CalendarClock] };
 // toda conta que subiu por importação mostra "IMPORTAÇÃO" + a data em que subiu
 const ehImportacao = (t) => ["NF_XML", "EXCEL", "IMPORTACAO"].includes(t.forma) || String(t.chaveImport || "").startsWith("POSICAO|");
@@ -1028,6 +1028,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
         const e = esc[it.chave];
         return { tipo: it.tipo, valor: it.tipo === "OUTRO" ? Number(e.valor) || 0 : it.valor, comp: it.comp, descricao: it.descricao, arquivos: it.arquivos,
           rateio: it.rateio || null, vencimento: (it.tipo === "IFOOD" ? e.vencimento : it.vencimento) || null, pix: e.pix || "", boleto: it.boleto || null, empresa: it.empresa, guia: it.guia, atualizarValor: !!e.atualizarValor, hashes: it.hashes || [],
+          ...(it.tipo === "FOLHA" ? { funcionarios: it.funcionarios, adiantamento: !!it.adiantamento, refTexto: it.refTexto } : {}),   // v1079 — um lançamento por pessoa
           ...(e.destino === "CRIAR" ? { criar: e.criar } : { alvoId: Number(e.destino) }) };
       });
       const j = await api("/api/fin/titulos/documento", "POST", { usuarioId: user.id, acao: "aplicar", itens, arquivos: [] });
@@ -1126,12 +1127,13 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
                 {it.tipo === "FOLHA" && (
                   <div className="text-xs mb-2">
                     <button onClick={() => setAbertos((x) => ({ ...x, [it.chave]: !x[it.chave] }))} className="underline" style={{ color: C.blue }}>
-                      {abertos[it.chave] ? "esconder" : "ver"} líquido por funcionário ({it.funcionarios.length})
+                      {abertos[it.chave] ? "esconder" : "ver"} líquido e PIX por funcionário ({it.funcionarios.length}) — vira um lançamento por pessoa
                     </button>
                     {abertos[it.chave] && (
                       <div className="mt-1 rounded-lg overflow-auto" style={{ maxHeight: 200, border: `1px solid ${C.line}` }}>
-                        {it.funcionarios.map((f) => (
-                          <div key={f.codigo} className="flex justify-between px-3 py-1" style={{ borderBottom: `1px solid ${C.line}` }}><span>{f.nome}</span><b>{brl(f.liquido)}</b></div>
+                        {(it.pessoas || it.funcionarios).map((f, k) => (
+                          <div key={f.codigo || k} className="flex items-center gap-3 px-3 py-1" style={{ borderBottom: `1px solid ${C.line}` }}><span className="flex-1">{f.nome}</span>
+                            {it.pessoas && <span className="text-[11px]" style={{ color: f.pix ? C.sub : C.red }}>{f.pix ? `PIX ${f.pix}` : "sem PIX no cadastro"}</span>}<b>{brl(f.liquido)}</b></div>
                         ))}
                       </div>
                     )}
@@ -2461,7 +2463,7 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
 
   const sexta = dBR(String(d.titulo.vencimento).slice(0, 10));
   return (
-    <Modal titulo={`${d.titulo.nome} · sexta ${sexta}`} icone={CalendarClock} onClose={onClose} largura={1040}
+    <Modal titulo={`${d.titulo.nome} · ${d.tipo ? "sexta" : "vence"} ${sexta}`} icone={CalendarClock} onClose={onClose} largura={1040}
       rodape={<>
         <span className="mr-auto font-bold" style={{ color: C.navy }}>
           {d.pago > 0 ? <>Em aberto {moeda(d.saldo)} <span className="font-normal text-xs" style={{ color: C.sub }}>· pago {moeda(d.pago)} de {moeda(d.total)}</span></> : <>Total da semana {moeda(d.total)}</>}

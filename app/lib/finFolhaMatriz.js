@@ -44,14 +44,14 @@ export async function conferirFolhaMatriz(funcionarios, empresa = "MERIDIAN") {
   const resto = [];
   for (const f of funcionarios) {
     const p = pessoas.find((x) => !usadas.has(x.id) && x.nome && casaNome(x.nome, f.nome));
-    if (p) { usadas.add(p.id); ok.push({ folha: f.nome, matriz: p.nome, depto: p.depto }); } else resto.push(f);
+    if (p) { usadas.add(p.id); ok.push({ folha: f.nome, matriz: p.nome, depto: p.depto, pessoaId: p.id }); } else resto.push(f);
   }
   // 2º apelido: mesmas 3 primeiras letras e mesmo setor (ROSE = ROSIANE, costura)
   const resto2 = [];
   for (const f of resto) {
     const ini = tk(f.nome)[0]?.slice(0, 3);
     const p = ini && pessoas.find((x) => !usadas.has(x.id) && x.nome && tk(x.nome)[0]?.startsWith(ini) && (nort || x.depto === deptoDaFuncao(f.funcao || x.cargo)));
-    if (p) { usadas.add(p.id); ok.push({ folha: f.nome, matriz: p.nome, depto: p.depto, apelido: true }); } else resto2.push(f);
+    if (p) { usadas.add(p.id); ok.push({ folha: f.nome, matriz: p.nome, depto: p.depto, apelido: true, pessoaId: p.id }); } else resto2.push(f);
   }
   // 3º vaga sem nome na Matriz que bate com a função
   for (const f of resto2) {
@@ -99,4 +99,23 @@ export async function corrigirMatriz(pessoas, { quem, ref } = {}) {
   await prisma.finMatrizVersao.create({ data: { matrizId: m.id, dados: m.dados, usuarioNome: m.atualizadoPor, resumo: `antes de: ${resumo}` } });
   await prisma.finMatriz.update({ where: { id: m.id }, data: { dados, atualizadoPor: quem || "IMPORTAÇÃO DA FOLHA" } });
   return { ok: true, incluidas, nomeadas, resumo };
+}
+
+// v1079 — folha / adiantamento por pessoa: setor (conta-caixa) e chave PIX do cadastro do RH (ficha do carômetro) de cada funcionário
+//   funcionarios: [{ nome, liquido, funcao? }] → [{ nome, liquido, depto, contaCodigo, pix, pessoaId }]
+export async function pessoasDaFolha(funcionarios, empresa = "MERIDIAN", contaDepto = {}) {
+  const nort = empresa === "NORT";
+  const m = await conferirFolhaMatriz(funcionarios, empresa).catch(() => ({ ok: [], faltam: [] }));
+  const porFolha = {};
+  for (const o of m.ok || []) porFolha[o.folha] = { depto: o.depto, pessoaId: o.pessoaId };
+  for (const f of m.faltam || []) porFolha[f.nome] = { depto: f.depto, pessoaId: f.matrizId || null };
+  const fichas = await prisma.rhFuncionario.findMany({ select: { pessoaId: true, nomeCompleto: true, dados: true } }).catch(() => []);
+  const pixDe = (x) => String((x?.dados && typeof x.dados === "object" ? x.dados.pix : "") || "").trim();
+  return funcionarios.map((f) => {
+    const info = porFolha[f.nome] || {};
+    const ficha = (info.pessoaId && fichas.find((x) => x.pessoaId === info.pessoaId && pixDe(x)))
+      || fichas.find((x) => x.nomeCompleto && casaNome(x.nomeCompleto, f.nome) && pixDe(x)) || null;
+    const depto = nort ? "NORT" : info.depto || deptoDaFuncao(f.funcao || "");
+    return { ...f, depto, pessoaId: info.pessoaId || ficha?.pessoaId || null, pix: pixDe(ficha), contaCodigo: contaDepto[depto] || null };
+  });
 }

@@ -77,7 +77,11 @@ export async function GET(req) {
   const situacaoRec = (r) => recTit.filter((t) => t.recorrenciaId === r.id).sort((a, b) => a.competencia.localeCompare(b.competencia))
     .map((t) => ({ id: t.id, competencia: t.competencia, status: t.status, vencimento: t.vencimento.toISOString().slice(0, 10), valor: Number(t.valor) }));
   // v273 — conta da semana com baixas parciais: em aberto aparece só o SALDO (valor − itens já pagos)
-  const semAb = [...titulos, ...atrasados, ...(periodo || [])].filter((t) => t.status === "ABERTO" && String(t.chaveImport || "").startsWith("SEMANA|")).map((t) => t.id);
+  // v1079 — folha / adiantamento com lançamento por pessoa: tratados como a conta da semana (saldo, busca e abrir por pessoa)
+  const vis = [...new Set([...titulos, ...atrasados, ...(periodo || [])].map((t) => t.id))];
+  const porPessoa = new Set(vis.length ? (await prisma.finSemanaItem.groupBy({ by: ["tituloId"], where: { tituloId: { in: vis }, grupo: { in: ["FOLHA", "ADIANTAMENTO"] } } }).catch(() => [])).map((g) => g.tituloId) : []);
+  const ehSem = (t) => String(t.chaveImport || "").startsWith("SEMANA|") || porPessoa.has(t.id);
+  const semAb = [...titulos, ...atrasados, ...(periodo || [])].filter((t) => t.status === "ABERTO" && ehSem(t)).map((t) => t.id);
   const pagosSem = semAb.length ? await prisma.finSemanaItem.groupBy({ by: ["tituloId"], where: { tituloId: { in: [...new Set(semAb)] }, pago: true }, _sum: { valor: true } }).catch(() => []) : [];
   const pagoDe = Object.fromEntries(pagosSem.map((g) => [g.tituloId, Number(g._sum.valor || 0)]));
   // v697 — conta recorrente que vem da Matriz de custos ganha o "M" na lista
@@ -102,13 +106,13 @@ export async function GET(req) {
   if (faltam.length) for (const g of await prisma.finSemanaItem.groupBy({ by: ["tituloId"], where: { tituloId: { in: faltam }, pago: true }, _sum: { valor: true } }).catch(() => [])) pagoDe[g.tituloId] = Number(g._sum.valor || 0);
   const vencPago = semVenc.reduce((s0, t) => s0 + (pagoDe[t.id] || 0), 0);
   // v952 — busca dentro das contas da semana (freelancers e terceirizados): nome, setor, PIX, pedidos e valor de cada item
-  const semIds = [...new Set([...titulos, ...atrasados, ...(periodo || [])].filter((t) => String(t.chaveImport || "").startsWith("SEMANA|")).map((t) => t.id))];
+  const semIds = [...new Set([...titulos, ...atrasados, ...(periodo || [])].filter(ehSem).map((t) => t.id))];
   const itensSem = {};
   if (semIds.length) for (const it of await prisma.finSemanaItem.findMany({ where: { tituloId: { in: semIds } }, select: { tituloId: true, nome: true, setor: true, chavePix: true, descricao: true, linhas: true, valor: true, observacao: true, justificativa: true } }).catch(() => [])) {
     const ped = Array.isArray(it.linhas) ? it.linhas.map((l) => [l?.pedido, l?.item].filter(Boolean).join(" ")).join(" ") : "";
     (itensSem[it.tituloId] ||= []).push({ n: it.nome, v: Number(it.valor), x: [it.nome, it.setor, it.chavePix, it.descricao, ped, it.observacao, it.justificativa].filter(Boolean).join(" ") });
   }
-  const comItens = (o) => (itensSem[o.id] ? { ...o, itensBusca: itensSem[o.id] } : o);
+  const comItens = (o0) => { const o = porPessoa.has(o0.id) ? { ...o0, porPessoa: true } : o0; return itensSem[o.id] ? { ...o, itensBusca: itensSem[o.id] } : o; };
   return Response.json({
     tipo, de, ate, autoMatriz, dIni, dFim, dedupCompras,
     periodo: periodo ? periodo.map((t) => comItens(saida(t))) : null,

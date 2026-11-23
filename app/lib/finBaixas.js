@@ -74,7 +74,9 @@ export async function sugestoes({ competencia, arquivoId } = {}) {
     select: { id: true, tipo: true, titulo: true, parceiro: true, valor: true, vencimento: true, formaPagamento: true, numeroDoc: true, recorrenciaId: true, competencia: true, chaveImport: true },
   });
   // v181 — freelancers e terceirizados da semana: cada item é uma conta; a casca (total) não casa com o extrato
-  const titulos = titulos0.filter((t) => !String(t.chaveImport || "").startsWith("SEMANA|") && !String(t.chaveImport || "").startsWith("RECOMPRA|"));
+  // v1079 — folha / adiantamento por pessoa: a baixa é de cada pessoa (item), não da conta inteira
+  const comPessoas = new Set((await prisma.finSemanaItem.groupBy({ by: ["tituloId"], where: { grupo: { in: ["FOLHA", "ADIANTAMENTO"] }, tituloId: { in: titulos0.map((t) => t.id) } } }).catch(() => [])).map((g) => g.tituloId));
+  const titulos = titulos0.filter((t) => !String(t.chaveImport || "").startsWith("SEMANA|") && !String(t.chaveImport || "").startsWith("RECOMPRA|") && !comPessoas.has(t.id));
   // v332 — títulos descontados (antecipados) ainda não liquidados: alvo das recompras do extrato
   const descontados = await prisma.finTitulo.findMany({
     where: { tipo: "RECEBER", status: "PAGO", liquidadoEm: null, OR: [{ cobranca: "DESCONTADO" }, { antecipadoForma: { not: null } }] },
