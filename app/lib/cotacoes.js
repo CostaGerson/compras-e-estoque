@@ -40,6 +40,9 @@ function juntarItens(atuais, novos) {
   return l;
 }
 // v1059 — unidade comercial do item da cotação: { tipo: ROLO|PEÇA|…, fator: X, unidade: M|KG|…, qtd } (qtd = nº de rolos/peças, editável)
+// v1070 — com unidade comercial, o valor unitário da cotação é POR EMBALAGEM (grosa, caixa, rolo…): no PIC/OC vira valor da unidade base
+export const fatorComercial = (i) => (i?.comercial && Number(i.comercial.qtd) > 0 && Number(i.comercial.fator) > 0 ? Number(i.comercial.fator) : 1);
+export const valorBase = (i, v) => (v == null ? null : Math.round((Number(v) / fatorComercial(i)) * 1e6) / 1e6);
 export const baseComercial = (i) => (i?.comercial && Number(i.comercial.qtd) > 0 && Number(i.comercial.fator) > 0 ? Math.round(Number(i.comercial.qtd) * Number(i.comercial.fator) * 1000) / 1000 : null);
 export async function salvarComercial(id, k, com) {
   const c = await prisma.cotacao.findUnique({ where: { id: Number(id) || 0 } });
@@ -97,7 +100,7 @@ export async function listarCotacoes() {
   const categoria = (i) => { const pi = pis.find((x) => (i.picItemIds || []).includes(x.id)); return pi ? catArt[pi.artigoId] || null : null; };
   const previsto = (i) => { let q = 0, v = 0; for (const id of i.picItemIds || []) if (prev[id]) { q += prev[id].q; v += prev[id].v; } return q > 0 ? Math.round((v / q) * 10000) / 10000 : null; };
   const arqs = await prisma.cotacaoArquivo.findMany({ where: { cotacaoId: { in: l.map((c) => c.id) } }, select: { id: true, cotacaoId: true, nome: true, mime: true, tamanho: true, criadoPorNome: true, createdAt: true }, orderBy: { id: "asc" } });   // v481
-  return l.map((c) => ({ ...out(c), itens: (Array.isArray(c.itens) ? c.itens : []).map((i) => ({ ...i, previstoFpp: previsto(i), origens: origens(i), categoria: categoria(i), artigoId: pis.find((x) => (i.picItemIds || []).includes(x.id))?.artigoId || null }))   /* v1069 — D da cotação dispensa só o artigo */, arquivos: arqs.filter((a) => a.cotacaoId === c.id), ocNumero: ocs[c.ocId] || null, ocForma: formaOc[c.ocId] || null, rota: rotasOc[c.ocId] || null, fornecedor: fs[c.fornecedorId] ? { id: c.fornecedorId, nome: fs[c.fornecedorId].nomeFantasia || fs[c.fornecedorId].nome, nomeFantasia: fs[c.fornecedorId].nomeFantasia, razaoSocial: fs[c.fornecedorId].razaoSocial, telefone: fs[c.fornecedorId].telefone, telefones: fs[c.fornecedorId].telefones } : { nome: c.fornecedorNome } }));
+  return l.map((c) => ({ ...out(c), itens: (Array.isArray(c.itens) ? c.itens : []).map((i) => ({ ...i, previstoFpp: previsto(i) == null ? null : Math.round(previsto(i) * fatorComercial(i) * 10000) / 10000, origens: origens(i), categoria: categoria(i), artigoId: pis.find((x) => (i.picItemIds || []).includes(x.id))?.artigoId || null }))   /* v1069 — D da cotação dispensa só o artigo */, arquivos: arqs.filter((a) => a.cotacaoId === c.id), ocNumero: ocs[c.ocId] || null, ocForma: formaOc[c.ocId] || null, rota: rotasOc[c.ocId] || null, fornecedor: fs[c.fornecedorId] ? { id: c.fornecedorId, nome: fs[c.fornecedorId].nomeFantasia || fs[c.fornecedorId].nome, nomeFantasia: fs[c.fornecedorId].nomeFantasia, razaoSocial: fs[c.fornecedorId].razaoSocial, telefone: fs[c.fornecedorId].telefone, telefones: fs[c.fornecedorId].telefones } : { nome: c.fornecedorNome } }));
 }
 
 // resposta do fornecedor: { id, itens: [{ valorUnitario, prazo, obs }] (mesma ordem), condicao, prazoEntrega, obs }
@@ -128,7 +131,7 @@ export async function aplicarCotacao(id) {
       const pi = await prisma.picItem.findUnique({ where: { id: pid }, include: { ocItens: { select: { id: true } } } });
       if (!pi) continue;
       if (pi.ocItens.length) { emOc++; continue; }
-      await prisma.picItem.update({ where: { id: pi.id }, data: { fornecedorId: c.fornecedorId, valorUnitario: i.valorUnitario } });
+      await prisma.picItem.update({ where: { id: pi.id }, data: { fornecedorId: c.fornecedorId, valorUnitario: valorBase(i, i.valorUnitario) } });
       n++;
     }
   }
@@ -183,7 +186,7 @@ export async function gerarOcDaCotacao(b) {
     for (const i of its) if (!i.naoTem) for (const pid of i.picItemIds || []) {   // v484 — "não tem" fica fora da OC
       const pi = await prisma.picItem.findUnique({ where: { id: pid }, include: { ocItens: { select: { id: true } } } });
       if (!pi || pi.ocItens.length || ids.includes(pi.id)) continue;
-      await prisma.picItem.update({ where: { id: pi.id }, data: { fornecedorId: fid, valorUnitario: i.valorNegociado } });
+      await prisma.picItem.update({ where: { id: pi.id }, data: { fornecedorId: fid, valorUnitario: valorBase(i, i.valorNegociado) } });
       ids.push(pi.id);
     }
   }

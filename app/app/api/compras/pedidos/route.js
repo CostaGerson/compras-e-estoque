@@ -25,6 +25,8 @@ async function dispensar(req) {
     const r = await tirarDeCompras({ pedidoNumero: n, chave: String(b.chave) }, prisma, { quem: b.quem || null, motivo: b.motivo || null });
     return Response.json({ ok: true, ...r });
   }
+  // v1071 — nunca o item inteiro nem o pedido inteiro: dispensa é sempre de um artigo
+  return Response.json({ error: "Dispensar compras é só por artigo: use o D na linha do artigo (levantamento, PIC, cotação ou OC)." }, { status: 400 });
   if (b.chave) {   // v862 — só um item do pedido
     const chave = String(b.chave);
     await prisma.compraDispensaItem.upsert({ where: { pedidoNumero_chave: { pedidoNumero: n, chave } }, create: { pedidoNumero: n, chave, motivo: b.motivo || null, porNome: b.quem || null }, update: { motivo: b.motivo || null, porNome: b.quem || null } });

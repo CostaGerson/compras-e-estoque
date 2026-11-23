@@ -13,6 +13,7 @@ const C = {
 };
 const fmtFpp = (n) => (n ? String(n).padStart(5, "0") : "—");
 const brl = (v) => (v == null ? "—" : `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+const brlU = (v) => (v == null ? "—" : `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: Math.abs(Number(v)) < 1 ? 6 : 4 })}`);   // v1070 — valor unitário com as casas que tiver (0,044375)
 const qtdU = (v, u) => `${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: u === "UN" ? 0 : 2, maximumFractionDigits: u === "UN" ? 0 : 2 })} ${String(u || "").toLowerCase()}`;
 // v405 — botão: unidades + grosas inteiras (144)
 const qtdG = (v, u, emb) => (emb ? `${qtdU(v, u)} · ${Math.ceil((Number(v) || 0) / emb - 1e-9)} grosa(s)` : qtdU(v, u));
@@ -78,11 +79,11 @@ const rotOrigem = (x) => `Ped. ${x.pedido}${x.cliente ? ` · ${String(x.cliente)
 // v913 — dispensar compras em qualquer fase (PIC, cotação, OC): escolhe os pedidos/linhas de origem da demanda
 export function BotaoDispensar({ origens, user, onFeito, rotulo = "Dispensar", artigo }) {   // v1058 — artigo: { id, nome } → dispensa só este artigo
   const [ab, setAb] = useState(false);
-  const [soArt, setSoArt] = useState(true);
+  const soArt = true;   // v1071 — dispensa sempre só do artigo (nunca o item inteiro)
   const [marc, setMarc] = useState(new Set());
   const [motivo, setMotivo] = useState("");
   const [ocup, setOcup] = useState(false);
-  const l = (origens || []).filter((o) => o && o.pedido && o.chave);
+  const l = (origens || []).filter((o) => o && o.pedido && o.chave && (artigo?.id || o.avulsa));   // v1071 — sem artigo, só a linha de compra avulsa
   if (!l.length) return null;
   const k = (o) => `${o.pedido}|${o.chave}`;
   async function ir() {
@@ -106,10 +107,7 @@ export function BotaoDispensar({ origens, user, onFeito, rotulo = "Dispensar", a
         aria-label={rotulo} className="inline-flex items-center justify-center rounded-full text-[11px] font-black shrink-0 align-middle" style={{ width: 20, height: 20, background: "#F5B700", color: "#fff" }}>D</button>   {/* v998 — sempre um "D" amarelo */}
       {ab && (
         <Modal titulo="Dispensar compras" onClose={() => setAb(false)}>
-          {artigo?.id ? <div className="rounded-md p-2 mb-2 text-sm" style={{ background: C.panel2 }}>   {/* v1058 */}
-            <label className="flex items-start gap-2 cursor-pointer"><input type="radio" className="mt-1" checked={soArt} onChange={() => setSoArt(true)} /><span><b>Só {artigo.nome || "este artigo"}</b> <span className="text-xs" style={{ color: C.sub }}>— os outros materiais do item continuam em compras</span></span></label>
-            <label className="flex items-start gap-2 cursor-pointer mt-1"><input type="radio" className="mt-1" checked={!soArt} onChange={() => setSoArt(false)} /><span><b>O item inteiro</b> <span className="text-xs" style={{ color: C.sub }}>— todos os materiais do item saem de compras e o item vai para o PCP</span></span></label>
-          </div> : null}
+          {artigo?.id ? <div className="rounded-md p-2 mb-2 text-sm" style={{ background: C.panel2 }}><b>Só {artigo.nome || "este artigo"}</b> <span className="text-xs" style={{ color: C.sub }}>— os outros materiais do item continuam em compras</span></div> : null}   {/* v1071 */}
           <div className="text-xs mb-2" style={{ color: C.sub }}>{artigo?.id && soArt ? "Só este artigo sai da demanda dos itens marcados (em qualquer fase: levantamento, PIC, cotação e OC ainda não enviada). Se não sobrar nenhum material no item, ele sai de compras inteiro." : "A demanda sai de compras em qualquer fase (levantamento, PIC, cotação e OC ainda não enviada). Item de pedido vai para o PCP; linha de compra avulsa é cancelada."}</div>
           {l.map((o) => (
             <label key={k(o)} className="flex items-center gap-2 py-1.5 text-sm cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, color: C.text }}>
@@ -460,7 +458,7 @@ export function ComprasPedidos({ user, veValores, fases, ir }) {
                               <button disabled={usando} onClick={() => confirmarIndicadas(p, ind)} className="px-3 py-1.5 rounded-md font-semibold text-white" style={{ background: C.accent }}>{usando ? "Enviando…" : `Confirmar FPPs do lançamento (${ind.length})`}</button>
                             </div>); })()}
                           <div className="space-y-2">
-                            {p.itens.map((it) => <ItemCard key={it.chave} p={p} it={it} veValores={veValores} onDispensar={() => dispensarItem(p, it)}
+                            {p.itens.map((it) => <ItemCard key={it.chave} p={p} it={it} veValores={veValores}
                               onVer={(fppId) => setResumo({ fppId, item: it, pedido: p, so: true })}
                               onSugestao={(fppId) => setResumo({ fppId, item: it, pedido: p })}
                               onBuscar={() => setBusca({ item: it, pedido: p })}
@@ -972,7 +970,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
           ))}
         </div>
       ))}
-      {aba === "itens" && <BarraDevolver n={marc.size} rotulo="Devolver para Pedidos" ocupado={salvando} onDevolver={devolver} onLimpar={() => setMarc(new Set())} onDispensar={dispensarSel}
+      {aba === "itens" && <BarraDevolver n={marc.size} rotulo="Devolver para Pedidos" ocupado={salvando} onDevolver={devolver} onLimpar={() => setMarc(new Set())}
         onExcluir={!podeExcluirSel ? undefined : async () => { if (await excluirDemandas([...marc], user)) { setMarc(new Set()); carregar(); } }} />}
     </div>
   );
@@ -1437,7 +1435,7 @@ export function PicCompras({ user, fases, ir }) {
                             <button type="button" onClick={() => set(i, "extras", v.extras.filter((_, k2) => k2 !== j))} title="Tirar" className="shrink-0 flex items-center justify-center" style={{ width: 26, height: 26, color: C.sub }}><X size={13} /></button></div>
                         ))}
                       </div>}</div>
-                  <div className="w-28 text-right">{trav ? brl(i.valorUnitario) : <input value={v.valor} onChange={(e) => set(i, "valor", e.target.value)} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} />}</div>
+                  <div className="w-28 text-right">{trav ? brlU(i.valorUnitario) : <input value={v.valor} onChange={(e) => set(i, "valor", e.target.value)} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} />}</div>
                   <div className="w-28 text-right font-semibold" style={{ color: C.navy }}>{lerNum(v.valor) && lerNum(v.qtd) ? brl(lerNum(v.valor) * lerNum(v.qtd)) : "—"}</div>
                   <div className="w-7 flex justify-end"><BotaoDispensar origens={inf.pedidos} user={user} onFeito={carregar} artigo={{ id: i.artigoId, nome: inf.nome }} /></div>   {/* v1054 — D à direita do valor */}
                 </div>
@@ -1469,7 +1467,7 @@ export function PicCompras({ user, fases, ir }) {
 // ---------- v469 — ordens de compra (uma por fornecedor) ----------
 const ST_OC = { ABERTA: ["aberta", C.accent, C.accentSoft], ENVIADA: ["enviada ao fornecedor", C.blue, C.blueSoft], NF_EMITIDA: ["NF emitida", C.yellow, C.yellowSoft], RECEBIDA: ["recebida", C.green, C.greenSoft], CANCELADA: ["cancelada", C.sub, C.panel2] };
 function imprimirOc(o) {
-  const linhas = o.itens.map((i) => `<tr><td>${i.nome}${i.cor ? ` · ${i.cor}` : ""}${i.codigo ? ` · ${i.codigo}` : ""}</td><td class="n">${qtdU(i.quantidade, i.unidade)}</td><td class="n">${brl(i.valorUnitario)}</td><td class="n">${brl(i.quantidade * i.valorUnitario)}</td></tr>`).join("");
+  const linhas = o.itens.map((i) => `<tr><td>${i.nome}${i.cor ? ` · ${i.cor}` : ""}${i.codigo ? ` · ${i.codigo}` : ""}</td><td class="n">${qtdU(i.quantidade, i.unidade)}</td><td class="n">${brlU(i.valorUnitario)}</td><td class="n">${brl(i.quantidade * i.valorUnitario)}</td></tr>`).join("");
   const dt = (d) => (d ? new Date(d).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : "—");
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${o.numero} · ${o.fornecedor.nome}</title><style>
     body{font-family:Arial,sans-serif;color:#0c2342;margin:32px}h1{font-size:20px;margin:0}table{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px}
@@ -1769,6 +1767,9 @@ function CotacaoCard({ g, pic }) {
   );
 }
 // v1059 — unidade comercial na cotação (como o mercado vende): tecido plano = rolo de 100 m, malha = peça de 20 kg, aviamento livre
+const qPreco = (i) => (i?.comercial && Number(i.comercial.qtd) > 0 && Number(i.comercial.fator) > 0 ? Number(i.comercial.qtd) : Number(i?.quantidade) || 0);   // v1070 — valor é por embalagem
+const fatorC = (i) => (i?.comercial && Number(i.comercial.qtd) > 0 && Number(i.comercial.fator) > 0 ? Number(i.comercial.fator) : 1);
+const porEmb = (i) => (i?.comercial ? `por ${String(i.comercial.tipo || "").toLowerCase()}` : null);
 const qBase = (i) => (i?.comercial && Number(i.comercial.qtd) > 0 && Number(i.comercial.fator) > 0 ? Number(i.comercial.qtd) * Number(i.comercial.fator) : Number(i?.quantidade) || 0);
 const txtComercial = (c) => `${String(c.qtd).replace(".", ",")} ${c.tipo}${Number(c.qtd) > 1 && !/S$/.test(c.tipo) ? "S" : ""} × ${String(c.fator).replace(".", ",")} ${c.unidade}`;
 const EMBALAGENS = ["ROLO", "PEÇA", "UNIDADE", "CAIXA", "PACOTE", "CONE", "GROSA", "MILHEIRO", "FARDO", "BOBINA"];
@@ -1856,7 +1857,7 @@ function ChipEntrega({ e }) {
 function GerarOcCotacao({ cs, user, onClose, onOk }) {
   const [f, setF] = useState({ itens: cs.map((c) => c.itens.map((i) => ({ valorNegociado: numBR(i.valorNegociado ?? i.valorUnitario) }))), prazoEntrega: cs.map((c) => c.prazoEntrega).filter(Boolean).sort().pop() || "", forma: "", dias: "", condicao: cs.find((c) => c.condicao)?.condicao || "" });
   const [oc, setOc] = useState(false);
-  const tot = cs.reduce((s1, c, ci) => s1 + c.itens.reduce((s0, i, k) => s0 + (i.naoTem ? 0 : lerNum(f.itens[ci][k]?.valorNegociado) || 0) * qBase(i), 0), 0);   // v1059
+  const tot = cs.reduce((s1, c, ci) => s1 + c.itens.reduce((s0, i, k) => s0 + (i.naoTem ? 0 : lerNum(f.itens[ci][k]?.valorNegociado) || 0) * qPreco(i), 0), 0);   // v1059 · v1070
   async function gerar() {
     if (!f.forma) return alerta("Escolha a forma de recebimento.");
     setOc(true);
@@ -1964,7 +1965,7 @@ export function Cotacoes({ user, fases, ir }) {
   const setD = (c, f) => setEd((e) => ({ ...e, [c.id]: f(dados(c)) }));
   const post = async (body, ok) => { const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const x = await r.json().catch(() => ({})); if (!r.ok) { alerta(x.error || "Erro."); return null; } if (ok) await alerta(ok(x)); carregar(); return x; };
   // menor preço de cada artigo entre as cotações (para comparar fornecedores)
-  const melhor = useMemo(() => { const m = {}; for (const c of l || []) for (const i of c.itens) if (i.valorUnitario != null && !i.naoTem) { const k = `${i.nome}|${i.det}|${i.unidade}`; if (!m[k] || i.valorUnitario < m[k].v) m[k] = { v: i.valorUnitario, f: c.fornecedorNome, n: c.numero }; } return m; }, [l]);
+  const melhor = useMemo(() => { const m = {}; for (const c of l || []) for (const i of c.itens) if (i.valorUnitario != null && !i.naoTem) { const k = `${i.nome}|${i.det}|${i.unidade}`; const vb = i.valorUnitario / fatorC(i); if (!m[k] || vb < m[k].v) m[k] = { v: vb, f: c.fornecedorNome, n: c.numero }; } /* v1070 — compara pela unidade base */ return m; }, [l]);
   const ehOc = (c) => c.status === "OC" || c.status === "APLICADA";
   // v1049 — guias iguais às de PIC e OC: em andamento (ainda sem OC) · baixadas (com OC) · todas
   const ABAS = [["andamento", "Em andamento", Clock], ["OC", "Baixadas", PackageCheck], ["todas", "Todas", Layers]];
@@ -1984,7 +1985,7 @@ export function Cotacoes({ user, fases, ir }) {
       {vis.map((c) => {
         const d = dados(c), trav = false, comOc = ehOc(c);   // v487 — cotação sempre editável
         const [txt, cor, fundo] = ST_COT[c.status] || ST_COT.ENVIADA;
-        const tot = c.itens.reduce((s0, i, k) => s0 + (d.itens[k]?.naoTem ? 0 : (lerNum(d.itens[k]?.valorUnitario) || 0)) * qBase(i), 0);   // v1059 — pela quantidade comercial
+        const tot = c.itens.reduce((s0, i, k) => s0 + (d.itens[k]?.naoTem ? 0 : (lerNum(d.itens[k]?.valorUnitario) || 0)) * qPreco(i), 0);   // v1059 · v1070 — nº de embalagens × valor da embalagem
         const aberto = abertos[c.id] ?? !comOc;   // v509 — com OC começa recolhida
         const resp = c.itens.filter((i, k) => d.itens[k]?.naoTem || lerNum(d.itens[k]?.valorUnitario) > 0).length;
         const lbl = "text-[10px] font-semibold uppercase tracking-wide";
@@ -2031,7 +2032,7 @@ export function Cotacoes({ user, fases, ir }) {
                 {c.itens.map((i, k) => {
                   const di = d.itens[k] || {}; const v = lerNum(di.valorUnitario);
                   const m = melhor[`${i.nome}|${i.det}|${i.unidade}`];
-                  const eMelhor = m && v != null && v <= m.v + 1e-9;
+                  const eMelhor = m && v != null && v / fatorC(i) <= m.v + 1e-9;
                   return (
                     <React.Fragment key={k}>
                     <div className="flex gap-3 items-center text-sm rounded-lg px-2 -mx-2 py-2.5" style={{ background: k % 2 ? "transparent" : "#F8F9FB", opacity: di.naoTem ? 0.55 : 1 }}>
@@ -2042,7 +2043,7 @@ export function Cotacoes({ user, fases, ir }) {
                           {i.det && <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.det}</div>}
                           {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{(i.origens || []).map((o) => (o.avulsa ? "Avulsa" : rotOrigem(o))).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{!comOc && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} artigo={i.artigoId ? { id: i.artigoId, nome: i.nome } : undefined} />}</div>}   {/* v913 */}
                           {comOc && i.valorNegociado != null && !di.naoTem && <div className="text-[11px] font-semibold" style={{ color: C.green }}>negociado na {c.ocNumero}: {brl(i.valorNegociado)}</div>}
-                          {m && m.n !== c.numero && <div className="text-[11px]" style={{ color: C.sub }}>menor preço: <b style={{ color: C.green }}>{brl(m.v)}</b> · {m.f}</div>}
+                          {m && m.n !== c.numero && <div className="text-[11px]" style={{ color: C.sub }}>menor preço: <b style={{ color: C.green }}>{brl(m.v * fatorC(i))}</b>{porEmb(i) ? ` ${porEmb(i)}` : ""} · {m.f}</div>}
                           {i.previstoFpp != null && !di.naoTem && (() => {   // v528 — valor previsto na FPP: confirmar com um clique
                             const ok = v != null && Math.abs(v - i.previstoFpp) < 0.00005;
                             const dif = v != null && !ok ? (v / i.previstoFpp - 1) * 100 : null;
@@ -2057,10 +2058,10 @@ export function Cotacoes({ user, fases, ir }) {
                         {i.comercial ? <><div className="text-[11px]" style={{ color: C.sub }} title="Demanda real">{qtdU(i.quantidade, i.unidade)}</div><div className="font-semibold" style={{ color: C.accent }} title="Quantidade comercial (vai para a OC)">{txtComercial(i.comercial)}</div></> : qtdU(i.quantidade, i.unidade)}
                         {!comOc && <button type="button" onClick={() => setEdCom(`${c.id}|${k}`)} className="text-[10px] underline decoration-dotted" style={{ color: C.accent }}>{i.comercial ? "editar unidade" : "unidade comercial"}</button>}
                       </div>
-                      <div className="w-28 text-right">{di.naoTem ? <span className="text-xs font-semibold" style={{ color: C.red }}>não tem</span> : <input value={di.valorUnitario} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: e.target.value } : y)) }))} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${eMelhor ? C.green : C.line}`, background: eMelhor ? C.greenSoft : "#fff" }} />}</div>
+                      <div className="w-28 text-right">{di.naoTem ? <span className="text-xs font-semibold" style={{ color: C.red }}>não tem</span> : <input value={di.valorUnitario} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: e.target.value } : y)) }))} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${eMelhor ? C.green : C.line}`, background: eMelhor ? C.greenSoft : "#fff" }} />}{!di.naoTem && porEmb(i) && <div className="text-[10px]" style={{ color: C.accent }}>{porEmb(i)}</div>}</div>
                       <div className="w-36">{di.naoTem ? "" : <input type="date" value={di.prazo} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, prazo: e.target.value } : y)) }))} className={`${inp} w-full`} style={{ border: `1px solid ${C.line}`, background: "#fff" }} />}</div>
                       <div className="w-16 text-center">{/* v484 */}<input type="checkbox" checked={!!di.naoTem} title="O fornecedor não tem este item" onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, naoTem: e.target.checked, ...(e.target.checked ? { valorUnitario: "", prazo: "" } : {}) } : y)) }))} /></div>
-                      <div className="w-28 text-right font-semibold" style={{ color: v && !di.naoTem ? C.navy : C.sub }}>{v && !di.naoTem ? brl(v * qBase(i)) : "—"}</div>
+                      <div className="w-28 text-right font-semibold" style={{ color: v && !di.naoTem ? C.navy : C.sub }}>{v && !di.naoTem ? brl(v * qPreco(i)) : "—"}</div>
                     </div>
                     {edCom === `${c.id}|${k}` && <ComercialEditor i={i} onFechar={() => setEdCom(null)}
                       onSalvar={async (com) => { const x = await post({ acao: "comercial", id: c.id, k, comercial: com }); if (x) setEdCom(null); }}

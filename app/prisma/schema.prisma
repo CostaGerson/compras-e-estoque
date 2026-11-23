@@ -556,7 +556,7 @@ model PicItem {
   quantidade Decimal @db.Decimal(14, 3)
   atendido   Decimal @default(0) @db.Decimal(14, 3)
   fornecedorId  Int?                          // v469 — preenchido pelo comprador
-  valorUnitario Decimal? @db.Decimal(14, 4)
+  valorUnitario Decimal? @db.Decimal(16, 6)
   info       Json    @default("{}")           // v469 — { nome, cor, codigo, unidade, embalagem, demanda, pedidos: [...] }
   fornecedoresCotacao Json @default("[]")   // v482 — outros fornecedores para cotação (até 4 além do principal): [{ id, nome }]
 
@@ -602,7 +602,7 @@ model OcItem {
   artigoId      Int
   picItemId     Int?
   quantidade    Decimal @db.Decimal(14, 3)
-  valorUnitario Decimal @db.Decimal(14, 4)
+  valorUnitario Decimal @db.Decimal(16, 6)
   nfItem        String?                        // v535 — item da NF ligado a este item na correção da OC pela NF ("nfId|idx")
   nfNome        String?                        // v536 — nome do item na NF (quando é diferente do nome na OC)
 

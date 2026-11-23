@@ -46,7 +46,7 @@ export async function desenharOc(o) {
     x.fillStyle = "#0c2342"; x.font = "600 24px Arial"; l.a.forEach((t, j) => x.fillText(t, col.art, y + 26 + j * LH));
     x.fillStyle = "#667085"; x.font = "19px Arial"; l.d.forEach((t, j) => x.fillText(t, col.art, y + 26 + l.a.length * LH + j * 24));
     x.textAlign = "right"; x.fillStyle = "#0c2342"; x.font = "700 24px Arial"; x.fillText(qtdU(l.i.quantidade, l.i.unidade), col.qtd, y + 28);
-    x.font = "20px Arial"; x.fillText(brl(l.i.valorUnitario), col.vu, y + 28);
+    x.font = "20px Arial"; x.fillText((Number(l.i.valorUnitario) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: Math.abs(Number(l.i.valorUnitario)) < 1 ? 6 : 4 }), col.vu, y + 28);
     x.font = "700 22px Arial"; x.fillText(brl(Number(l.i.quantidade) * Number(l.i.valorUnitario)), col.tot, y + 28); x.textAlign = "left";
     y += l.h; x.strokeStyle = "#e4e7ec"; x.lineWidth = 2; x.beginPath(); x.moveTo(P - 16, y - 8); x.lineTo(W - P + 16, y - 8); x.stroke();
   });
