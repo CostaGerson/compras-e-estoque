@@ -13,6 +13,12 @@ async function dispensar(req) {
   const b = await req.json().catch(() => ({}));
   const n = String(b.pedidoNumero || "").trim();
   if (!n) return Response.json({ error: "Pedido?" }, { status: 400 });
+  // v1058 — só um artigo do item (o resto segue em compras)
+  if (b.artigoId && b.chave) {
+    const { dispensarArtigoDoItem } = await import("@/lib/compras");
+    const r = await dispensarArtigoDoItem({ pedidoNumero: n, chave: String(b.chave), artigoId: b.artigoId, quem: b.quem || null, motivo: b.motivo || null });
+    return Response.json(r, { status: r.error ? 400 : 200 });
+  }
   // v913 — compra avulsa: a linha sai de compras em qualquer etapa (não vai para o PCP)
   if (/^AV\d+$/.test(n)) {
     if (!b.chave) return Response.json({ error: "Linha da compra avulsa?" }, { status: 400 });

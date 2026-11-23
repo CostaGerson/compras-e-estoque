@@ -75,8 +75,9 @@ function Guias({ abas, atual, onChange, direita }) {
 // v999 — PIC, cotação e OC: nº do pedido sempre com o nome do cliente
 const rotOrigem = (x) => `Ped. ${x.pedido}${x.cliente ? ` · ${String(x.cliente).trim()}` : ""}`;
 // v913 — dispensar compras em qualquer fase (PIC, cotação, OC): escolhe os pedidos/linhas de origem da demanda
-export function BotaoDispensar({ origens, user, onFeito, rotulo = "Dispensar" }) {
+export function BotaoDispensar({ origens, user, onFeito, rotulo = "Dispensar", artigo }) {   // v1058 — artigo: { id, nome } → dispensa só este artigo
   const [ab, setAb] = useState(false);
+  const [soArt, setSoArt] = useState(true);
   const [marc, setMarc] = useState(new Set());
   const [motivo, setMotivo] = useState("");
   const [ocup, setOcup] = useState(false);
@@ -89,7 +90,7 @@ export function BotaoDispensar({ origens, user, onFeito, rotulo = "Dispensar" })
     setOcup(true);
     const erros = [], trav = new Set();
     for (const o of alvo) {
-      const r = await fetch("/api/compras/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: o.pedido, chave: o.chave, motivo: motivo || null, quem: nomeUser(user) }) }).catch(() => null);
+      const r = await fetch("/api/compras/pedidos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pedidoNumero: o.pedido, chave: o.chave, ...(artigo?.id && soArt ? { artigoId: artigo.id } : {}), motivo: motivo || null, quem: nomeUser(user) }) }).catch(() => null);
       const x = r ? await r.json().catch(() => ({})) : {};
       if (!r?.ok) erros.push(`${o.pedido} ${ch(o.chave)}${x.error ? ` (${x.error})` : !r ? " (sem conexão)" : ` (erro ${r.status})`}`); else (x.travadas || []).forEach((t) => trav.add(t));
     }
@@ -104,7 +105,11 @@ export function BotaoDispensar({ origens, user, onFeito, rotulo = "Dispensar" })
         aria-label={rotulo} className="inline-flex items-center justify-center rounded-full text-[11px] font-black shrink-0 align-middle" style={{ width: 20, height: 20, background: "#F5B700", color: "#fff" }}>D</button>   {/* v998 — sempre um "D" amarelo */}
       {ab && (
         <Modal titulo="Dispensar compras" onClose={() => setAb(false)}>
-          <div className="text-xs mb-2" style={{ color: C.sub }}>A demanda sai de compras em qualquer fase (levantamento, PIC, cotação e OC ainda não enviada). Item de pedido vai para o PCP; linha de compra avulsa é cancelada.</div>
+          {artigo?.id ? <div className="rounded-md p-2 mb-2 text-sm" style={{ background: C.panel2 }}>   {/* v1058 */}
+            <label className="flex items-start gap-2 cursor-pointer"><input type="radio" className="mt-1" checked={soArt} onChange={() => setSoArt(true)} /><span><b>Só {artigo.nome || "este artigo"}</b> <span className="text-xs" style={{ color: C.sub }}>— os outros materiais do item continuam em compras</span></span></label>
+            <label className="flex items-start gap-2 cursor-pointer mt-1"><input type="radio" className="mt-1" checked={!soArt} onChange={() => setSoArt(false)} /><span><b>O item inteiro</b> <span className="text-xs" style={{ color: C.sub }}>— todos os materiais do item saem de compras e o item vai para o PCP</span></span></label>
+          </div> : null}
+          <div className="text-xs mb-2" style={{ color: C.sub }}>{artigo?.id && soArt ? "Só este artigo sai da demanda dos itens marcados (em qualquer fase: levantamento, PIC, cotação e OC ainda não enviada). Se não sobrar nenhum material no item, ele sai de compras inteiro." : "A demanda sai de compras em qualquer fase (levantamento, PIC, cotação e OC ainda não enviada). Item de pedido vai para o PCP; linha de compra avulsa é cancelada."}</div>
           {l.map((o) => (
             <label key={k(o)} className="flex items-center gap-2 py-1.5 text-sm cursor-pointer" style={{ borderTop: `1px solid ${C.line}`, color: C.text }}>
               <input type="checkbox" checked={marc.has(k(o))} onChange={() => setMarc((m) => { const n = new Set(m); n.has(k(o)) ? n.delete(k(o)) : n.add(k(o)); return n; })} />
@@ -912,7 +917,7 @@ export function Levantamento({ user, veValores, fases, ir, fase, irCruzar, irPic
               <div className="w-28 text-right font-bold" style={{ color: C.accent }}>{c.compra ? <>{c.compra} grosa(s)<div className="text-[11px] font-normal" style={{ color: C.sub }}>{qtdU(c.quantidade, c.unidade)} de {qtdU(c.compra * c.embalagem, c.unidade)}</div></> : qtdU(c.quantidade, c.unidade)}</div>
               <div className="w-24 text-right text-xs" style={{ color: C.sub }} title={c.pedidos.join(", ")}>{c.pedidos.length} ped · {c.itens} it</div>
               {veValores && <div className="w-28 text-right text-xs" style={{ color: C.sub }}>{c.valorEstimado ? brl(c.valorEstimado) : "—"}</div>}
-              <div className="w-8 text-right">{(c.origensItens || []).length > 0 && <BotaoDispensar origens={c.origensItens} user={user} onFeito={carregar} rotulo="Dispensar compras" />}</div>   {/* v996 */}
+              <div className="w-8 text-right">{(c.origensItens || []).length > 0 && <BotaoDispensar origens={c.origensItens} user={user} onFeito={carregar} rotulo="Dispensar compras" artigo={{ id: c.artigoId, nome: c.nome }} />}</div>   {/* v996 */}
             </div>
           ))}
         </div>
@@ -1409,7 +1414,7 @@ export function PicCompras({ user, fases, ir }) {
                       </div>}</div>
                   <div className="w-28 text-right">{trav ? brl(i.valorUnitario) : <input value={v.valor} onChange={(e) => set(i, "valor", e.target.value)} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} />}</div>
                   <div className="w-28 text-right font-semibold" style={{ color: C.navy }}>{lerNum(v.valor) && lerNum(v.qtd) ? brl(lerNum(v.valor) * lerNum(v.qtd)) : "—"}</div>
-                  <div className="w-7 flex justify-end"><BotaoDispensar origens={inf.pedidos} user={user} onFeito={carregar} /></div>   {/* v1054 — D à direita do valor */}
+                  <div className="w-7 flex justify-end"><BotaoDispensar origens={inf.pedidos} user={user} onFeito={carregar} artigo={{ id: i.artigoId, nome: inf.nome }} /></div>   {/* v1054 — D à direita do valor */}
                 </div>
               );
             })}
@@ -1517,7 +1522,7 @@ export function OrdensCompra({ user, fases, ir }) {
                       <div key={i.id} className="flex gap-2 py-1.5 text-sm items-center" style={{ borderTop: `1px solid ${C.line}` }}>
                         <div className="flex-1">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{[i.cor, i.codigo].filter(Boolean).join(" · ")}</span>
                           {i.nfNome && norm(i.nfNome) !== norm(i.nome) && <div className="text-xs" style={{ color: C.blue }}>na NF: {i.nfNome}</div>}
-                          {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{i.origens.map((x) => (x.avulsa ? "Avulsa" : rotOrigem(x))).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{pode && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} />}</div>}</div>
+                          {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{i.origens.map((x) => (x.avulsa ? "Avulsa" : rotOrigem(x))).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{pode && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} artigo={{ id: i.artigoId, nome: i.nome }} />}</div>}</div>
                         <div className="w-32 text-right">{pode ? <span className="inline-flex items-center gap-1"><input value={e[i.id]?.q ?? ""} onChange={(ev) => setE(i.id, "q", ev.target.value)} className="w-20 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /><span className="text-xs" style={{ color: C.sub }}>{String(i.unidade || "").toLowerCase()}</span></span> : qtdU(i.quantidade, i.unidade)}</div>
                         <div className="w-28 text-right">{pode ? <input value={e[i.id]?.v ?? ""} onChange={(ev) => setE(i.id, "v", ev.target.value)} className="w-24 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /> : <span style={{ color: C.sub }}>{brl(i.valorUnitario)}</span>}</div>
                         <div className="w-28 text-right font-semibold">{brl((lerNum(e[i.id]?.q) || 0) * (lerNum(e[i.id]?.v) || 0))}</div>

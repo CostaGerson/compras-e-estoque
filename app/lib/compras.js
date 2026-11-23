@@ -337,13 +337,18 @@ export function sugerirFpps(item, pedido, fpps, clientes, max = 5) {
 
 // ---------- demanda ----------
 // v525 — FPP alterada: refaz a demanda dos itens ainda no levantamento (fornecedor, cor, código, consumo, preço…)
+// v1058 — demanda refeita (FPP mudou) herda a equiparação e a dispensa do artigo
+export function herdaDem(d, antigas) {
+  const x = (Array.isArray(antigas) ? antigas : []).find((y) => y.artigoId === d.artigoId) || {};
+  return { equiparadoA: x.equiparadoA || null, ...(x.dispensado ? { dispensado: true, dispensadoPor: x.dispensadoPor || null, dispensadoEm: x.dispensadoEm || null, dispensadoMotivo: x.dispensadoMotivo || null } : {}) };
+}
 export async function refazerDemandasDaFpp(fppId, db = prisma) {
   const fpp = await db.fpp.findUnique({ where: { id: Number(fppId) } });
   if (!fpp) return 0;
   const its = await db.compraItem.findMany({ where: { fppId: fpp.id, status: "LEVANTAMENTO" } });
   for (const v of its) {
     const demanda = await demandaDoItem(fpp, Number(v.quantidade), db, null, v.corFpp || null);
-    await db.compraItem.update({ where: { id: v.id }, data: { demanda: demanda.map((d) => ({ ...d, equiparadoA: (v.demanda || []).find((x) => x.artigoId === d.artigoId)?.equiparadoA || null })) } });
+    await db.compraItem.update({ where: { id: v.id }, data: { demanda: demanda.map((d) => ({ ...d, ...herdaDem(d, v.demanda) })) } });
   }
   return its.length;
 }
@@ -389,7 +394,7 @@ export function podeEquiparar(a, b) {
 
 export function montarLevantamento(itens) {
   const linhas = [];
-  for (const it of itens) (Array.isArray(it.demanda) ? it.demanda : []).forEach((d, idx) => linhas.push({ ...d, itemId: it.id, idx, pedidoNumero: it.pedidoNumero, chave: it.chave, descricao: it.descricao, cliente: it.cliente, entrega: it.entrega, qtdPecas: Number(it.quantidade) }));
+  for (const it of itens) (Array.isArray(it.demanda) ? it.demanda : []).forEach((d, idx) => !d?.dispensado && linhas.push({ ...d, itemId: it.id, idx, pedidoNumero: it.pedidoNumero, chave: it.chave, descricao: it.descricao, cliente: it.cliente, entrega: it.entrega, qtdPecas: Number(it.quantidade) }));
   // artigos distintos que aparecem
   const arts = {};
   for (const l of linhas) if (!arts[l.artigoId]) arts[l.artigoId] = { artigoId: l.artigoId, nome: l.nome, categoria: l.categoria, unidade: l.unidade, embalagem: l.embalagem || null, fornecedorId: l.fornecedorId, fornecedor: l.fornecedor, cor: l.cor, codigo: l.codigo, largura: l.largura };
@@ -432,7 +437,7 @@ const efetivo = (d) => d.equiparadoA || d.artigoId;
 // necessidade de um item por artigo efetivo
 export function necessidade(item) {
   const n = {};
-  for (const d of Array.isArray(item.demanda) ? item.demanda : []) n[efetivo(d)] = r3((n[efetivo(d)] || 0) + (Number(d.quantidade) || 0));
+  for (const d of Array.isArray(item.demanda) ? item.demanda : []) if (!d?.dispensado) n[efetivo(d)] = r3((n[efetivo(d)] || 0) + (Number(d.quantidade) || 0));   // v1058 — artigo dispensado não conta
   return n;
 }
 const cabe = (nec, disp) => Object.entries(nec).every(([a, q]) => (disp[a] || 0) + 1e-9 >= q);
@@ -564,7 +569,7 @@ export async function refazerLevantamento(db = prisma, forcar = false) {
   let n = 0;
   for (const v of its) {
     const fpp = fpps[v.fppId]; if (!fpp) continue;
-    const nova = (await demandaDoItem(fpp, Number(v.quantidade), db, params, v.corFpp || null)).map((d) => ({ ...d, equiparadoA: (v.demanda || []).find((x) => x.artigoId === d.artigoId)?.equiparadoA || null }));
+    const nova = (await demandaDoItem(fpp, Number(v.quantidade), db, params, v.corFpp || null)).map((d) => ({ ...d, ...herdaDem(d, v.demanda) }));
     if (chave(nova) !== chave(v.demanda)) { await db.compraItem.update({ where: { id: v.id }, data: { demanda: nova } }); n++; }
   }
   return n;
@@ -964,6 +969,29 @@ async function ajustarCotacoes(picItemId, delta, apagar, db = prisma) {
     await db.cotacao.update({ where: { id: c.id }, data: its.length ? { itens: its } : { itens: its, status: "CANCELADA" } }).catch(() => null);
   }
 }
+// v1058 — dispensar só UM artigo de um item (o resto do item segue em compras). Antes o "D" de uma linha de artigo
+//   (levantamento consolidado, PIC, OC) tirava o item inteiro de compras, com todos os artigos dele.
+export async function dispensarArtigoDoItem({ pedidoNumero, chave, artigoId, quem = null, motivo = null }, db = prisma) {
+  const v = await db.compraItem.findUnique({ where: { pedidoNumero_chave: { pedidoNumero: String(pedidoNumero), chave: String(chave) } } });
+  if (!v) return { error: "Demanda não encontrada." };
+  if (v.status === "ENTREGUE" || v.liberadoEm) return { error: "Item já liberado/entregue: nada a dispensar." };
+  const a = String(artigoId);
+  const dem = Array.isArray(v.demanda) ? v.demanda : [];
+  if (!dem.some((d) => !d?.dispensado && String(efetivo(d)) === a)) return { error: "Este artigo não está na demanda do item." };
+  const antes = necessidade(v);
+  const nova = dem.map((d) => (!d?.dispensado && String(efetivo(d)) === a ? { ...d, dispensado: true, dispensadoPor: quem, dispensadoEm: new Date().toISOString(), dispensadoMotivo: motivo || null } : d));
+  const depois = necessidade({ ...v, demanda: nova });
+  let travadas = [];
+  if (v.picId && ["PIC", "OC", "NF"].includes(v.status)) travadas = (await ajustarPicDoItem(v, antes, depois, db)).travadas || [];
+  await db.compraItem.update({ where: { id: v.id }, data: { demanda: nova } });
+  // sem nenhum artigo para comprar: o item inteiro sai de compras (vai para o PCP), como o dispensar do item
+  if (!Object.keys(depois).length) {
+    if (!ehAvulsa(v.pedidoNumero)) await db.compraDispensaItem.upsert({ where: { pedidoNumero_chave: { pedidoNumero: v.pedidoNumero, chave: v.chave } }, create: { pedidoNumero: v.pedidoNumero, chave: v.chave, motivo: motivo || "todos os artigos dispensados", porNome: quem }, update: {} });
+    const r = await tirarDeCompras({ pedidoNumero: v.pedidoNumero, chave: v.chave }, db, { quem, motivo });
+    return { ok: true, itemInteiro: true, travadas: [...new Set([...travadas, ...(r.travadas || [])])] };
+  }
+  return { ok: true, itemInteiro: false, travadas };
+}
 // tira os itens de compras (dispensa) em qualquer etapa: levantamento, PIC, cotação e OC ainda aberta.
 // O que já foi entregue ou liberado fica. Compra avulsa: a linha fica marcada para não voltar.
 export async function tirarDeCompras(where, db = prisma, { quem = null, motivo = null } = {}) {
@@ -1022,7 +1050,7 @@ export async function corrigirRibanaFaixa(db = prisma) {
   for (const v of l) {
     const fpp = await db.fpp.findUnique({ where: { id: v.fppId } });
     if (!fpp) continue;
-    const nova = (await demandaDoItem(fpp, Number(v.quantidade), db, params, v.corFpp || null)).map((d) => ({ ...d, equiparadoA: (v.demanda || []).find((x) => x.artigoId === d.artigoId)?.equiparadoA || null }));
+    const nova = (await demandaDoItem(fpp, Number(v.quantidade), db, params, v.corFpp || null)).map((d) => ({ ...d, ...herdaDem(d, v.demanda) }));
     if (v.status === "PIC") {
       // no PIC: troca só os aviamentos corrigidos (o resto do item segue como está)
       const antigos = (v.demanda || []).filter(velho);

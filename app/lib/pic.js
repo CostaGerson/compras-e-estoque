@@ -207,7 +207,7 @@ export async function listarOcs() {
     nfs: fnL.filter((n) => n.ocId === o.id).map((n) => ({ id: n.id, numero: n.numero, emissao: n.emissao?.toISOString().slice(0, 10) || null, valor: Number(n.valor), temXml: n.temXml, temPdf: n.temPdf, acao: n.acao, contas: (Array.isArray(n.parcelas) ? n.parcelas : []).length, parceiro: n.parceiro })), formaRecebimento: o.formaRecebimento, diasAposFaturamento: o.diasAposFaturamento,
     nfNumero: o.nfNumero, nfEmissao: o.nfEmissao ? o.nfEmissao.toISOString().slice(0, 10) : null,
     baixa: o.baixaEm ? { em: o.baixaEm, por: o.baixaPorNome, justificativa: o.baixaJustificativa } : null,   // v532
-    itens: o.itens.map((i) => ({ id: i.id, origens: (i.picItem?.info?.pedidos || []).map((x) => ({ pedido: x.pedido, chave: x.chave, cliente: x.cliente || null, quantidade: x.quantidade, avulsa: !!x.avulsa })), nfNome: i.nfNome || null, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
+    itens: o.itens.map((i) => ({ id: i.id, artigoId: i.artigoId, origens: (i.picItem?.info?.pedidos || []).map((x) => ({ pedido: x.pedido, chave: x.chave, cliente: x.cliente || null, quantidade: x.quantidade, avulsa: !!x.avulsa })), nfNome: i.nfNome || null, nome: i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, quantidade: Number(i.quantidade), valorUnitario: Number(i.valorUnitario) })),
     total: Math.round(o.itens.reduce((s, i) => s + Number(i.quantidade) * Number(i.valorUnitario), 0) * 100) / 100 }));
 }
 export async function salvarOc(b) {
