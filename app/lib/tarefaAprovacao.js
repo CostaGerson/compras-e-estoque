@@ -42,6 +42,7 @@ export async function enviarParaAprovacao(t, u) {
   const A = t.aprovacao || {};
   if (A.etapa !== "EXECUCAO") return { error: "Esta demanda não está aguardando envio para aprovação." };
   if (t.responsavelId !== u.id && !u.isMaster) return { error: "Só o responsável envia para aprovação." };
+  await (await import("@/lib/arquivos")).garantirDiscoTarefa({ tarefaId: t.id });   // v1038 — a cópia leva só a marca arq:
   const arqs = await prisma.tarefaArquivo.findMany({ where: { tarefaId: t.id, id: { gt: Number(A.desdeArquivoId) || 0 }, criadoPorNome: t.responsavelNome || undefined }, orderBy: { id: "asc" } });   // só os do responsável
   if (!arqs.length) return { error: "Anexe os arquivos de resposta antes de enviar para aprovação." };
   const sol = await prisma.usuario.findUnique({ where: { id: Number(A.solicitanteId) || 0 }, select: { id: true, nome: true, sobrenome: true, ativo: true } });

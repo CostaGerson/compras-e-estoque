@@ -55,7 +55,7 @@ export async function POST(req) {
       if (await prisma.tarefaArquivo.findFirst({ where: { tarefaId: t.id, nome }, select: { id: true } })) return Response.json({ ok: true, ja: true });   // reenvio não duplica
       let conteudo, tamanho;
       if (b.token) { const m = await lerMeta(b.token); if (!m?.completo) return Response.json({ error: "Arquivo incompleto." }, { status: 400 }); conteudo = `arq:${b.token}`; tamanho = m.tamanho; }
-      else { conteudo = String(b.conteudo || ""); tamanho = Math.floor(conteudo.length * 3 / 4); }
+      else { conteudo = String(b.conteudo || ""); tamanho = Math.floor(conteudo.length * 3 / 4); const { paraDisco, LIM_TAREFA } = await import("@/lib/arquivos"); conteudo = await paraDisco(conteudo, { nome, mime: b.mime, quem: "E-MAIL", limite: LIM_TAREFA }); }   // v1038
       const a = await prisma.tarefaArquivo.create({ data: { tarefaId: t.id, nome, mime: b.mime || null, tamanho, conteudo, criadoPorNome: "E-MAIL" } });
       return Response.json({ ok: true, id: a.id });
     }

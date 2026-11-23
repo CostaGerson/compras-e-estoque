@@ -90,8 +90,9 @@ export async function registrar() {
 
 // conteúdo (base64 puro + mime) de um registro, de onde ele estiver
 async function conteudoDe(r) {
-  const { lerBase64, driveDe } = await import("@/lib/arquivos");
+  const { lerBase64, driveDe, garantirDiscoTarefa } = await import("@/lib/arquivos");
   if (r.origem === "TAREFA") {
+    await garantirDiscoTarefa({ ids: [r.arquivoId || 0] });   // v1038 — nunca lê base64 grande pelo Prisma
     const a = await prisma.tarefaArquivo.findUnique({ where: { id: r.arquivoId || 0 } });
     if (!a) return { sumiu: true };
     if (driveDe(a.conteudo)) return { jaNoDrive: driveDe(a.conteudo) };
@@ -147,7 +148,8 @@ export async function enviarPendentes(max = 3) {
         const u = await prisma.tarefaArquivo.updateMany({ where: { id: r.arquivoId, conteudo: c.bruto }, data: { conteudo: `gdrive:${j.id}` } });
         const { tokenDe, DIR } = await import("@/lib/arquivos");
         const t = tokenDe(c.bruto);
-        if (u.count && t) { const fs = await import("fs/promises"); const path = await import("path"); await fs.unlink(path.join(DIR, `${t}.bin`)).catch(() => null); }
+        const outros = t ? await prisma.tarefaArquivo.count({ where: { conteudo: c.bruto } }) : 0;   // v1038 — cópia (aprovação) usa o mesmo arquivo
+        if (u.count && t && !outros) { const fs = await import("fs/promises"); const path = await import("path"); await fs.unlink(path.join(DIR, `${t}.bin`)).catch(() => null); }
       }
       enviados++;
     } catch (e) {

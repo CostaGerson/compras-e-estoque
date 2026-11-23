@@ -139,7 +139,8 @@ export async function nfDoEmail(b) {
     const r = await criar({ titulo: `${problemas.length ? "CONFERIR NF" : lancadas.length ? "NF LANÇADA" : "NF JÁ NO SISTEMA"} · e-mail: ${assunto}`.slice(0, 200), descricao, setor: setorTarefaDe(brenda), responsavelId: brenda.id, prazo: hojeSP(), tipo: "PADRAO" }, quem);
     if (!r.error) {
       tarefaId = r.tarefa.id;
-      for (const a of brutos) await prisma.tarefaArquivo.create({ data: { tarefaId, nome: a.nome, mime: a.mime, tamanho: Math.floor(a.b64.length * 3 / 4), conteudo: a.b64, criadoPorNome: "E-MAIL" } }).catch(() => null);
+      const { paraDisco, LIM_TAREFA } = await import("@/lib/arquivos");   // v1038
+      for (const a of brutos) await prisma.tarefaArquivo.create({ data: { tarefaId, nome: a.nome, mime: a.mime, tamanho: Math.floor(a.b64.length * 3 / 4), conteudo: await paraDisco(a.b64, { nome: a.nome, mime: a.mime, quem: "E-MAIL", limite: LIM_TAREFA }), criadoPorNome: "E-MAIL" } }).catch(() => null);
     }
   }
   const out = {

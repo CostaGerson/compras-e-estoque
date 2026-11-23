@@ -121,6 +121,7 @@ export async function enviarAprovacao(t, u) {
   for (const x of L.itens) {
     const novos = [];
     for (const id of idsDe(x)) {
+      await (await import("@/lib/arquivos")).garantirDiscoTarefa({ ids: [id] });   // v1038
       const a = await prisma.tarefaArquivo.findFirst({ where: { id, tarefaId: t.id } });
       const n = a ? await prisma.tarefaArquivo.create({ data: { tarefaId: ap.id, nome: a.nome, mime: a.mime, tamanho: a.tamanho, conteudo: a.conteudo, criadoPorNome: a.criadoPorNome } }) : null;
       if (n) novos.push(n.id);
@@ -195,6 +196,7 @@ export async function gravarLayoutAprovado(tarefaId) {
         if (!it0) continue;
         const ids = idsDe(x);
         if (!ids.length) continue;
+        await (await import("@/lib/arquivos")).garantirDiscoTarefa({ ids });   // v1038
         const arqs = (await prisma.tarefaArquivo.findMany({ where: { id: { in: ids }, tarefaId: t.id } })).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
         if (!arqs.length) continue;
         const it = await prisma.ppItem.findUnique({ where: { id: it0.id }, select: { id: true, anexosJson: true } });

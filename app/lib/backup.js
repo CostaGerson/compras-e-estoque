@@ -9,6 +9,7 @@ import { Zip, ZipDeflate } from "fflate";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { listarUploads, bufDe } from "@/lib/uploads";
+import { emMigracao } from "@/lib/arquivos";   // v1038
 
 export const DIR = process.env.BACKUP_DIR || "/app/backup";
 export const ARQ = path.join(DIR, "meridian-backup.zip");
@@ -88,6 +89,7 @@ export async function gerarBackup({ quem } = {}) {
               const arqs = {};
               for (const g of grandes) {
                 if (!big?.[g]) continue;
+                if (/^(data:[^,]*,)?(arq|gdrive):/.test(String(big[g]).slice(0, 200))) { arqs[g] = String(big[g]); continue; }   // v1038 — arquivo em disco/Drive: só a marca
                 const nomeBase = limpa(row.nome || row.arquivo || row.numero || row.titulo || "") || g;
                 const ext = /\.[a-z0-9]{2,4}$/i.test(nomeBase) ? "" : g.toLowerCase().includes("xml") ? ".xml" : /pdf/i.test(g) ? ".pdf" : "";
                 const p = `arquivos/${m.name}/${row.id}-${g}-${nomeBase}${ext}`;
@@ -144,6 +146,7 @@ export function agendarBackup() {
   const checar = () => {
     const i = infoBackup();
     if (i.gerando || (i.existe && i.data === hojeSP())) return;
+    if (emMigracao()) return;   // v1038 — espera os layouts saírem do banco
     gerarBackup().catch((e) => console.error("[backup]", e.message));
   };
   setTimeout(checar, 3 * 60 * 1000);

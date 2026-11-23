@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { usuarioAtivo, anexar, detalhe } from "@/lib/tarefas";
 import { ehMaster } from "@/lib/acesso";
 import { zipSync } from "fflate";
-import { respostaAnexo, tokenDe, driveDe, lerBase64, DIR } from "@/lib/arquivos";   // v872 — arquivo grande (e-mail) fica em disco
+import { respostaAnexo, tokenDe, driveDe, lerBase64, DIR, garantirDiscoTarefa } from "@/lib/arquivos";   // v872 — arquivo grande (e-mail) fica em disco
 import { readFile } from "fs/promises";
 import path from "path";
 const bytes = async (c) => (tokenDe(c) ? new Uint8Array(await readFile(path.join(DIR, `${tokenDe(c)}.bin`))) : driveDe(c) ? new Uint8Array(Buffer.from((await lerBase64(c)) || "", "base64")) : new Uint8Array(Buffer.from(c, "base64")));   // v1003 — Google Drive
@@ -16,6 +16,7 @@ export async function GET(req, { params }) {
   // v788 — sugestão #69: ?zip=1[&ids=1,2,3] baixa todos (ou os escolhidos) num .zip
   if (sp.get("zip")) {
     const ids = String(sp.get("ids") || "").split(",").map(Number).filter(Boolean);
+    await garantirDiscoTarefa(ids.length ? { ids } : { tarefaId: Number(params.id) });   // v1038 — nunca traz base64 grande do banco
     const l = await prisma.tarefaArquivo.findMany({ where: { tarefaId: Number(params.id), ...(ids.length ? { id: { in: ids } } : {}) }, orderBy: { id: "asc" } });
     if (!l.length) return new Response("Nenhum arquivo.", { status: 404 });
     const usados = {}, arqs = {};
@@ -28,6 +29,7 @@ export async function GET(req, { params }) {
     const nomeZip = `demanda-${Number(params.id)}-arquivos.zip`;
     return new Response(Buffer.from(zipSync(arqs)), { headers: { "Cache-Control": "no-store", "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="${nomeZip}"` } });
   }
+  await garantirDiscoTarefa({ ids: [Number(sp.get("arquivo")) || 0] });   // v1038
   const a = await prisma.tarefaArquivo.findFirst({ where: { id: Number(sp.get("arquivo")) || 0, tarefaId: Number(params.id) } });
   if (!a) return new Response("Não encontrado.", { status: 404 });
   // v919 — ?prev=1: imagem grande vem em prévia leve (o navegador não abre PNG de 24.000 px); o original segue sem o prev
@@ -57,7 +59,7 @@ export async function DELETE(req, { params }) {
   const b = await req.json().catch(() => ({}));
   const u = await usuarioAtivo(b.usuarioId);
   if (!u) return Response.json({ error: "Usuário inválido." }, { status: 403 });
-  const a = await prisma.tarefaArquivo.findFirst({ where: { id: Number(b.arquivoId) || 0, tarefaId: Number(params.id) }, include: { tarefa: { select: { criadoPorId: true } } } });
+  const a = await prisma.tarefaArquivo.findFirst({ where: { id: Number(b.arquivoId) || 0, tarefaId: Number(params.id) }, select: { id: true, criadoPorNome: true, tarefa: { select: { criadoPorId: true } } } });   // v1038 — sem o conteúdo
   if (!a) return Response.json({ ok: true });
   const quem = [u.nome, u.sobrenome].filter(Boolean).join(" ").toUpperCase();
   if (!(ehMaster(u) || a.tarefa.criadoPorId === u.id || a.criadoPorNome === quem)) return Response.json({ error: "Só quem anexou, quem criou a demanda ou o master excluem." }, { status: 403 });

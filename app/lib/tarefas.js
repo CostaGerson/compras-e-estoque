@@ -478,7 +478,9 @@ export async function anexar(id, a, u) {
   const tam = Buffer.byteLength(String(a.conteudo || ""), "base64");
   if (!tam) return { error: "Arquivo vazio." };
   if (tam > 40 * 1048576) return { error: "Arquivo acima de 40 MB." };
-  const f = await prisma.tarefaArquivo.create({ data: { tarefaId: x.id, nome: String(a.nome || "arquivo").slice(0, 200), mime: a.mime || null, tamanho: tam, conteudo: String(a.conteudo), criadoPorNome: nome(u) } });
+  const { paraDisco, LIM_TAREFA } = await import("@/lib/arquivos");   // v1038 — acima de 512 KB vai para o disco
+  const conteudo = await paraDisco(String(a.conteudo), { nome: a.nome, mime: a.mime, quem: nome(u), limite: LIM_TAREFA });
+  const f = await prisma.tarefaArquivo.create({ data: { tarefaId: x.id, nome: String(a.nome || "arquivo").slice(0, 200), mime: a.mime || null, tamanho: tam, conteudo, criadoPorNome: nome(u) } });
   return { ok: true, arquivo: { id: f.id, nome: f.nome, tamanho: f.tamanho } };
 }
 

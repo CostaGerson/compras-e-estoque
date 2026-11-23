@@ -18,12 +18,14 @@ export async function GET(req, { params }) {
   if (sp.get("arquivo") || sp.get("zip")) {
     const vs = await versoesAprovacao(t), ids = new Set(vs.map((v) => v.tarefaId));
     if (sp.get("arquivo")) {
+      await (await import("@/lib/arquivos")).garantirDiscoTarefa({ ids: [Number(sp.get("arquivo")) || 0] });   // v1038
       const a = await prisma.tarefaArquivo.findUnique({ where: { id: Number(sp.get("arquivo")) || 0 } });
       if (!a || !ids.has(a.tarefaId)) return new Response("Não encontrado.", { status: 404 });
       return new Response(Buffer.from((await lerB64(a.conteudo)) || "", "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });
     }
     const v = vs.find((x) => x.tarefaId === Number(sp.get("versao")));
     if (!v) return new Response("Não encontrado.", { status: 404 });
+    await (await import("@/lib/arquivos")).garantirDiscoTarefa({ tarefaId: v.tarefaId });   // v1038
     const l = await prisma.tarefaArquivo.findMany({ where: { tarefaId: v.tarefaId }, orderBy: { id: "asc" } });
     const usados = {}, arqs = {};
     for (const x of l) {
