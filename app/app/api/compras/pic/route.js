@@ -16,7 +16,7 @@ async function acao(b, r) {
     case "ocs": { const s = await salvarItensPic(b.id, b.itens || []); if (s.error) return r(s); return r(await gerarOcs(b.id, b.quem)); }
     // v477 — itens de vários PICs: salvar e gerar OCs juntos
     case "salvarItens": return r(await salvarItensPic(null, b.itens));
-    case "ocsItens": { const s0 = await salvarItensPic(null, b.itens || []); if (s0.error) return r(s0); return r(await gerarOcsItens(b.ids || (b.itens || []).map((x) => x.id), b.quem)); }
+    case "ocsItens": { const s0 = await salvarItensPic(null, b.itens || []); if (s0.error) return r(s0); return r(await gerarOcsItens(b.ids || (b.itens || []).map((x) => x.id), b.quem, b.juntarEm || null)); }
     case "cancelar": return r(await cancelarPic(b.id));
     default: return Response.json({ error: "Ação?" }, { status: 400 });
   }

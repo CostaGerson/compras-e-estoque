@@ -191,11 +191,15 @@ export async function gerarOcDaCotacao(b) {
     }
   }
   if (!ids.length) return { error: "Os itens destas cotações já estão em OC (ou o fornecedor não tem nenhum)." };
-  const r = await gerarOcsItens(ids, b.quem);
+  const r = await gerarOcsItens(ids, b.quem, b.juntarOc ? { [fid]: Number(b.juntarOc) } : null);   // v1072 — ou na OC aberta do mesmo fornecedor
   if (r.error) return r;
   const oc = r.ocs[0];
   const prazo = /^\d{4}-\d{2}-\d{2}$/.test(String(b.prazoEntrega || "")) ? new Date(`${b.prazoEntrega}T12:00:00Z`) : null;
-  await prisma.ordemCompra.update({ where: { id: oc.id }, data: { cotacaoId: cs[0].c.id, formaRecebimento: forma,
+  if (oc.juntada) {
+    const o0 = await prisma.ordemCompra.findUnique({ where: { id: oc.id } });
+    await prisma.ordemCompra.update({ where: { id: oc.id }, data: { formaRecebimento: o0.formaRecebimento || forma, prazoFabrica: o0.prazoFabrica || prazo,
+      condicaoFaturamento: o0.condicaoFaturamento || String(b.condicao || cs[0].c.condicao || "").trim() || null } });
+  } else await prisma.ordemCompra.update({ where: { id: oc.id }, data: { cotacaoId: cs[0].c.id, formaRecebimento: forma,
     diasAposFaturamento: forma === "TRANSPORTADORA" ? (parseInt(b.diasAposFaturamento, 10) || null) : null,
     prazoFabrica: prazo, condicaoFaturamento: String(b.condicao || cs[0].c.condicao || "").trim() || null } });
   for (const { c, its } of novos) await prisma.cotacao.update({ where: { id: c.id }, data: { status: "OC", ocId: oc.id, itens: its, aplicadaEm: new Date() } });

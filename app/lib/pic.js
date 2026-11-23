@@ -87,7 +87,8 @@ export async function salvarItensPic(picId, itens) {
 }
 
 // v477 — OCs com itens de um ou vários PICs (os mesmos fornecedores viram uma OC só)
-export async function gerarOcsItens(itemIds, quem) {
+// v1072 — juntarEm: { fornecedorId: ocId } → os itens entram na OC ABERTA do mesmo fornecedor em vez de abrir outra
+export async function gerarOcsItens(itemIds, quem, juntarEm = null) {
   const its = await prisma.picItem.findMany({ where: { id: { in: (itemIds || []).map(Number).filter(Boolean) } }, include: { ocItens: { select: { id: true } } } });
   const livres = its.filter((i) => !i.ocItens.length);
   const prontos = livres.filter((i) => i.fornecedorId && i.valorUnitario != null && Number(i.valorUnitario) > 0 && Number(i.quantidade) > 0);
@@ -97,6 +98,15 @@ export async function gerarOcsItens(itemIds, quem) {
   const ocs = [];
   for (const [fid, gi] of Object.entries(grupos)) {
     const pics = [...new Set(gi.map((i) => i.picId))];
+    const alvoId = juntarEm && Number(juntarEm[fid]);
+    const alvo = alvoId ? await prisma.ordemCompra.findUnique({ where: { id: alvoId } }) : null;
+    if (alvo && alvo.status === "ABERTA" && alvo.fornecedorId === Number(fid)) {
+      await prisma.ocItem.createMany({ data: gi.map((i) => ({ ocId: alvo.id, artigoId: i.artigoId, picItemId: i.id, quantidade: i.quantidade, valorUnitario: i.valorUnitario })) });
+      if (alvo.picId && pics.some((p) => p !== alvo.picId)) await prisma.ordemCompra.update({ where: { id: alvo.id }, data: { picId: null } });
+      for (const i of gi) await prisma.artigo.update({ where: { id: i.artigoId }, data: { valorUnitario: i.valorUnitario, fornecedorId: i.fornecedorId } }).catch(() => null);
+      ocs.push({ id: alvo.id, numero: alvo.numero, itens: gi.length, pics: pics.length, juntada: true });
+      continue;
+    }
     const oc = await prisma.ordemCompra.create({ data: { numero: `TMP-${Date.now()}-${fid}-${Math.random().toString(36).slice(2, 6)}`, fornecedorId: Number(fid), picId: pics.length === 1 ? pics[0] : null, criadoPorNome: quem || null,
       itens: { create: gi.map((i) => ({ artigoId: i.artigoId, picItemId: i.id, quantidade: i.quantidade, valorUnitario: i.valorUnitario })) } } });
     const numero = `OC ${String(oc.id).padStart(4, "0")}`;
@@ -267,6 +277,26 @@ export async function statusNfItens(ocId) {
 }
 
 // v486 — rota de coleta de cada OC (pelo vínculo ocId ou pelo "COLETA OC 000x" no o que fazer)
+// v1072 — junta OCs ABERTAS do mesmo fornecedor (sem NF e sem rota de coleta) numa só; as outras são canceladas vazias
+export async function juntarOcs(destId, ids, quem = null) {
+  const d = await prisma.ordemCompra.findUnique({ where: { id: Number(destId) || 0 } });
+  if (!d) return { error: "OC não encontrada." };
+  const os = await prisma.ordemCompra.findMany({ where: { id: { in: (ids || []).map(Number).filter((x) => x && x !== d.id) } } });
+  if (!os.length) return { error: "Nenhuma OC para juntar." };
+  const todas = [d, ...os];
+  if (todas.some((o) => o.status !== "ABERTA")) return { error: "Só junta OCs ainda abertas (não enviadas ao fornecedor)." };
+  if (todas.some((o) => o.fornecedorId !== d.fornecedorId)) return { error: "Só junta OCs do mesmo fornecedor." };
+  if (os.some((o) => o.nfNumero)) return { error: "Uma das OCs já tem NF do fornecedor." };
+  const rot = await prisma.rotaDemanda.findFirst({ where: { ocId: { in: os.map((o) => o.id) }, status: { not: "CANCELADA" } } }).catch(() => null);
+  if (rot) return { error: "Uma das OCs já tem rota de coleta: cancele a rota antes de juntar." };
+  await prisma.ocItem.updateMany({ where: { ocId: { in: os.map((o) => o.id) } }, data: { ocId: d.id } });
+  await prisma.cotacao.updateMany({ where: { ocId: { in: os.map((o) => o.id) } }, data: { ocId: d.id } });
+  const pics = new Set(todas.map((o) => o.picId));
+  await prisma.ordemCompra.update({ where: { id: d.id }, data: { ...(pics.size > 1 ? { picId: null } : {}),
+    obs: [d.obs, `Juntou ${os.map((o) => o.numero).join(", ")}${quem ? ` (${quem})` : ""}`].filter(Boolean).join(" · ") } });
+  await prisma.ordemCompra.updateMany({ where: { id: { in: os.map((o) => o.id) } }, data: { status: "CANCELADA", obs: `Juntada na ${d.numero}` } });
+  return { ok: true, juntadas: os.map((o) => o.numero), numero: d.numero };
+}
 export async function rotasDeColeta(ocs) {
   if (!ocs.length) return {};
   const sel = { id: true, ocId: true, tarefa: true, data: true, status: true, blocoId: true, concluidaEm: true, destinoTipo: true, destinoId: true, createdAt: true };

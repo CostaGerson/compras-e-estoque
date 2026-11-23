@@ -77,6 +77,18 @@ function Guias({ abas, atual, onChange, direita }) {
 // v999 — PIC, cotação e OC: nº do pedido sempre com o nome do cliente
 const rotOrigem = (x) => `Ped. ${x.pedido}${x.cliente ? ` · ${String(x.cliente).trim()}` : ""}`;
 // v913 — dispensar compras em qualquer fase (PIC, cotação, OC): escolhe os pedidos/linhas de origem da demanda
+// v1072 — OC aberta (ainda não enviada) do mesmo fornecedor: pergunta se junta nela em vez de abrir outra OC
+async function perguntarJuntarOc(fornIds) {
+  const ids = [...new Set((fornIds || []).map(Number).filter(Boolean))];
+  if (!ids.length) return {};
+  const l = await fetch("/api/compras/oc").then((r) => r.json()).catch(() => []);
+  const out = {};
+  for (const fid of ids) {
+    const o = (Array.isArray(l) ? l : []).filter((x) => x.status === "ABERTA" && Number(x.fornecedorId ?? x.fornecedor?.id) === fid).sort((a, b) => b.id - a.id)[0];
+    if (o && (await confirmar(`${o.fornecedor?.nome || "O fornecedor"} já tem a ${o.numero} aberta (ainda não enviada, ${o.itens.length} item(ns), ${brl(o.total)}).\n\nJuntar os itens novos nela, numa OC só?`))) out[fid] = o.id;
+  }
+  return out;
+}
 export function BotaoDispensar({ origens, user, onFeito, rotulo = "Dispensar", artigo }) {   // v1058 — artigo: { id, nome } → dispensa só este artigo
   const [ab, setAb] = useState(false);
   const soArt = true;   // v1071 — dispensa sempre só do artigo (nunca o item inteiro)
@@ -1309,13 +1321,14 @@ export function PicCompras({ user, fases, ir }) {
       const nF = new Set(prontos.map((x) => x.fornecedorId)).size;
       const nP = new Set(alvo.filter((i) => prontos.some((x) => x.id === i.id)).map((i) => i.picNumero)).size;
       if (!(await confirmar(`Gerar ${nF} OC(s), uma por fornecedor, com ${prontos.length} item(ns) de ${nP} PIC(s)?${prontos.length < its.length ? ` ${its.length - prontos.length} item(ns) sem fornecedor ou valor ficam no PIC.` : ""}`))) return;
+      var juntarEm = await perguntarJuntarOc(prontos.map((x) => x.fornecedorId));   // v1072
     }
     setOc(true);
-    const r = await fetch("/api/compras/pic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, itens: its.map(({ nomeForn, ...x }) => ({ ...x, fornecedorId: x.fornecedorId || null })), ids: its.map((x) => x.id), quem: nomeUser(user) }) });
+    const r = await fetch("/api/compras/pic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, itens: its.map(({ nomeForn, ...x }) => ({ ...x, fornecedorId: x.fornecedorId || null })), ids: its.map((x) => x.id), quem: nomeUser(user), ...(acao === "ocsItens" && juntarEm ? { juntarEm } : {}) }) });
     const x = await r.json().catch(() => ({}));
     setOc(false);
     if (!r.ok) return alerta(x.error || "Erro.");
-    if (acao === "ocsItens") { await alerta(`${x.ocs.map((o) => o.numero).join(", ")} gerada(s).${x.faltam ? ` ${x.faltam} item(ns) continuam no PIC.` : ""}`); setSel(new Set()); }
+    if (acao === "ocsItens") { await alerta(`${x.ocs.map((o) => `${o.numero}${o.juntada ? " (itens juntados)" : ""}`).join(", ")} gerada(s)/atualizada(s).${x.faltam ? ` ${x.faltam} item(ns) continuam no PIC.` : ""}`); setSel(new Set()); }
     carregar();
   }
   async function cotacao(alvo = alvoGeral) {
@@ -1567,6 +1580,16 @@ export function OrdensCompra({ user, fases, ir }) {
                   {o.formaRecebimento && o.formaRecebimento !== "COLETA" && <label className="text-xs" style={{ color: C.sub }}>Previsão de chegada<input type="date" defaultValue={o.previsaoEntrega || ""} onChange={(e) => salvar(o, { previsaoEntrega: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>}   {/* v497 */}
                   <label className="text-xs" style={{ color: C.sub }}>Recebimento<select value={o.formaRecebimento || ""} onChange={(e) => salvar(o, { formaRecebimento: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}><option value="">—</option>{FORMAS_REC.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
                   {o.formaRecebimento === "TRANSPORTADORA" && <label className="text-xs" style={{ color: C.sub }}>Dias após faturar<input defaultValue={o.diasAposFaturamento ?? ""} onBlur={(e) => String(e.target.value) !== String(o.diasAposFaturamento ?? "") && salvar(o, { diasAposFaturamento: e.target.value })} className="block mt-1 px-2 py-1 rounded text-sm w-24" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>}
+                  {o.status === "ABERTA" && (() => {   // v1072 — outras OCs abertas do mesmo fornecedor: juntar nesta
+                    const irm = (l || []).filter((y) => y.id !== o.id && y.status === "ABERTA" && Number(y.fornecedorId ?? y.fornecedor?.id) === Number(o.fornecedorId ?? o.fornecedor?.id));
+                    if (!irm.length) return null;
+                    return <button onClick={async () => {
+                      if (!(await confirmar(`Juntar ${irm.map((y) => y.numero).join(", ")} nesta ${o.numero} (${o.fornecedor.nome})?\nOs itens passam para a ${o.numero} e as outras OCs são canceladas (vazias).`))) return;
+                      const r = await fetch("/api/compras/oc", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "juntar", id: o.id, ids: irm.map((y) => y.id), quem: nomeUser(user) }) });
+                      const x = await r.json().catch(() => ({})); if (!r.ok) return alerta(x.error || "Erro.");
+                      await alerta(`${x.juntadas.join(", ")} juntada(s) na ${o.numero}.`); carregar();
+                    }} title="Uma OC só por fornecedor" className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><Merge size={14} /> Juntar {irm.map((y) => y.numero).join(", ")}</button>;
+                  })()}
                   {!["RECEBIDA", "CANCELADA"].includes(o.status) && <button onClick={() => cancelarOc(o)} title="Os itens voltam para a cotação (outra OC ou dispensar compras)" className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.red}`, color: C.red }}>Cancelar OC</button>}
                   {o.formaRecebimento === "COLETA" && !["RECEBIDA", "CANCELADA"].includes(o.status) && !o.rota && <button onClick={() => criarRotaColeta(o)} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ background: C.navy, color: "#fff" }}>Criar rota de coleta</button>}
                 </div>
@@ -1860,8 +1883,9 @@ function GerarOcCotacao({ cs, user, onClose, onOk }) {
   const tot = cs.reduce((s1, c, ci) => s1 + c.itens.reduce((s0, i, k) => s0 + (i.naoTem ? 0 : lerNum(f.itens[ci][k]?.valorNegociado) || 0) * qPreco(i), 0), 0);   // v1059 · v1070
   async function gerar() {
     if (!f.forma) return alerta("Escolha a forma de recebimento.");
+    const jo = await perguntarJuntarOc([cs[0].fornecedorId]);   // v1072
     setOc(true);
-    const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "gerarOc", cotacoes: cs.map((c, ci) => ({ id: c.id, itens: f.itens[ci] })), prazoEntrega: f.prazoEntrega, forma: f.forma, diasAposFaturamento: f.dias, condicao: f.condicao, quem: nomeUser(user) }) });
+    const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "gerarOc", juntarOc: jo[Number(cs[0].fornecedorId)] || null, cotacoes: cs.map((c, ci) => ({ id: c.id, itens: f.itens[ci] })), prazoEntrega: f.prazoEntrega, forma: f.forma, diasAposFaturamento: f.dias, condicao: f.condicao, quem: nomeUser(user) }) });
     const x = await r.json().catch(() => ({}));
     setOc(false);
     if (!r.ok) return alerta(x.error || "Erro ao gerar a OC.");
@@ -2125,7 +2149,7 @@ export function Cotacoes({ user, fases, ir }) {
                   const irmas = outras.filter(comValor), semResp = outras.filter((y) => !comValor(y));
                   let junta = [];
                   if (irmas.length) {
-                    const tot = (y) => brl(y.itens.reduce((s0, i, k) => s0 + (dados(y).itens[k]?.naoTem ? 0 : (lerNum(dados(y).itens[k]?.valorUnitario) || 0) * (Number(i.quantidade) || 0)), 0));
+                    const tot = (y) => brl(y.itens.reduce((s0, i, k) => s0 + (dados(y).itens[k]?.naoTem ? 0 : (lerNum(dados(y).itens[k]?.valorUnitario) || 0) * qPreco(i)), 0));   // v1070
                     const ok = await confirmar(`${c.fornecedorNome} tem outras cotações sem OC:\n${irmas.map((y) => `• ${y.numero} · ${y.pics || ""} · ${y.itens.length} item(ns) · ${tot(y)}`).join("\n")}${semResp.length ? `\n(${semResp.map((y) => y.numero).join(", ")} ainda sem valor: fica(m) fora)` : ""}\n\nConsolidar tudo numa OC só?`);
                     if (ok) for (const y of irmas) { const r = await post({ acao: "responder", id: y.id, ...dados(y) }); if (r) junta.push({ ...y, ...r.cotacao, itens: r.cotacao.itens }); }
                   }
