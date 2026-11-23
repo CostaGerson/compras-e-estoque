@@ -1,6 +1,6 @@
 // v478 — Compras › Cotações
 export const dynamic = "force-dynamic";
-import { criarCotacoes, listarCotacoes, responderCotacao, aplicarCotacao, cancelarCotacao, marcarEnviada, gerarOcDaCotacao, vincularFornecedor, juntarCotacoes } from "@/lib/cotacoes";
+import { criarCotacoes, listarCotacoes, responderCotacao, aplicarCotacao, cancelarCotacao, marcarEnviada, gerarOcDaCotacao, vincularFornecedor, juntarCotacoes, salvarComercial } from "@/lib/cotacoes";
 
 export async function GET() { return Response.json(await listarCotacoes()); }
 export async function POST(req) {
@@ -14,6 +14,7 @@ export async function POST(req) {
     case "gerarOc": return r(await gerarOcDaCotacao(b));
     case "vincular": return r(await vincularFornecedor(b.id, b.fornecedorId));   // v491
     case "cancelar": return r(await cancelarCotacao(b.id));
+    case "comercial": return r(await salvarComercial(b.id, Number(b.k), b.comercial || null));   // v1059
     case "juntar": return r(await juntarCotacoes(b.id, b.ids));   // v1051
     default: return Response.json({ error: "Ação?" }, { status: 400 });
   }

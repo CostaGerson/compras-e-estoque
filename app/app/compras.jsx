@@ -1599,7 +1599,10 @@ async function desenharCotacao(g, pic) {
     x.fillStyle = "#ee6500"; x.font = "700 24px Arial"; x.fillText(String(k + 1), P, y + 30);
     x.fillStyle = "#0c2342"; x.font = "600 26px Arial"; l.a.forEach((t, j) => x.fillText(t, P + 56, y + 30 + j * LH));
     x.fillStyle = "#667085"; x.font = "22px Arial"; l.d.forEach((t, j) => x.fillText(t, P + 56, y + 30 + l.a.length * LH + j * 26));
-    x.textAlign = "right"; x.fillStyle = "#0c2342"; x.font = "700 28px Arial"; x.fillText(qtdU(l.i.quantidade, l.i.unidade), W - P, y + 32); x.textAlign = "left";
+    x.textAlign = "right"; x.fillStyle = "#0c2342"; x.font = "700 28px Arial";
+    if (l.i.comercial) { x.fillText(txtComercial(l.i.comercial), W - P, y + 32); x.fillStyle = "#667085"; x.font = "20px Arial"; x.fillText(`= ${qtdU(qBase(l.i), l.i.comercial.unidade)}`, W - P, y + 58); }   // v1059 — como o mercado vende
+    else x.fillText(qtdU(l.i.quantidade, l.i.unidade), W - P, y + 32);
+    x.textAlign = "left";
     y += l.h; x.strokeStyle = "#e4e7ec"; x.lineWidth = 2; x.beginPath(); x.moveTo(P - 16, y - 10); x.lineTo(W - P + 16, y - 10); x.stroke();
   });
   y += 40;
@@ -1734,6 +1737,49 @@ function CotacaoCard({ g, pic }) {
     </div>
   );
 }
+// v1059 — unidade comercial na cotação (como o mercado vende): tecido plano = rolo de 100 m, malha = peça de 20 kg, aviamento livre
+const qBase = (i) => (i?.comercial && Number(i.comercial.qtd) > 0 && Number(i.comercial.fator) > 0 ? Number(i.comercial.qtd) * Number(i.comercial.fator) : Number(i?.quantidade) || 0);
+const txtComercial = (c) => `${String(c.qtd).replace(".", ",")} ${c.tipo}${Number(c.qtd) > 1 && !/S$/.test(c.tipo) ? "S" : ""} × ${String(c.fator).replace(".", ",")} ${c.unidade}`;
+const EMBALAGENS = ["ROLO", "PEÇA", "UNIDADE", "CAIXA", "PACOTE", "CONE", "GROSA", "MILHEIRO", "FARDO", "BOBINA"];
+function padraoComercial(i) {
+  const cat = String(i.categoria || "").toUpperCase(), un = String(i.unidade || "").toUpperCase();
+  if (cat === "TECIDO") return { tipo: "ROLO", fator: "100", unidade: un === "KG" ? "KG" : "M" };
+  if (cat === "MALHA") return { tipo: "PEÇA", fator: "20", unidade: un === "M" ? "M" : "KG" };
+  return { tipo: "", fator: "", unidade: un || "UN" };
+}
+function ComercialEditor({ i, onSalvar, onTirar, onFechar }) {
+  const p0 = i.comercial ? { tipo: i.comercial.tipo, fator: numBR(i.comercial.fator), unidade: i.comercial.unidade } : padraoComercial(i);
+  const [f, setF] = useState({ ...p0, qtd: i.comercial ? numBR(i.comercial.qtd) : "" });
+  const [qtdMexida, setQtdMexida] = useState(!!i.comercial);
+  const fator = lerNum(f.fator), real = Number(i.quantidade) || 0;
+  const sugerida = fator > 0 ? Math.ceil(real / fator - 1e-9) : null;
+  const qtd = qtdMexida ? lerNum(f.qtd) : sugerida;
+  const base = qtd > 0 && fator > 0 ? qtd * fator : null;
+  const inpC = "px-2 py-1 rounded text-sm outline-none";
+  return (
+    <div className="mt-1 mb-2 rounded-lg p-3" style={{ background: "#fff", border: `1px solid ${C.accent}` }}>
+      <div className="flex flex-wrap items-end gap-2 text-xs" style={{ color: C.sub }}>
+        <label>Embalagem<input list="ce-embalagens" value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value.toUpperCase() })} placeholder="ROLO, PEÇA…" className={`${inpC} block mt-1 w-28`} style={{ border: `1px solid ${C.line}` }} /></label>
+        <datalist id="ce-embalagens">{EMBALAGENS.map((x) => <option key={x} value={x} />)}</datalist>
+        <span className="pb-1.5">de</span>
+        <label>X<input value={f.fator} onChange={(e) => setF({ ...f, fator: e.target.value })} inputMode="decimal" placeholder="100" className={`${inpC} block mt-1 w-20 text-right`} style={{ border: `1px solid ${C.line}` }} /></label>
+        <label>Unidade<select value={f.unidade} onChange={(e) => setF({ ...f, unidade: e.target.value })} className={`${inpC} block mt-1`} style={{ border: `1px solid ${C.line}` }}>{[...new Set(["M", "KG", "UN", "CM", "PC", String(f.unidade || "")].filter(Boolean))].map((u) => <option key={u} value={u}>{u}</option>)}</select></label>
+        <label className="ml-2">Comprar (nº de {f.tipo ? f.tipo.toLowerCase() : "embalagens"})<input value={qtdMexida ? f.qtd : sugerida ?? ""} onChange={(e) => { setQtdMexida(true); setF({ ...f, qtd: e.target.value }); }} inputMode="decimal" className={`${inpC} block mt-1 w-24 text-right font-semibold`} style={{ border: `1px solid ${C.accent}` }} /></label>
+      </div>
+      <div className="flex flex-wrap gap-3 mt-3 text-sm">
+        <div className="rounded-md px-3 py-1.5" style={{ background: C.panel2 }}><div className="text-[10px] font-semibold uppercase" style={{ color: C.sub }}>Demanda real</div><b style={{ color: C.navy }}>{qtdU(real, i.unidade)}</b></div>
+        <div className="rounded-md px-3 py-1.5" style={{ background: C.accentSoft }}><div className="text-[10px] font-semibold uppercase" style={{ color: C.accent }}>Comercial (vai para a OC)</div>
+          <b style={{ color: C.navy }}>{base ? `${txtComercial({ tipo: f.tipo || "EMB.", fator, unidade: f.unidade, qtd })} = ${qtdU(base, f.unidade)}` : "—"}</b>
+          {base && real > 0 && Math.abs(base - real) > 1e-9 && <span className="text-xs ml-1" style={{ color: base > real ? C.sub : C.red }}>({base > real ? "+" : ""}{qtdU(base - real, f.unidade)})</span>}</div>
+      </div>
+      <div className="flex justify-end gap-2 mt-3">
+        {i.comercial && <button onClick={onTirar} className="text-xs px-2.5 py-1.5 rounded-md mr-auto" style={{ color: C.red }}>Voltar à unidade padrão</button>}
+        <button onClick={onFechar} className="text-xs px-2.5 py-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, color: C.sub }}>Cancelar</button>
+        <button disabled={!base || !f.tipo} onClick={() => onSalvar({ tipo: f.tipo, fator: f.fator, unidade: f.unidade, qtd: String(qtd).replace(".", ",") })} className="text-xs px-3 py-1.5 rounded-md font-semibold disabled:opacity-50" style={{ background: C.accent, color: "#fff" }}>Salvar</button>
+      </div>
+    </div>
+  );
+}
 function CotacaoModal({ cot, onClose }) {
   return (
     <Modal titulo={`Cotação · ${cot.pic} · ${cot.grupos.length} fornecedor(es)`} onClose={onClose} largo>
@@ -1778,7 +1824,7 @@ function ChipEntrega({ e }) {
 function GerarOcCotacao({ cs, user, onClose, onOk }) {
   const [f, setF] = useState({ itens: cs.map((c) => c.itens.map((i) => ({ valorNegociado: numBR(i.valorNegociado ?? i.valorUnitario) }))), prazoEntrega: cs.map((c) => c.prazoEntrega).filter(Boolean).sort().pop() || "", forma: "", dias: "", condicao: cs.find((c) => c.condicao)?.condicao || "" });
   const [oc, setOc] = useState(false);
-  const tot = cs.reduce((s1, c, ci) => s1 + c.itens.reduce((s0, i, k) => s0 + (i.naoTem ? 0 : lerNum(f.itens[ci][k]?.valorNegociado) || 0) * (Number(i.quantidade) || 0), 0), 0);
+  const tot = cs.reduce((s1, c, ci) => s1 + c.itens.reduce((s0, i, k) => s0 + (i.naoTem ? 0 : lerNum(f.itens[ci][k]?.valorNegociado) || 0) * qBase(i), 0), 0);   // v1059
   async function gerar() {
     if (!f.forma) return alerta("Escolha a forma de recebimento.");
     setOc(true);
@@ -1805,7 +1851,7 @@ function GerarOcCotacao({ cs, user, onClose, onOk }) {
           {c.itens.map((i, k) => i.naoTem ? <div key={k} className="px-1 py-1.5 text-xs" style={{ borderTop: `1px solid ${C.line}`, color: C.sub }}><s>{i.nome}</s> · fornecedor não tem (fica no PIC)</div> : (
             <div key={k} className="flex px-1 py-1.5 gap-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
               <div className="flex-1 min-w-0 truncate">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{i.det}</span></div>
-              <div className="w-24 text-right">{qtdU(i.quantidade, i.unidade)}</div>
+              <div className="w-24 text-right">{i.comercial ? <><div className="font-semibold" style={{ color: C.accent }}>{txtComercial(i.comercial)}</div><div className="text-[11px]" style={{ color: C.sub }}>= {qtdU(qBase(i), i.comercial.unidade)}</div></> : qtdU(i.quantidade, i.unidade)}</div>
               <div className="w-24 text-right" style={{ color: C.sub }}>{brl(i.valorUnitario)}</div>
               <div className="w-28 text-right"><input value={f.itens[ci][k]?.valorNegociado || ""} onChange={(e) => setF((x) => ({ ...x, itens: x.itens.map((arr, cj) => (cj !== ci ? arr : arr.map((y, j) => (j === k ? { valorNegociado: e.target.value } : y)))) }))} className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} /></div>
             </div>
@@ -1874,6 +1920,7 @@ export function Cotacoes({ user, fases, ir }) {
   const [filtro, setFiltro] = useState("andamento");   // v1049 — abre em andamento (sem OC)
   const [ed, setEd] = useState({});   // { cotId: { itens: [...], condicao, prazoEntrega, obs } }
   const [card, setCard] = useState(null);
+  const [edCom, setEdCom] = useState(null);   // v1059 — "cotId|k" com a unidade comercial em edição
   const [gerOc, setGerOc] = useState(null);   // v479
   const [forns, setForns] = useState(_fornPic || []);   // v491 — para ligar a cotação ao cadastro
   useEffect(() => { if (!_fornPic) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornPic = Array.isArray(x) ? x : []; setForns(_fornPic); }).catch(() => {}); }, []);
@@ -1905,7 +1952,7 @@ export function Cotacoes({ user, fases, ir }) {
       {vis.map((c) => {
         const d = dados(c), trav = false, comOc = ehOc(c);   // v487 — cotação sempre editável
         const [txt, cor, fundo] = ST_COT[c.status] || ST_COT.ENVIADA;
-        const tot = c.itens.reduce((s0, i, k) => s0 + (d.itens[k]?.naoTem ? 0 : (lerNum(d.itens[k]?.valorUnitario) || 0)) * (Number(i.quantidade) || 0), 0);
+        const tot = c.itens.reduce((s0, i, k) => s0 + (d.itens[k]?.naoTem ? 0 : (lerNum(d.itens[k]?.valorUnitario) || 0)) * qBase(i), 0);   // v1059 — pela quantidade comercial
         const aberto = abertos[c.id] ?? !comOc;   // v509 — com OC começa recolhida
         const resp = c.itens.filter((i, k) => d.itens[k]?.naoTem || lerNum(d.itens[k]?.valorUnitario) > 0).length;
         const lbl = "text-[10px] font-semibold uppercase tracking-wide";
@@ -1954,7 +2001,8 @@ export function Cotacoes({ user, fases, ir }) {
                   const m = melhor[`${i.nome}|${i.det}|${i.unidade}`];
                   const eMelhor = m && v != null && v <= m.v + 1e-9;
                   return (
-                    <div key={k} className="flex gap-3 items-center text-sm rounded-lg px-2 -mx-2 py-2.5" style={{ background: k % 2 ? "transparent" : "#F8F9FB", opacity: di.naoTem ? 0.55 : 1 }}>
+                    <React.Fragment key={k}>
+                    <div className="flex gap-3 items-center text-sm rounded-lg px-2 -mx-2 py-2.5" style={{ background: k % 2 ? "transparent" : "#F8F9FB", opacity: di.naoTem ? 0.55 : 1 }}>
                       <div className="flex-1 min-w-0 flex items-start gap-2.5">
                         <span className="shrink-0 rounded-full flex items-center justify-center text-[11px] font-bold mt-0.5" style={{ width: 22, height: 22, background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>{k + 1}</span>
                         <div className="min-w-0">
@@ -1973,12 +2021,19 @@ export function Cotacoes({ user, fases, ir }) {
                           })()}
                         </div>
                       </div>
-                      <div className="w-28 text-right" style={{ color: C.text }}>{qtdU(i.quantidade, i.unidade)}</div>
+                      <div className="w-28 text-right" style={{ color: C.text }}>   {/* v1059 — real × comercial */}
+                        {i.comercial ? <><div className="text-[11px]" style={{ color: C.sub }} title="Demanda real">{qtdU(i.quantidade, i.unidade)}</div><div className="font-semibold" style={{ color: C.accent }} title="Quantidade comercial (vai para a OC)">{txtComercial(i.comercial)}</div></> : qtdU(i.quantidade, i.unidade)}
+                        {!comOc && <button type="button" onClick={() => setEdCom(`${c.id}|${k}`)} className="text-[10px] underline decoration-dotted" style={{ color: C.accent }}>{i.comercial ? "editar unidade" : "unidade comercial"}</button>}
+                      </div>
                       <div className="w-28 text-right">{di.naoTem ? <span className="text-xs font-semibold" style={{ color: C.red }}>não tem</span> : <input value={di.valorUnitario} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: e.target.value } : y)) }))} placeholder="0,00" className={`${inp} w-24 text-right`} style={{ border: `1px solid ${eMelhor ? C.green : C.line}`, background: eMelhor ? C.greenSoft : "#fff" }} />}</div>
                       <div className="w-36">{di.naoTem ? "" : <input type="date" value={di.prazo} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, prazo: e.target.value } : y)) }))} className={`${inp} w-full`} style={{ border: `1px solid ${C.line}`, background: "#fff" }} />}</div>
                       <div className="w-16 text-center">{/* v484 */}<input type="checkbox" checked={!!di.naoTem} title="O fornecedor não tem este item" onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, naoTem: e.target.checked, ...(e.target.checked ? { valorUnitario: "", prazo: "" } : {}) } : y)) }))} /></div>
-                      <div className="w-28 text-right font-semibold" style={{ color: v && !di.naoTem ? C.navy : C.sub }}>{v && !di.naoTem ? brl(v * (Number(i.quantidade) || 0)) : "—"}</div>
+                      <div className="w-28 text-right font-semibold" style={{ color: v && !di.naoTem ? C.navy : C.sub }}>{v && !di.naoTem ? brl(v * qBase(i)) : "—"}</div>
                     </div>
+                    {edCom === `${c.id}|${k}` && <ComercialEditor i={i} onFechar={() => setEdCom(null)}
+                      onSalvar={async (com) => { const x = await post({ acao: "comercial", id: c.id, k, comercial: com }); if (x) setEdCom(null); }}
+                      onTirar={async () => { const x = await post({ acao: "comercial", id: c.id, k, comercial: null }); if (x) setEdCom(null); }} />}
+                    </React.Fragment>
                   );
                 })}
               </div>
