@@ -152,7 +152,7 @@ export async function detalhePedido(numero) {
   const ci = Array.isArray(p.cronoItens) ? p.cronoItens : [];
   // v638 — guia OP: parâmetros de produção, tipo de peça e foto de cada item (a foto vem do lançamento) + anexos do lançamento
   const pp = await prisma.pp.findFirst({ where: { numero: p.numero }, orderBy: { id: "desc" },
-    select: { id: true, origem: true, arquivoPedidoPdf: true, arquivoOpPdf: true, portalClienteId: true, portalNumero: true, clienteFinal: true, rastreio: true, despachadoEm: true, despachadoPor: true, entregueEm: true, entreguePor: true, itens: { select: { id: true, codigo: true, fotoBase64: true, anexosJson: true }, orderBy: { id: "asc" } },
+    select: { id: true, origem: true, arquivoPedidoPdf: true, arquivoOpPdf: true, portalClienteId: true, portalNumero: true, clienteFinal: true, custosExtras: true, rastreio: true, despachadoEm: true, despachadoPor: true, entregueEm: true, entreguePor: true, itens: { select: { id: true, codigo: true, fotoBase64: true, anexosJson: true }, orderBy: { id: "asc" } },
       anexos: { select: { id: true, nome: true, tipo: true, categoria: true, tamanho: true, criadoPorNome: true, createdAt: true }, orderBy: { id: "asc" } } } }).catch(() => null);
   const brutos = Array.isArray(p.itens) ? p.itens : [];
   const ppIts = pp?.itens || [];
@@ -212,7 +212,7 @@ export async function detalhePedido(numero) {
     itens: itensOut, ocorrencias: oc, erroPcp, fonte: p.fonte || null, tipoPedido: p.tipoPedido || null, nfObs: p.nfObs || null,
     pp: pp ? { id: pp.id, origem: pp.origem || null, temPv: !!pp.arquivoPedidoPdf, temOp: !!pp.arquivoOpPdf } : null,
     // v1074 — pedido do portal (Loja Way): rastreio do envio e entrega marcada pelo cliente
-    portal: pp?.portalClienteId ? { numero: pp.portalNumero ? String(pp.portalNumero).padStart(4, "0") : null, clienteFinal: pp.clienteFinal || null, rastreio: pp.rastreio || null, despachadoEm: pp.despachadoEm || null, despachadoPor: pp.despachadoPor || null, entregueEm: pp.entregueEm || null, entreguePor: pp.entreguePor || null } : null,
+    portal: pp?.portalClienteId ? { numero: pp.portalNumero ? String(pp.portalNumero).padStart(4, "0") : null, clienteFinal: pp.clienteFinal || null, custosExtras: Array.isArray(pp.custosExtras) ? pp.custosExtras : [], rastreio: pp.rastreio || null, despachadoEm: pp.despachadoEm || null, despachadoPor: pp.despachadoPor || null, entregueEm: pp.entregueEm || null, entreguePor: pp.entreguePor || null } : null,
     statusPedido: p.status, interno: !!p.interno,
     anexos: pp?.anexos || [],
     faturamento: { nfs, faturado: r2(nfs.reduce((s, n) => s + n.valor, 0)), pecasPendentes: p.qtEntregar != null ? p.qtEntregar : pecasTotal,

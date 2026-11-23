@@ -361,11 +361,46 @@ export default function PortalCliente({ user, onSair, tamanhos, interno = null }
           onExcluir={() => excluirPedido(p)}
           salvarItem={async (k, body) => { const j = await api("/api/portal", { method: "PUT", body: JSON.stringify({ ppId: p.id, idx: k, ...body }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); }}
           interno={!!interno} onDespacho={(v) => mudarDespacho(p, v)} onEtiqueta={() => etiqueta(p)}
+          onCustos={async (b) => { try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ acao: "custos", ppId: p.id, ...b }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); return true; } catch (e) { alerta(e.message); return false; } }}
           onEntregue={async (valor) => {   // v1074 — o cliente marca o pedido despachado como entregue
             if (!(await confirmar(valor ? "Marcar este pedido como ENTREGUE ao cliente final?" : "Desfazer o \"entregue\" deste pedido?"))) return;
             try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ acao: "entregue", ppId: p.id, valor }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); } catch (e) { alerta(e.message); }
           }} /> : null;
       })()}
+    </div>
+  );
+}
+
+// v1077 — custos adicionais do pedido: a Meridian lança pelo acesso interno; somam no CMV e aparecem para o cliente
+function CustosExtras({ p, interno, onCustos }) {
+  const [desc, setDesc] = useState("");
+  const [val, setVal] = useState("");
+  const [salv, setSalv] = useState(false);
+  const l = p.custosExtras || [];
+  if (!l.length && !interno) return null;
+  const add = async () => {
+    if (!desc.trim() || !num(val)) return alerta("Informe a descrição e o valor do custo.");
+    setSalv(true); const ok = await onCustos({ adicionar: { descricao: desc, valor: val } }); setSalv(false);
+    if (ok) { setDesc(""); setVal(""); }
+  };
+  return (
+    <div className="rounded-lg mt-3 p-3" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
+      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: C.sub }}>Custos adicionais
+        {l.length > 0 && <span className="ml-auto normal-case font-semibold" style={{ color: C.red }}>+ {money(p.custosExtrasTotal)} no CMV</span>}</div>
+      {l.map((x) => (
+        <div key={x.id} className="flex items-center gap-2 text-xs py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
+          <span className="flex-1 font-semibold" style={{ color: C.text }}>{x.descricao}</span>
+          <span style={{ color: C.sub }}>{x.em ? dBR(x.em) : ""}{x.por ? ` · ${x.por}` : ""}</span>
+          <b className="tabular-nums" style={{ color: C.text }}>{money(x.valor)}</b>
+          {interno && <button onClick={async () => { if (await confirmar(`Remover o custo "${x.descricao}" (${money(x.valor)})?`)) onCustos({ remover: x.id }); }} title="Remover custo" style={{ color: C.sub }}><Trash2 size={13} /></button>}
+        </div>))}
+      {!l.length && <div className="text-xs py-1" style={{ color: C.sub }}>Nenhum custo adicional.</div>}
+      {interno && (
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Descrição (ex.: frete, embalagem, arte extra…)" className="flex-1 rounded px-2 py-1.5 text-xs" style={{ ...inp, minWidth: 200 }} />
+          <input value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} placeholder="Valor R$" inputMode="decimal" className="w-28 rounded px-2 py-1.5 text-xs text-right" style={inp} />
+          <button onClick={add} disabled={salv} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.accent, color: "#fff", opacity: salv ? 0.6 : 1 }}><Plus size={13} /> Adicionar custo</button>
+        </div>)}
     </div>
   );
 }
@@ -384,7 +419,7 @@ function ResumoValores({ v, mobile, despacho }) {
   return (
     <div className="grid gap-2 mt-4" style={{ gridTemplateColumns: `repeat(${mobile ? 2 : 5}, minmax(0, 1fr))` }}>
       <Caixa t="Peças" v={v.pecas} />
-      <Caixa t="CMV (valor da FPP × peças)" v={money(v.cmv)} />
+      <Caixa t="CMV (valor da FPP × peças)" v={money(v.cmv)} sub={v.extras ? `itens ${money(v.cmvItens)} + adicionais ${money(v.extras)}` : ""} />
       <Caixa t="Valor vendido" v={money(v.venda)} />
       <Caixa t="MC do pedido" v={money(v.mc)} cor={v.mc >= 0 ? C.green : C.red} sub={v.mcPct != null ? pctTxt(v.mcPct) + " do vendido" : ""} />
       <Caixa t="Despacho" v={despacho || (v.lead > 0 ? "após liberar" : "a confirmar")} sub={v.lead > 0 ? `lead time ${v.lead} dias${despacho ? "" : " a partir da liberação"}` : ""} />
@@ -480,7 +515,7 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir, interno, onDespacho
                   <td className="px-3 py-2.5 font-bold" style={{ color: C.navy }}>{p.numero || <span style={{ color: C.sub, fontWeight: 400 }}>sem nº</span>}</td>
                   <td className="px-3 py-2.5"><div className="font-semibold">{p.cliente || "—"}</div><div className="text-[11px] truncate" style={{ color: C.sub, maxWidth: 280 }}>{p.itens.map((i) => i.descricao).join(" · ")}</div></td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{p.pecas}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{money(p.cmv)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{money(p.cmv)}{p.custosExtrasTotal ? <div className="text-[10px]" style={{ color: C.red }} title={(p.custosExtras || []).map((x) => `${x.descricao}: ${money(x.valor)}`).join("\n")}>+ {money(p.custosExtrasTotal)} adicionais</div> : null}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{money(p.venda)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: p.mc >= 0 ? C.green : C.red }}>{money(p.mc)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: p.mc >= 0 ? C.green : C.red }}>{pctTxt(p.mcPct) || "—"}</td>
@@ -508,7 +543,7 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir, interno, onDespacho
 }
 
 // v711 — dados gerais do pedido + edição
-function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEditar, onExcluir, salvarItem, onEntregue, interno, onDespacho, onEtiqueta }) {
+function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEditar, onExcluir, salvarItem, onEntregue, interno, onDespacho, onEtiqueta, onCustos }) {
   const url = (t) => `${typeof window !== "undefined" ? window.location.origin : ""}/dados/${t}`;
   const copiar = async (t) => { try { await navigator.clipboard.writeText(url(t)); alerta("Link copiado."); } catch { window.prompt("Copie o link:", url(t)); } };
   return (
@@ -526,7 +561,8 @@ function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEdi
         <span className="text-xs" style={{ color: C.sub }}>{p.numeroMeridian ? `nº Meridian ${p.numeroMeridian} · ` : ""}lançado em {dBR(p.lancadoEm)}{p.enviadoPor ? ` por ${p.enviadoPor}` : ""}{p.oc ? ` · OC ${p.oc}` : ""}</span>
         {p.status === "RECEBENDO_DETALHES" && p.limite && <span className="text-xs font-semibold" style={{ color: C.accent }}>recebendo dados até {limiteTxt(p.limite)}</span>}
       </div>
-      <ResumoValores v={{ pecas: p.pecas, cmv: p.cmv, venda: p.venda, mc: p.mc, mcPct: p.mcPct, lead: p.leadTime }} mobile={mobile} despacho={p.despacho} />
+      <ResumoValores v={{ pecas: p.pecas, cmv: p.cmv, venda: p.venda, mc: p.mc, mcPct: p.mcPct, lead: p.leadTime, cmvItens: p.cmvItens, extras: p.custosExtrasTotal }} mobile={mobile} despacho={p.despacho} />
+      <CustosExtras p={p} interno={interno} onCustos={onCustos} />
       {interno && !["CANCELADO", "EM_ABERTO"].includes(p.status) && (   // v1076 — só pelo ERP
         <label className="flex items-center gap-2 mt-2 text-xs font-semibold" style={{ color: C.accent }}>Data de despacho
           <input type="date" defaultValue={p.despachoISO || ""} key={p.despachoISO || "x"} onBlur={(e) => { if (e.target.value && e.target.value !== p.despachoISO) onDespacho(e.target.value); }} className="rounded px-2 py-1" style={{ border: `1px solid ${C.accent}`, background: "#fff", color: C.text }} />

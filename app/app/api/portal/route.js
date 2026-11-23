@@ -1,6 +1,6 @@
 // v699/v711 — portal do cliente: itens padrão, pedidos (com status e valores), rascunho, envio e edição
 export const dynamic = "force-dynamic";
-import { usuarioPortal, negadoPortal, itensDoCliente, pedidosDoCliente, enviarPedido, salvarRascunho, nomeCliente, salvarItemPortal, pedidoParaEditar, excluirRascunho, marcarEntregue, clientesComPortal, acessoInternoPortal, alterarDespacho } from "@/lib/portalCliente";
+import { usuarioPortal, negadoPortal, itensDoCliente, pedidosDoCliente, enviarPedido, salvarRascunho, nomeCliente, salvarItemPortal, pedidoParaEditar, excluirRascunho, marcarEntregue, clientesComPortal, acessoInternoPortal, alterarDespacho, alterarCustos } from "@/lib/portalCliente";
 import { usuarioAtivoFin } from "@/lib/fin";
 
 // GET → { cliente, itens, pedidos } · ?editar=ID → pedido para editar
@@ -29,6 +29,12 @@ export async function POST(req) {
     if (b.acao === "despacho") {   // v1076 — só pelo acesso interno (ERP)
       if (!p.interno) return Response.json({ error: "Só a Meridian altera a data de despacho." }, { status: 403 });
       const r = await alterarDespacho(p.cliente, b.ppId, b.data, p.u);
+      if (r.error) return Response.json(r, { status: 400 });
+      return Response.json({ ok: true, pedidos: await pedidosDoCliente(p.cliente.id, p.cliente) });
+    }
+    if (b.acao === "custos") {   // v1077 — custos adicionais do pedido, só pelo acesso interno
+      if (!p.interno) return Response.json({ error: "Só a Meridian lança custos adicionais." }, { status: 403 });
+      const r = await alterarCustos(p.cliente, b.ppId, { adicionar: b.adicionar, remover: b.remover }, p.u);
       if (r.error) return Response.json(r, { status: 400 });
       return Response.json({ ok: true, pedidos: await pedidosDoCliente(p.cliente.id, p.cliente) });
     }

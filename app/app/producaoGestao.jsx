@@ -445,6 +445,8 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
               }} title="Etiqueta de envio 10 × 15 cm (padrão Correios)" className="text-xs px-2 py-0.5 rounded-full font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: "#fff" }}><Printer size={12} /> Etiqueta</button>}
             </div>
             {p && <div className="text-sm" style={{ color: C.text }}>{p.cliente}</div>}
+            {/* v1077 — custos adicionais lançados no portal (acesso interno): somam no CMV */}
+            {p?.portal?.custosExtras?.length > 0 && <div className="text-xs mt-0.5" style={{ color: C.red }}>Custos adicionais (portal): {p.portal.custosExtras.map((x) => `${x.descricao} ${brl(x.valor)}`).join(" · ")} — total {brl(p.portal.custosExtras.reduce((a, x) => a + (Number(x.valor) || 0), 0))}</div>}
           </div>
           {/* v728 — Editar: abre o pedido na tela de lançamento (itens, grade, prazo, pagamento, anexos…) */}
           {p && lancaPP(user) && <button onClick={async () => {

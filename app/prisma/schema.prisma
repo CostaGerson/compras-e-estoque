@@ -422,6 +422,7 @@ model Pp {
   despachadoPor     String?
   entregueEm        DateTime? // v1074 — o cliente do portal (Loja Way) marca como entregue ao cliente final
   entreguePor       String?
+  custosExtras      Json?     // v1077 — custos adicionados pela Meridian (acesso interno): [{ id, descricao, valor, por, em }] — somam no CMV do portal
   extRef            String?   @unique   // v906 — pedido vindo de sistema de fora: "NORT|<ref>" (não duplica; o editor não apaga)
   clienteFinal      Json?     // v709 — cliente final e envio (portal): { tipo: PF|PJ, nome/cpf | razaoSocial/cnpj/ie/contato/cargo, endereço, whatsapp, email }
 

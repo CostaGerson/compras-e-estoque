@@ -78,6 +78,22 @@ export async function alterarDespacho(cliente, ppId, data, u) {
   }
   return { ok: true };
 }
+// v1077 — interno: adiciona / remove custo adicional do pedido (soma no CMV)
+export async function alterarCustos(cliente, ppId, { adicionar, remover }, u) {
+  const pp = await prisma.pp.findFirst({ where: { id: Number(ppId) || 0, portalClienteId: cliente.id }, select: { id: true, custosExtras: true } });
+  if (!pp) return { error: "Pedido não encontrado." };
+  let l = Array.isArray(pp.custosExtras) ? [...pp.custosExtras] : [];
+  if (adicionar) {
+    const descricao = String(adicionar.descricao || "").trim().toUpperCase().slice(0, 160);
+    const valor = r2(num(adicionar.valor));
+    if (!descricao) return { error: "Descreva o custo." };
+    if (!valor) return { error: "Informe o valor do custo." };
+    l.push({ id: `${Date.now()}${Math.floor(Math.random() * 1000)}`, descricao, valor, por: nomeU(u) || null, em: new Date().toISOString() });
+  }
+  if (remover) l = l.filter((x) => String(x.id) !== String(remover));
+  await prisma.pp.update({ where: { id: pp.id }, data: { custosExtras: l.length ? l : Prisma.DbNull } });
+  return { ok: true };
+}
 export const nomeCliente = (c) => String(c?.nomeFantasia || c?.razaoSocial || "").toUpperCase();
 
 // itens padrão do cliente: lead time e CMV (valor da FPP) — sem os nossos custos
@@ -328,7 +344,7 @@ export function valoresPedido(itens, fppValor) {
 
 export async function pedidosDoCliente(clienteId, cliente) {
   await numerarAntigos(clienteId).catch(() => null);
-  const sel = { id: true, numero: true, portalNumero: true, portalLiberadoEm: true, status: true, createdAt: true, efetivadoEm: true, dtDespacho: true, oc: true, portalEnviadoPor: true, clienteFinal: true, portalStatus: true, portalEnviadoEm: true, portalObs: true, rastreio: true, despachadoEm: true, entregueEm: true, entreguePor: true,
+  const sel = { id: true, numero: true, portalNumero: true, portalLiberadoEm: true, status: true, createdAt: true, efetivadoEm: true, dtDespacho: true, oc: true, portalEnviadoPor: true, clienteFinal: true, portalStatus: true, portalEnviadoEm: true, portalObs: true, custosExtras: true, rastreio: true, despachadoEm: true, entregueEm: true, entreguePor: true,
     itens: { select: { descricao: true, gradeJson: true, dadosUnitarios: true, quantidade: true, valorUnitario: true, valorVenda: true, fppId: true, itemPadraoId: true }, orderBy: { id: "asc" } } };
   let pps = await prisma.pp.findMany({ where: { portalClienteId: clienteId, status: { not: "EXCLUIDO" } }, orderBy: { createdAt: "desc" }, take: 300, select: sel });
   const { ppsRecebendoDetalhes } = await import("@/lib/dadosLink");
@@ -352,6 +368,10 @@ export async function pedidosDoCliente(clienteId, cliente) {
   return pps.map((p) => {
     const st = statusDe(p, p.numero ? pvDe[p.numero] : null);
     const v = valoresPedido(p.itens, fppValor);
+    // v1077 — custos adicionais lançados pela Meridian: entram no CMV e reduzem a MC
+    const extras = Array.isArray(p.custosExtras) ? p.custosExtras.filter((x) => x && Number(x.valor)) : [];
+    const somaExtras = r2(extras.reduce((a, x) => a + Number(x.valor), 0));
+    if (somaExtras) { v.cmvItens = v.cmv; v.cmv = r2(v.cmv + somaExtras); v.mc = r2(v.venda - v.cmv); v.mcPct = v.venda > 0 ? Math.round((v.mc / v.venda) * 1000) / 10 : null; }
     const cf = p.clienteFinal || null;
     const lks = links.filter((l) => l.ppId === p.id);
     return {
@@ -359,6 +379,7 @@ export async function pedidosDoCliente(clienteId, cliente) {
       lancadoEm: p.portalEnviadoEm || p.createdAt, criadoEm: p.createdAt,
       despacho: ["LIBERADO", "EM_PRODUCAO", "FINALIZADO", "DESPACHADO", "ENTREGUE"].includes(st) ? p.dtDespacho : null,
       despachoISO: p.dtDespacho && /^\d{2}\/\d{2}\/\d{4}$/.test(p.dtDespacho) ? p.dtDespacho.split("/").reverse().join("-") : null,
+      custosExtras: extras, custosExtrasTotal: somaExtras,
       rastreio: p.rastreio || null, despachadoEm: p.despachadoEm || null, entregueEm: p.entregueEm || null, entreguePor: p.entreguePor || null,   // v1074   // v714 — só depois de ir para a produção
       liberadoEm: p.portalLiberadoEm || null, leadTime: Math.max(0, ...p.itens.map((i) => (i.fppId && leadDe[i.fppId]) || 0)), oc: p.oc, obs: p.portalObs, enviadoPor: p.portalEnviadoPor,
       cliente: cf ? (cf.tipo === "PJ" ? cf.razaoSocial : cf.nome) || "" : "", clienteFinal: cf,
