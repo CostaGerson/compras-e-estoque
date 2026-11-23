@@ -6,6 +6,10 @@ export async function GET() { return Response.json(await listarPics()); }
 export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const r = (x) => Response.json(x, { status: x?.error ? 400 : 200 });
+  try { return await acao(b, r); }   // v1055 — erro volta com o motivo (antes a tela só dizia "Erro.")
+  catch (e) { console.log("compras/pic:", e); return Response.json({ error: String(e?.message || e).split("\n").filter(Boolean).slice(-1)[0] }, { status: 500 }); }
+}
+async function acao(b, r) {
   switch (b.acao) {
     case "gerar": return r(await gerarPic(b.quem));
     case "salvar": return r(await salvarItensPic(b.id, b.itens));

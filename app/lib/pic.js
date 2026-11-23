@@ -131,10 +131,23 @@ export async function gerarOcs(picId, quem) {
 export async function cancelarPic(picId) {
   const pic = await prisma.pic.findUnique({ where: { id: Number(picId) }, include: { itens: { include: { ocItens: { select: { id: true } } } } } });
   if (!pic) return { error: "PIC não encontrado." };
-  if (pic.itens.some((i) => i.ocItens.length)) return { error: "Já há OC gerada deste PIC." };
+  const ocAtiva = await prisma.ocItem.findFirst({ where: { picItemId: { in: pic.itens.map((i) => i.id) }, oc: { status: { not: "CANCELADA" } } }, include: { oc: { select: { numero: true } } } });
+  if (ocAtiva) return { error: `Já há OC gerada deste PIC (${ocAtiva.oc.numero}). Cancele a OC antes de desfazer.` };
+  // v1055 — os itens voltam ao levantamento: as cotações abertas perdem as linhas deste PIC (cotação vazia é cancelada)
+  //   e as ligações que travavam a exclusão (OC cancelada, estratificação de NF) são soltas antes
+  const ids = pic.itens.map((i) => i.id);
+  const cots = (await prisma.cotacao.findMany({ where: { status: { in: ["GERADA", "ENVIADA", "RESPONDIDA"] } } })).filter((c) => (Array.isArray(c.itens) ? c.itens : []).some((i) => (i.picItemIds || []).some((x) => ids.includes(x))));
+  const tiradas = [];
+  for (const c of cots) {
+    const its = (Array.isArray(c.itens) ? c.itens : []).map((i) => ({ ...i, picItemIds: (i.picItemIds || []).filter((x) => !ids.includes(x)) })).filter((i) => i.picItemIds.length);
+    await prisma.cotacao.update({ where: { id: c.id }, data: its.length ? { itens: its } : { itens: its, status: "CANCELADA", obs: [c.obs, `Cancelada: ${pic.numero} desfeito`].filter(Boolean).join(" · ") } });
+    tiradas.push(c.numero);
+  }
+  await prisma.ocItem.updateMany({ where: { picItemId: { in: ids } }, data: { picItemId: null } });
+  await prisma.nfEstratificacao.updateMany({ where: { picItemId: { in: ids } }, data: { picItemId: null } });
   await prisma.compraItem.updateMany({ where: { picId: pic.id }, data: { status: "LEVANTAMENTO", picId: null } });
   await prisma.pic.delete({ where: { id: pic.id } });
-  return { ok: true };
+  return { ok: true, cotacoes: tiradas };
 }
 
 // v1046 — cancelar a OC: os itens voltam para a cotação (sem OC), podem ir para outra OC ou ser dispensados.

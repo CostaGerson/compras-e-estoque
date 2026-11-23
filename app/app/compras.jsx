@@ -1320,10 +1320,11 @@ export function PicCompras({ user, fases, ir }) {
   }
   const togSel = (id) => setSel((s0) => { const n = new Set(s0); n.has(id) ? n.delete(id) : n.add(id); return n; });
   async function desfazer(p) {
-    if (!(await confirmar(`Desfazer o ${p.numero}? Os itens voltam para o levantamento.`))) return;
+    if (!(await confirmar(`Desfazer o ${p.numero}? Os itens voltam para o levantamento.\nAs linhas dele saem das cotações abertas (cotação que ficar vazia é cancelada).`))) return;
     const r = await fetch("/api/compras/pic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "cancelar", id: p.id }) });
     const x = await r.json().catch(() => ({}));
     if (!r.ok) return alerta(x.error || "Erro.");
+    if (x.cotacoes?.length) await alerta(`${p.numero} desfeito. Linhas retiradas de: ${x.cotacoes.join(", ")}.`);
     carregar();
   }
   const inp = "px-2 py-1 rounded text-sm outline-none";
