@@ -2014,7 +2014,7 @@ export function Cotacoes({ user, fases, ir }) {
               {/* itens */}
               <div className="px-5 pb-2" style={{ borderTop: `1px solid ${C.line}` }}>
                 <div className="flex gap-3 pt-3 pb-1.5" style={{ color: C.sub }}>
-                  <div className={`flex-1 ${lbl}`}>Artigo</div><div className={`w-28 text-right ${lbl}`}>Quantidade</div><div className={`w-28 text-right ${lbl}`}>Valor unit.</div><div className="w-36"><div className={lbl}>Prazo</div>
+                  <div className={`flex-1 ${lbl}`}>Artigo</div><div className={`w-36 text-right ${lbl}`}>Quantidade</div><div className={`w-28 text-right ${lbl}`}>Valor unit.</div><div className="w-36"><div className={lbl}>Prazo</div>
                     {/* v1001 — prazo único: o mesmo prazo de entrega para todos os itens da cotação */}
                     {(() => { const ps = d.itens.filter((y) => !y.naoTem).map((y) => y.prazo || ""); const igual = ps.length && ps.every((p) => p === ps[0]) ? ps[0] : "";
                       return <label className="flex items-center gap-1 mt-1 text-[10px] font-semibold normal-case" style={{ color: C.accent }} title="Prazo único: coloca o mesmo prazo de entrega em todos os itens (menos os que o fornecedor não tem)">único
@@ -2046,7 +2046,7 @@ export function Cotacoes({ user, fases, ir }) {
                           })()}
                         </div>
                       </div>
-                      <div className="w-28 text-right" style={{ color: C.text }}>   {/* v1059 — real × comercial */}
+                      <div className="w-36 text-right whitespace-nowrap" style={{ color: C.text }}>   {/* v1059 — real × comercial · v1066 — comercial numa linha só */}
                         {i.comercial ? <><div className="text-[11px]" style={{ color: C.sub }} title="Demanda real">{qtdU(i.quantidade, i.unidade)}</div><div className="font-semibold" style={{ color: C.accent }} title="Quantidade comercial (vai para a OC)">{txtComercial(i.comercial)}</div></> : qtdU(i.quantidade, i.unidade)}
                         {!comOc && <button type="button" onClick={() => setEdCom(`${c.id}|${k}`)} className="text-[10px] underline decoration-dotted" style={{ color: C.accent }}>{i.comercial ? "editar unidade" : "unidade comercial"}</button>}
                       </div>
