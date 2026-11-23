@@ -1228,11 +1228,15 @@ export function PicCompras({ user, fases, ir }) {
   const [sel, setSel] = useState(new Set());   // v477 — itens escolhidos (de qualquer PIC)
   // v912 — item com cotação gerada sai do PIC e fica só em Cotações (volta se todos os fornecedores responderem "não tem")
   const [emCot, setEmCot] = useState(0);
+  const [todosPic, setTodosPic] = useState([]);   // v1047 — PICs completos (guias Baixados e Todos)
+  const [guia, setGuia] = useState("andamento");
+  const [abPic, setAbPic] = useState({});
   const carregar = () => fetch("/api/compras/pic").then((r) => r.json()).then((x) => {
     const todos = Array.isArray(x) ? x : [];
+    setTodosPic(todos);
     const naCot = (i) => (i.cotacoes || []).length > 0 && !i.semCotacao;
     setEmCot(todos.reduce((n, p) => n + p.itens.filter(naCot).length, 0));
-    setL(todos.map((p) => ({ ...p, itens: p.itens.filter((i) => !naCot(i)) })).filter((p) => p.itens.length)); setEd({}); const f = lerFoco("pic"); if (f) rolarDestacar(`pic-${f}`); }).catch(() => setL([]));
+    setL(todos.map((p) => ({ ...p, itens: p.itens.filter((i) => !naCot(i)) })).filter((p) => p.itens.length)); setEd({}); const f = lerFoco("pic"); if (f) { const t = todos.find((p) => p.numero === f); if (t && !t.itens.some((i) => !((i.cotacoes || []).length > 0 && !i.semCotacao))) setGuia("todos"); if (t) setAbPic((m) => ({ ...m, [t.id]: true })); rolarDestacar(`pic-${f}`); } }).catch(() => setL([]));
   useEffect(() => { carregar(); if (!_fornPic) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornPic = Array.isArray(x) ? x : []; setForns(_fornPic); }).catch(() => {}); }, []);
   const porNome = useMemo(() => Object.fromEntries(forns.map((f) => [nomeFornec(f).toUpperCase(), f])), [forns]);
   const [novoForn, setNovoForn] = useState(null);   // v609 — { item, nome, extra? }
@@ -1317,22 +1321,28 @@ export function PicCompras({ user, fases, ir }) {
       <FasesCompras atual="pic" fases={fases} ir={ir} />
       <p className="text-sm mb-3" style={{ color: C.sub }}>Os itens que o estoque não atende saem do <b>Cruzamento</b> num PIC, com os artigos iguais somados. Preencha o <b>fornecedor</b> e o <b>valor unitário</b> (a quantidade pode ser ajustada) e gere as <b>OCs</b>: uma por fornecedor. Itens de <b>PICs diferentes</b> podem ir na mesma cotação e na mesma OC: marque os itens e use a barra de baixo.</p>
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
-      {l && !l.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhum PIC. Gere pelo Cruzamento com estoque (botão Gerar PIC).</div>}
+      {/* v1047 — guias no padrão das OCs: em andamento (com itens sem OC e fora de cotação), baixados (tudo em OC) e todos */}
+      <Guias abas={[["andamento", `Em andamento (${(l || []).length})`, Clock], ["baixados", `Baixados (${todosPic.filter((p) => p.status === "OC").length})`, PackageCheck], ["todos", "Todos", Layers]]} atual={guia} onChange={setGuia}
+        direita={<button onClick={carregar} title="Atualizar" className="p-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>} />
+      {l && !(guia === "andamento" ? l : guia === "baixados" ? todosPic.filter((p) => p.status === "OC") : todosPic).length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>{guia === "andamento" ? "Nenhum PIC em andamento. Gere pelo Cruzamento com estoque (botão Gerar PIC)." : "Nenhum PIC aqui."}</div>}
       {emCot > 0 && <div className="text-xs mb-3 flex items-center gap-2" style={{ color: C.sub }}>{emCot} item(ns) com cotação gerada estão em Cotações.{ir && <button onClick={() => ir("comprasCotacoes")} className="underline" style={{ color: C.accent }}>Abrir cotações</button>}</div>}
       {cot && <CotacaoModal cot={cot} onClose={() => setCot(null)} />}
       {novoForn && <NovoFornecedorModal nome={novoForn.nome} onClose={() => setNovoForn(null)} onCriado={(f) => {
         _fornPic = [...forns, f]; setForns(_fornPic); set(novoForn.item, "fornecedor", nomeFornec(f)); setNovoForn(null);
       }} />}
-      {(l || []).map((p) => {
+      {(guia === "andamento" ? l || [] : guia === "baixados" ? todosPic.filter((p) => p.status === "OC") : todosPic).map((p) => {
         const abertos = p.itens.filter((i) => !i.oc);
+        const corPic = p.status === "OC" ? C.green : abertos.length ? C.accent : C.blue, fundoPic = p.status === "OC" ? C.greenSoft : abertos.length ? C.accentSoft : C.blueSoft;
+        const abertoPic = abPic[p.id] ?? guia === "andamento";   // em andamento começa aberto; baixados/todos recolhidos
         const tot = p.itens.reduce((s0, i) => { const v = val(i); return s0 + (lerNum(v.valor) || 0) * (lerNum(v.qtd) || 0); }, 0);
         const porF = {};
         for (const i of abertos) { const v = val(i); const k = v.fornecedor.trim() || "— sem fornecedor"; porF[k] = (porF[k] || 0) + (lerNum(v.valor) || 0) * (lerNum(v.qtd) || 0); }
         return (
-          <div key={p.id} id={`pic-${p.numero}`} className="rounded-lg mb-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <div className="flex flex-wrap items-center gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.line}` }}>
-              <div className="flex-1 text-sm font-semibold" style={{ color: C.navy }}>{p.numero} <span className="font-normal text-xs" style={{ color: C.sub }}>· {new Date(p.data).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}{p.criadoPorNome ? ` por ${p.criadoPorNome}` : ""} · {p.itens.length} artigo(s)</span></div>
-              <span className="text-sm font-bold" style={{ color: C.navy }}>{brl(tot)}</span>
+          <div key={p.id} id={`pic-${p.numero}`} className="rounded-xl mb-5 overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}`, borderLeft: `5px solid ${corPic}`, boxShadow: "0 1px 3px rgba(16,24,40,.06)" }}>   {/* v1047 — mesmo card das cotações */}
+            <div onClick={() => setAbPic((m) => ({ ...m, [p.id]: !abertoPic }))} className="flex flex-wrap items-center gap-3 px-5 py-3.5 cursor-pointer select-none" style={{ background: abertoPic ? "#FAFBFC" : C.panel, borderBottom: abertoPic ? `1px solid ${C.line}` : "none" }}>
+              {abertoPic ? <ChevronDown size={18} style={{ color: C.sub }} /> : <ChevronRight size={18} style={{ color: C.sub }} />}
+              <div className="flex-1 min-w-0"><span className="text-xs font-bold px-2 py-0.5 rounded mr-2" style={{ background: fundoPic, color: corPic }}>{p.numero}</span><span className="text-xs" style={{ color: C.sub }}> {new Date(p.data).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}{p.criadoPorNome ? ` por ${p.criadoPorNome}` : ""} · {p.itens.length} artigo(s)</span></div>
+              <div className="text-right"><div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>Total</div><div className="text-base font-bold" style={{ color: C.navy }}>{brl(tot)}</div></div>
               <Chip cor={p.status === "OC" ? C.green : C.accent} fundo={p.status === "OC" ? C.greenSoft : C.accentSoft}>{p.status === "OC" ? "OCs geradas" : `${abertos.length} sem OC`}</Chip>
               {abertos.length > 0 && (() => {   // v527 — cotação e OC deste PIC: os marcados dele, ou todos os sem OC
                 const doPic = abertos.map((i) => ({ ...i, picNumero: p.numero }));
@@ -1341,12 +1351,13 @@ export function PicCompras({ user, fases, ir }) {
                 const rot = marc.length ? ` (${marc.length})` : "";
                 // v609 — o botão de OC mostra quantas OCs saem (uma por fornecedor), não quantos itens
                 const nForn = new Set(lista.map((i) => val(i).fornecedor.trim().toUpperCase()).filter(Boolean)).size;
-                return <span className="flex items-center gap-1.5 ml-1">
+                return <span className="flex items-center gap-1.5 ml-1" onClick={(e) => e.stopPropagation()}>
                   <button disabled={oc} onClick={() => cotacao(lista)} title={marc.length ? "Cotação dos itens marcados deste PIC" : "Cotação de todos os itens sem OC deste PIC"} className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><FileText size={13} /> Gerar cotação{rot}</button>
                   <button disabled={oc} onClick={() => acaoItens("ocsItens", lista)} title={marc.length ? "OCs dos itens marcados deste PIC" : "OCs de todos os itens sem OC deste PIC"} className="text-xs px-2.5 py-1.5 rounded-md font-semibold flex items-center gap-1" style={{ background: C.accent, color: "#fff" }}>{oc ? <Loader2 size={13} className="animate-spin" /> : <ShoppingCart size={13} />} Gerar {nForn || ""} OC{nForn === 1 ? "" : "s"}{nForn ? ` · ${lista.length} ite${lista.length === 1 ? "m" : "ns"}` : ""}</button>
                 </span>;
               })()}
             </div>
+            {abertoPic && <>
             <div className="flex px-4 py-2 text-xs font-semibold gap-2" style={{ color: C.sub, background: C.panel2 }}>
               <div className="w-5">{abertos.length > 0 && <input type="checkbox" title="Marcar todos deste PIC" checked={abertos.every((i) => sel.has(i.id))} onChange={(e) => setSel((s0) => { const n = new Set(s0); abertos.forEach((i) => (e.target.checked ? n.add(i.id) : n.delete(i.id))); return n; })} />}</div><div className="flex-1">Artigo</div><div className="w-28 text-right">Quantidade</div><div className="w-56">Fornecedor</div><div className="w-28 text-right">Valor unit.</div><div className="w-28 text-right">Total</div>
             </div>
@@ -1394,6 +1405,7 @@ export function PicCompras({ user, fases, ir }) {
                 {!p.itens.some((i) => i.oc) && <button onClick={() => desfazer(p)} className="text-xs flex items-center gap-1 px-2.5 py-1.5 rounded-md" style={{ color: C.red, border: `1px solid ${C.line}`, background: C.panel }}><Undo2 size={13} /> Desfazer PIC</button>}
               </div>
             )}
+            </>}
           </div>
         );
       })}
@@ -1455,7 +1467,7 @@ export function OrdensCompra({ user, fases, ir }) {
   return (
     <div className="w-full">
       <FasesCompras atual="oc" fases={fases} ir={ir} />
-      <Guias abas={[["ativas", "Em andamento", Clock], ["baixadas", `Baixadas (${(l || []).filter((o) => o.status === "RECEBIDA").length})`, PackageCheck], ["todas", "Todas", Layers]]} atual={filtro} onChange={setFiltro}
+      <Guias abas={[["ativas", `Em andamento (${(l || []).filter((o) => ["ABERTA", "ENVIADA", "NF_EMITIDA"].includes(o.status)).length})`, Clock], ["baixadas", `Baixadas (${(l || []).filter((o) => o.status === "RECEBIDA").length})`, PackageCheck], ["todas", "Todas", Layers]]} atual={filtro} onChange={setFiltro}
         direita={<><span className="text-sm" style={{ color: C.sub }}>Total: <b style={{ color: C.navy }}>{brl(vis.reduce((s0, o) => s0 + o.total, 0))}</b></span>
           <button onClick={carregar} title="Atualizar" className="p-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button></>} />
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
@@ -1464,14 +1476,17 @@ export function OrdensCompra({ user, fases, ir }) {
         const [txt, cor, fundo] = ST_OC[o.status] || ST_OC.ABERTA;
         const aberto = !!ab[o.id];
         return (
-          <div key={o.id} id={`oc-${o.id}`} className="rounded-lg mb-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <button onClick={() => setAb((s0) => ({ ...s0, [o.id]: !aberto }))} className="w-full flex items-center gap-3 px-4 py-3 text-left">
-              {aberto ? <ChevronDown size={16} style={{ color: C.sub }} /> : <ChevronRight size={16} style={{ color: C.sub }} />}
+          <div key={o.id} id={`oc-${o.id}`} className="rounded-xl mb-5 overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}`, borderLeft: `5px solid ${cor}`, boxShadow: "0 1px 3px rgba(16,24,40,.06)" }}>   {/* v1047 — mesmo card das cotações */}
+            <button onClick={() => setAb((s0) => ({ ...s0, [o.id]: !aberto }))} className="w-full flex items-center gap-4 px-5 py-3.5 text-left select-none" style={{ background: aberto ? "#FAFBFC" : C.panel }}>
+              {aberto ? <ChevronDown size={18} style={{ color: C.sub }} /> : <ChevronRight size={18} style={{ color: C.sub }} />}
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate" style={{ color: C.navy }}>{o.numero} · {o.fornecedor.nome}</div>
-                <div className="text-xs" style={{ color: C.sub }}>{new Date(o.createdAt).toLocaleDateString("pt-BR")}{o.cotacao ? ` · ${o.cotacao}` : ""}{o.pic ? ` · ${o.pic}` : ""} · {o.itens.length} item(ns){o.formaRecebimento ? ` · ${(FORMAS_REC.find((x) => x[0] === o.formaRecebimento) || [])[1]}` : ""}{o.nfNumero ? ` · NF ${o.nfNumero}` : ""}{o.condicaoFaturamento ? ` · ${o.condicaoFaturamento}` : ""}{o.prazoFabrica ? ` · fábrica ${new Date(o.prazoFabrica).toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : ""}</div>
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded" style={{ background: fundo, color: cor }}>{o.numero}</span>
+                  <span className="text-base font-bold truncate" style={{ color: C.navy }}>{o.fornecedor.nome}</span>
+                </div>
+                <div className="text-xs mt-0.5" style={{ color: C.sub }}>{new Date(o.createdAt).toLocaleDateString("pt-BR")}{o.cotacao ? ` · ${o.cotacao}` : ""}{o.pic ? ` · ${o.pic}` : ""} · {o.itens.length} item(ns){o.formaRecebimento ? ` · ${(FORMAS_REC.find((x) => x[0] === o.formaRecebimento) || [])[1]}` : ""}{o.nfNumero ? ` · NF ${o.nfNumero}` : ""}{o.condicaoFaturamento ? ` · ${o.condicaoFaturamento}` : ""}{o.prazoFabrica ? ` · fábrica ${new Date(o.prazoFabrica).toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : ""}</div>
               </div>
-              <span className="text-sm font-bold" style={{ color: C.accent }}>{brl(o.total)}</span>
+              <div className="text-right"><div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>Total</div><div className="text-base font-bold" style={{ color: C.navy }}>{brl(o.total)}</div></div>
               <Chip cor={cor} fundo={fundo}>{txt}</Chip>
               {o.status !== "RECEBIDA" && <ChipEntrega e={o.entrega} />}   {/* v497 · v534: baixada mostra só a tag recebida, sem previsão */}
             </button>
