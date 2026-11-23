@@ -31,3 +31,41 @@ export function comPrefixo(desc, prefixo) {
   if (!d || !prefixo || temPrefixo(d) || semAc(d).startsWith(semAc(prefixo))) return d;
   return `${prefixo} - ${d}`;
 }
+
+// v1042 — sugestão #91: pedidos efetivados antes da v917 ficaram só com o nome do produto. Corrige uma vez
+// (marca em FinConfig) os itens dos pedidos do sistema em andamento: PpItem.descricao e PedidoVenda.itens[].descricao.
+const MARCA_91 = "PEDIDO|PREFIXO_CLIENTE_V1042";
+export async function corrigirPrefixosAntigos({ forcar = false } = {}) {
+  if (!forcar && await prisma.finConfig.findUnique({ where: { chave: MARCA_91 } }).catch(() => null)) return null;
+  const pps = await prisma.pp.findMany({
+    where: { numero: { not: null }, efetivadoEm: { not: null }, portalClienteId: null },   // serviço e NORT saem no laço (NOT do Prisma descartaria os nulos)
+    select: { id: true, numero: true, clienteNome: true, clienteCnpj: true, tipoPedido: true, extRef: true, itens: { select: { id: true, descricao: true } } },
+  });
+  const pvs = await prisma.pedidoVenda.findMany({ where: { numero: { in: pps.map((p) => p.numero) }, fonte: "SISTEMA", status: "ANDAMENTO" }, select: { id: true, numero: true, itens: true } });
+  const pvDe = Object.fromEntries(pvs.map((v) => [v.numero, v]));
+  const cache = {}, feitos = [];
+  for (const pp of pps) {
+    const pv = pvDe[pp.numero];
+    if (!pv || pp.tipoPedido === "SERVIÇO" || String(pp.extRef || "").startsWith("NORT|")) continue;
+    const ck = so(pp.clienteCnpj) || up(pp.clienteNome);
+    if (!(ck in cache)) cache[ck] = await prefixoCliente(pp.clienteCnpj, pp.clienteNome);
+    const pref = cache[ck];
+    if (!pref) continue;
+    const troca = {};
+    for (const it of pp.itens) {
+      const nova = comPrefixo(it.descricao, pref);
+      if (nova && nova !== up(it.descricao)) { troca[up(it.descricao)] = nova; await prisma.ppItem.update({ where: { id: it.id }, data: { descricao: nova } }); }
+    }
+    const itens = Array.isArray(pv.itens) ? pv.itens : [];
+    let mudou = false;
+    const novos = itens.map((x) => {
+      const nova = troca[up(x?.descricao)] || comPrefixo(x?.descricao, pref);
+      if (x && nova && nova !== x.descricao && nova !== up(x.descricao)) { mudou = true; return { ...x, descricao: nova }; }
+      return x;
+    });
+    if (mudou) await prisma.pedidoVenda.update({ where: { id: pv.id }, data: { itens: novos } });
+    if (mudou || Object.keys(troca).length) feitos.push(pp.numero);
+  }
+  await prisma.finConfig.upsert({ where: { chave: MARCA_91 }, create: { chave: MARCA_91, valor: JSON.stringify({ em: new Date().toISOString(), pedidos: feitos }) }, update: { valor: JSON.stringify({ em: new Date().toISOString(), pedidos: feitos }) } });
+  return feitos;
+}

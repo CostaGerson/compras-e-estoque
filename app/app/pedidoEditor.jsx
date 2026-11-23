@@ -110,7 +110,7 @@ function ComissaoCard({ f, set, uid, totalItens, podeLancar }) {
   const [novo, setNovo] = useState(false);
   const carregar = () => fetch(`/api/vendedores?u=${uid}`).then((r) => r.json()).then((j) => setVs(j.vendedores || [])).catch(() => setVs([]));
   const c = f.comissao || { vendedorId: null, tipo: "PCT", valor: "" };
-  const on = !!c.vendedorId || c.ligada;
+  const on = !!(c.vendedorId || c.ligada);   // v1042 — #94: sem o !! no todo, "Não" ficava undefined e não marcava
   useEffect(() => { if (on && !vs) carregar(); }, [on]);
   // v773 — #63: ao ligar a venda comissionada, já vem o vendedor do pedido
   const doPedido = (l) => (l || []).find((x) => x.nome === String(f.vendedor || "").toUpperCase().trim()) || (l || []).find((x) => x.nome.split(/\s+/)[0] === String(f.vendedor || "").toUpperCase().trim().split(/\s+/)[0]);
