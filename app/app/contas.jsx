@@ -88,10 +88,12 @@ function valorBate(t, q) {
   });
 }
 // v952 — busca da lista: texto (sem acento) ou valor; nas contas da semana procura também em cada freelancer/terceirizado
-function buscaBate(t, n, contasPorId) {
+// v1056 — mesmo CNPJ (raiz) com nomes diferentes nas NFs (ex.: CIA FIACAO E TECIDOS CEDRO × CDP - CENTRAL DISTRIB CONTAGEM): a busca por um acha os dois
+const raizDoc = (d) => { const x = String(d || "").replace(/\D/g, ""); return x.length === 14 ? x.slice(0, 8) : x; };
+function buscaBate(t, n, contasPorId, nomesDoc) {
   if (valorBate(t, n)) return true;
   const na = semAc(n);
-  return [t.titulo, t.parceiro, t.numeroDoc, t.documento, t.observacao, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome), ...(t.itensBusca || []).map((i) => i.x)].some((x) => semAc(x).includes(na));
+  return [t.titulo, t.parceiro, nomesDoc?.[raizDoc(t.documento)], t.numeroDoc, t.documento, t.observacao, ...(t.rateio || []).map((r) => contasPorId[r.contaId]?.nome), ...(t.itensBusca || []).map((i) => i.x)].some((x) => semAc(x).includes(na));
 }
 // itens da conta da semana que bateram com a busca (para mostrar na linha)
 function itensAchados(t, q) {
@@ -404,12 +406,17 @@ export default function ContasPagarReceber({ user, inicial = null }) {
   const contasPorId = useMemo(() => Object.fromEntries((d?.contas || []).map((c) => [c.id, c])), [d]);
   const P = tipo === "PAGAR";
   _buscaAtual = busca;
+  const nomesDoc = useMemo(() => {   // v1056 — todos os nomes usados por cada CNPJ (raiz)
+    const m = {};
+    for (const t of [...(d?.periodo || []), ...(d?.titulos || []), ...(d?.atrasados || []), ...(d?.parceiros || [])]) { const k = raizDoc(t.documento || t.doc || t.cnpj); const nm = t.parceiro || t.nome; if (k && nm) m[k] = m[k]?.includes(nm) ? m[k] : `${m[k] || ""} ${nm}`; }
+    return m;
+  }, [d]);
   const lista = useMemo(() => {
     if (!d) return [];
     const n = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    // v952 — com busca, vale só o período: ignora situação (pagos, em aberto…), críticas e filtros rápidos
-    if (n) return (d.periodo || d.titulos).filter((t) => buscaBate(t, n, contasPorId));
+    // v1056 — a busca soma com a situação escolhida (antes, v952, a busca ignorava o filtro e "em aberto" trazia os pagos)
     return (fSit === "SEMCONTA" ? d.semConta || [] : fSit === "CRITICA" ? d.comCritica || [] : d.periodo || d.titulos).filter((t) => {
+      if (n && !buscaBate(t, n, contasPorId, nomesDoc)) return false;
       if (soCompra && P && !ehCompra(t)) return false;
       if (soRec && !t.recorrenciaId) return false;
       const s = situacao(t).k;
@@ -420,7 +427,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
         || (fSit === "REAL" && aberta) || (fSit === "PAGO" && s === "LIQ"))) return false;
       return true;
     });
-  }, [d, busca, fSit, contasPorId, soCompra, soRec, P]);
+  }, [d, busca, fSit, contasPorId, soCompra, soRec, P, nomesDoc]);
   const antigos = useMemo(() => {
     const n = busca.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     if (n) return [];   // v952 — com busca, só o período escolhido
