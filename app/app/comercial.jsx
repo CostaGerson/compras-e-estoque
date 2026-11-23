@@ -87,7 +87,7 @@ async function clonarFpp(fpp, user, origemId) {
   }
   const nome = nomeCopia(fpp);
   const body = {
-    tipo: fpp.tipo, item: fpp.item, nomeComercial: nome, clienteId: fpp.clienteId ?? null, clienteNome: fpp.clienteNome ?? null,
+    tipo: fpp.tipo, item: fpp.item, nomeComercial: nome, clienteId: fpp.clienteId ?? null, clienteNome: fpp.clienteNome ?? null, clienteGrupoId: fpp.clienteGrupoId ?? null,
     negociacao: fpp.negociacao ?? null, qtde: fpp.qtde ?? null, condicaoPagamento: fpp.condicaoPagamento ?? null, leadTime: fpp.leadTime ?? null,
     entradas: { ...(fpp.entradas || {}), nomeComercial: nome, grupoCores: undefined, corPrincipal: undefined }, overrides: fpp.overrides || null, resultados: fpp.resultados || {},
     custoProducao: fpp.custoProducao ?? null, custoFinal: fpp.custoFinal ?? null, valorProposto: fpp.valorProposto ?? null,
@@ -343,7 +343,7 @@ function prazoParcela(p) {
 function personalizacaoVazia() { return { arte: "", peitoD: "", peitoE: "", mangaD: "", mangaE: "", costas: "", interno: false }; }
 function fichaVazia(tipo) {
   return {
-    tipo, item: "", nomeComercial: "", clienteNome: "", clienteId: null, qtde: "",
+    tipo, item: "", nomeComercial: "", clienteNome: "", clienteId: null, clienteGrupoId: null, qtde: "",
     negociacao: "",
     nomeArtigo: "", nomeArtigoForro: "",
     artigoDet: null, artigoForroDet: null, aviamentosDet: {},   // v404 — fornecedor, cor, código, largura (+ rendimento e ramada/tubular na malha)
@@ -398,6 +398,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
 
   useEffect(() => { fetch("/api/fpp/params").then((r) => r.json()).then(setParams).catch(() => {}); }, []);
   useEffect(() => { fetch("/api/clientes").then((r) => r.json()).then((d) => setClientes(Array.isArray(d) ? d : [])).catch(() => {}); }, []);
+  const [gruposCli, setGruposCli] = useState([]);   // v1052 — grupos de clientes no campo Cliente da FPP
+  useEffect(() => { fetch("/api/clientes/grupos").then((r) => r.json()).then((d) => setGruposCli(Array.isArray(d) ? d : [])).catch(() => {}); }, []);
 
   // lista única de peças (malha + plano) e o tipo de cada uma
   const pecasAll = useMemo(() => {
@@ -579,7 +581,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     const corMp = ehRevenda(f0.item, tipo) ? f0.revendaCor : f0.artigoDet?.cor;   // v982 — revenda: cor do produto
     const nc = corMp ? comCor(f0.nomeComercial || f0.item, null, corMp) : f0.nomeComercial;
     return {
-      tipo, item: f0.item, nomeComercial: nc, clienteId: f0.clienteId, clienteNome: f0.clienteNome, qtde: num(f0.qtde),
+      tipo, item: f0.item, nomeComercial: nc, clienteId: f0.clienteId, clienteNome: f0.clienteNome, clienteGrupoId: f0.clienteGrupoId || null, qtde: num(f0.qtde),
       negociacao: f0.negociacao || null,
       condicaoPagamento: textoPagFpp(pagamentoFpp(f0), num(f0.valorProposto) * Math.max(1, num(f0.qtde))), leadTime: num(f0.leadTime),
       entradas: { ...f0, nomeComercial: nc, paramsAlterados: !!(modoOverride || Object.keys(over).length) }, overrides: Object.keys(over).length ? over : null,
@@ -637,7 +639,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     if (deOnde !== undefined) setOrigem(deOnde);   // v513
     if (fpp?.id) ssGravar("ce_fpp_ultima", fpp.id);
     const e = fpp.entradas || {};
-    setF({ ...fichaVazia(fpp.tipo || "MALHA"), ...e, forrada: e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor) || num(e.consumoForro)), clienteNome: fpp.clienteNome ?? e.clienteNome, clienteId: fpp.clienteId ?? e.clienteId,
+    setF({ ...fichaVazia(fpp.tipo || "MALHA"), ...e, forrada: e.forrada ?? !!(e.nomeArtigoForro || num(e.forroValor) || num(e.consumoForro)), clienteNome: fpp.clienteNome ?? e.clienteNome, clienteId: fpp.clienteId ?? e.clienteId, clienteGrupoId: fpp.clienteGrupoId ?? null,
       negociacao: fpp.negociacao ?? e.negociacao ?? e.pregao ?? "" });
     setTipo(fpp.tipo || tipoDaPeca(e.item || fpp.item) || "MALHA");
     setOver(fpp.overrides || {});
@@ -733,10 +735,11 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                 <Combo label="Item (peça)" value={f.item} options={pecasAll.map((p) => p.chave)}
                   onChange={escolherPeca} onPick={escolherPeca} placeholder="Digite a peça…" />
                 <Inp label="Nome comercial do item" value={f.nomeComercial} onChange={(v) => set("nomeComercial", v)} text full />
-                <ClienteCombo clientes={clientes} value={f.clienteNome}
-                  onType={(v) => setF((s) => ({ ...s, clienteNome: v, clienteId: null }))}
-                  onPick={(c) => setF((s) => ({ ...s, clienteNome: c.razaoSocial || c.nomeFantasia || "", clienteId: c.id }))}
-                  onCreated={(c) => { setClientes((l) => [c, ...l]); setF((s) => ({ ...s, clienteNome: c.razaoSocial, clienteId: c.id })); }} />
+                <ClienteCombo clientes={clientes} grupos={gruposCli} value={f.clienteNome} grupoSel={!!f.clienteGrupoId}
+                  onType={(v) => setF((s) => ({ ...s, clienteNome: v, clienteId: null, clienteGrupoId: null }))}
+                  onPick={(c) => setF((s) => ({ ...s, clienteNome: c.razaoSocial || c.nomeFantasia || "", clienteId: c.id, clienteGrupoId: null }))}
+                  onPickGrupo={(g) => setF((s) => ({ ...s, clienteNome: g.nome, clienteId: null, clienteGrupoId: g.id }))}
+                  onCreated={(c) => { setClientes((l) => [c, ...l]); setF((s) => ({ ...s, clienteNome: c.razaoSocial, clienteId: c.id, clienteGrupoId: null })); }} />
                 <Inp full label="Qtde" value={f.qtde} onChange={(v) => set("qtde", v)} />
               </div>
               <div className="grid gap-3 items-end mt-3" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,2.4fr)" }}>
@@ -1476,7 +1479,7 @@ const COLS = [
 const GUIAS_FPP = [
   { k: "todas", label: "Todas", Ico: Layers },
   { k: "negociacao", label: "Negociação", Ico: Handshake, chave: (f) => f.negociacao || "SEM NEGOCIAÇÃO" },
-  { k: "cliente", label: "Cliente", Ico: Users, chave: (f) => f.clienteNome || "SEM CLIENTE" },
+  { k: "cliente", label: "Cliente", Ico: Users, chave: (f) => (f.grupoNome ? `GRUPO ${f.grupoNome}` : f.clienteNome || "SEM CLIENTE") },   // v1052 — empresas do mesmo grupo num card só
   { k: "peca", label: "Peça", Ico: Shirt, chave: (f) => f.item || "SEM PEÇA" },
 ];
 // números gerenciais: valor total = preço × qtde; margem de contribuição = (preço − custo final) × qtde
@@ -1611,7 +1614,7 @@ function FichasSalvas({ master, onEditar, onClonar, voltarRef, onItemPadrao }) {
   if (q) {
     dados = dados.filter((f) => {
       const alvo = [
-        fmtFpp(f.numero), f.item, f.nomeComercial, f.clienteNome, f.negociacao, f.qtde,
+        fmtFpp(f.numero), f.item, f.nomeComercial, f.clienteNome, f.grupoNome ? `grupo ${f.grupoNome}` : "", f.negociacao, f.qtde,   // v1052 — buscar o grupo traz as FPPs de todas as empresas dele
         f.condicaoPagamento, f.leadTime, f.criadoPorNome,
         f.valorProposto != null ? brl(f.valorProposto) : "",
         f.margem != null ? pct(f.margem) : "",
@@ -3214,7 +3217,7 @@ function Combo({ label, value, onChange, onPick, options, placeholder, livre }) 
 }
 
 /* Cliente: busca no banco e permite cadastrar na hora só com o nome */
-function ClienteCombo({ clientes, value, onType, onPick, onCreated }) {
+function ClienteCombo({ clientes, grupos = [], grupoSel, value, onType, onPick, onPickGrupo, onCreated }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState(value || "");
   const [seed, setSeed] = useState("");
@@ -3222,7 +3225,10 @@ function ClienteCombo({ clientes, value, onType, onPick, onCreated }) {
   const [criando, setCriando] = useState(false);
   useEffect(() => { setQ(value || ""); }, [value]);
   const nome = (c) => c.razaoSocial || c.nomeFantasia || "";
-  const lista = clientes.filter((c) => nome(c).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes((seed || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""))).slice(0, 30);
+  // v1052 — grupos de clientes entram primeiro na lista (marcados GRUPO): a FPP vale para todas as empresas do grupo
+  const nrm = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const lista = [...(onPickGrupo ? grupos.filter((g) => nrm(g.nome).includes(nrm(seed))).slice(0, 8).map((g) => ({ ...g, _grupo: true, razaoSocial: g.nome })) : []),
+    ...clientes.filter((c) => nrm(nome(c)).includes(nrm(seed))).slice(0, 30)];
   const exato = clientes.some((c) => nome(c).toLowerCase() === (q || "").trim().toLowerCase());
   async function criar() {
     setCriando(true);
@@ -3236,7 +3242,7 @@ function ClienteCombo({ clientes, value, onType, onPick, onCreated }) {
     const n = (hi + dir + lista.length) % lista.length;
     setHi(n); setQ(nome(lista[n])); onType?.(nome(lista[n]));
   }
-  function confirmar(c) { const alvo = c || lista[hi]; if (!alvo) return; setQ(nome(alvo)); setSeed(nome(alvo)); setOpen(false); onPick?.(alvo); }
+  function confirmar(c) { const alvo = c || lista[hi]; if (!alvo) return; setQ(nome(alvo)); setSeed(nome(alvo)); setOpen(false); if (alvo._grupo) onPickGrupo?.(alvo); else onPick?.(alvo); }
   function onKey(e) {
     if (!open || !lista.length) return;
     if (e.key === "Tab") { e.preventDefault(); mover(e.shiftKey ? -1 : 1); }
@@ -3247,15 +3253,16 @@ function ClienteCombo({ clientes, value, onType, onPick, onCreated }) {
   }
   return (
     <div style={{ position: "relative" }}>
-      <div className="text-xs mb-1" style={{ color: C.sub }}>Cliente</div>
-      <input value={sc(q)} placeholder="Buscar cliente…" onChange={(e) => digitar(e.target.value)} onKeyDown={onKey}
+      <div className="text-xs mb-1" style={{ color: C.sub }}>Cliente{grupoSel && <span className="ml-1 px-1.5 rounded text-[10px] font-bold" style={{ background: C.accentSoft, color: C.accent }}>GRUPO · todas as empresas</span>}</div>
+      <input value={sc(q)} placeholder="Buscar cliente ou grupo…" onChange={(e) => digitar(e.target.value)} onKeyDown={onKey}
         onFocus={() => { setSeed(q || ""); setHi(0); setOpen(true); }} onBlur={() => setTimeout(() => setOpen(false), 180)}
         className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${open ? C.accent : C.line}`, color: C.text }} />
       {open && (q || "").trim() !== "" && (
         <div className="absolute z-30 mt-1 w-full rounded-md shadow-lg max-h-56 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
           {lista.map((c, idx) => (
-            <button key={c.id} tabIndex={-1} onMouseEnter={() => setHi(idx)} onMouseDown={(e) => { e.preventDefault(); confirmar(c); }}
-              className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.text, background: idx === hi ? C.accentSoft : "#fff" }}>{sc(nome(c))}</button>
+            <button key={`${c._grupo ? "g" : "c"}${c.id}`} tabIndex={-1} onMouseEnter={() => setHi(idx)} onMouseDown={(e) => { e.preventDefault(); confirmar(c); }}
+              className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.text, background: idx === hi ? C.accentSoft : "#fff" }}>
+              {c._grupo && <span className="mr-1.5 px-1.5 rounded text-[10px] font-bold" style={{ background: C.navy, color: "#fff" }}>GRUPO</span>}{sc(nome(c))}{c._grupo && <span className="text-[11px] ml-1" style={{ color: C.sub }}>· {(c.clientes || []).length} empresa(s)</span>}</button>
           ))}
           {!exato && (
             <button tabIndex={-1} onMouseDown={(e) => { e.preventDefault(); criar(); }} disabled={criando} className="block w-full text-left px-3 py-1.5 text-sm" style={{ color: C.accent, borderTop: lista.length ? `1px solid ${C.line}` : 0 }}>

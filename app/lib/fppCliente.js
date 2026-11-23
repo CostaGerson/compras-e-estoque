@@ -17,7 +17,7 @@ let _feito = 0;
 export async function cadastrarClientesDasFpps() {
   if (Date.now() - _feito < 60_000) return;
   _feito = Date.now();
-  const l = await prisma.fpp.findMany({ where: { clienteId: null, NOT: { clienteNome: null } }, select: { id: true, clienteNome: true } });
+  const l = await prisma.fpp.findMany({ where: { clienteId: null, clienteGrupoId: null, NOT: { clienteNome: null } }, select: { id: true, clienteNome: true } });
   const cache = new Map();
   for (const f of l) {
     const n = String(f.clienteNome || "").trim().toUpperCase();

@@ -473,11 +473,17 @@ export async function buscarFpps(q, cliente, max = 12) {
   const t = String(q || "").trim();
   const n = Number(t.replace(/\D/g, ""));
   const lista = await prisma.fpp.findMany({ orderBy: { createdAt: "desc" }, take: 3000,
-    select: { id: true, numero: true, tipo: true, item: true, nomeComercial: true, clienteNome: true, valorProposto: true, entradas: true, resultados: true, createdAt: true } });
+    select: { id: true, numero: true, tipo: true, item: true, nomeComercial: true, clienteId: true, clienteGrupoId: true, clienteNome: true, valorProposto: true, entradas: true, resultados: true, createdAt: true } });
   const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
   const pal = norm(t).split(/\s+/).filter(Boolean);
   const cli = norm(cliente).split(/\s+/).filter((w) => w.length > 2).slice(0, 2);
-  const doCli = (f) => cli.length && cli.every((w) => norm(f.clienteNome).includes(w));
+  // v1052 — FPPs do grupo do cliente (escolhidas para o grupo ou de outra empresa do grupo) também são "do cliente"
+  let gid = null, doGrupo = new Set();
+  if (String(cliente || "").trim()) {
+    const c = await prisma.cliente.findFirst({ where: { OR: [{ razaoSocial: { equals: String(cliente).trim(), mode: "insensitive" } }, { nomeFantasia: { equals: String(cliente).trim(), mode: "insensitive" } }], grupoId: { not: null } }, select: { grupoId: true } }).catch(() => null);
+    if (c?.grupoId) { gid = c.grupoId; doGrupo = new Set((await prisma.cliente.findMany({ where: { grupoId: gid }, select: { id: true } })).map((x) => x.id)); }
+  }
+  const doCli = (f) => (cli.length && cli.every((w) => norm(f.clienteNome).includes(w))) || (gid && (f.clienteGrupoId === gid || doGrupo.has(f.clienteId)));
   const ok = (f) => !pal.length || (/^\d+$/.test(t) && f.numero === n) || pal.every((w) => norm([f.numero, f.item, f.nomeComercial, f.clienteNome].join(" ")).includes(w));
   return lista.filter((f) => ok(f) && (pal.length || doCli(f))).sort((a, b) => (doCli(b) ? 1 : 0) - (doCli(a) ? 1 : 0)).slice(0, max).map(resumoFpp);
 }

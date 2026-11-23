@@ -857,6 +857,7 @@ model Fpp {
   nomeComercial String?
   clienteId     Int?
   clienteNome   String?
+  clienteGrupoId Int?                  // v1052 — FPP de um grupo de clientes (vale para todas as empresas do grupo)
   negociacao    String?
   qtde          Int?
   condicaoPagamento String?

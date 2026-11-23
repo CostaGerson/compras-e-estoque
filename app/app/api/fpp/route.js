@@ -9,7 +9,11 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   await garantirNumeros();
   const lista = await prisma.fpp.findMany({ orderBy: { createdAt: "desc" }, take: 2000 });
-  return NextResponse.json(lista);
+  // v1052 — grupo de clientes de cada FPP (do grupo escolhido ou do grupo da empresa): a busca e a guia Cliente juntam o grupo
+  const grupos = Object.fromEntries((await prisma.clienteGrupo.findMany({ select: { id: true, nome: true } })).map((g) => [g.id, g.nome]));
+  const cliIds = [...new Set(lista.map((f) => f.clienteId).filter(Boolean))];
+  const gDoCli = Object.fromEntries((await prisma.cliente.findMany({ where: { id: { in: cliIds }, grupoId: { not: null } }, select: { id: true, grupoId: true } })).map((c) => [c.id, c.grupoId]));
+  return NextResponse.json(lista.map((f) => { const gid = f.clienteGrupoId || gDoCli[f.clienteId] || null; return { ...f, grupoId: gid, grupoNome: gid ? grupos[gid] || null : null }; }));
 }
 
 // POST: salva uma ficha de precificação
@@ -18,7 +22,8 @@ export async function POST(req) {
   const b = await req.json();
   if (!b.item) return NextResponse.json({ error: "Informe o ITEM da ficha." }, { status: 400 });
   const { clienteDaFpp } = await import("@/lib/fppCliente");   // v805
-  b.clienteId = await clienteDaFpp(b.clienteNome, b.clienteId);
+  const grupoId = Number(b.clienteGrupoId) || null;   // v1052 — FPP do grupo: não cria cliente com o nome do grupo
+  b.clienteId = grupoId ? null : await clienteDaFpp(b.clienteNome, b.clienteId);
   if (b.clienteNome) b.clienteNome = String(b.clienteNome).trim().toUpperCase();
   const f = await criarComNumero({
       tipo: ["PLANO", "REVENDA"].includes(b.tipo) ? b.tipo : "MALHA",   // v512 — revenda
@@ -28,6 +33,7 @@ export async function POST(req) {
       leadTime: b.leadTime != null ? Number(b.leadTime) : null,
       clienteId: b.clienteId != null ? Number(b.clienteId) : null,
       clienteNome: b.clienteNome || null,
+      clienteGrupoId: grupoId,
       negociacao: b.negociacao ? String(b.negociacao).toUpperCase() : null,
       qtde: b.qtde != null ? Number(b.qtde) : null,
       entradas: maiusc(b.entradas || {}),   // v973
