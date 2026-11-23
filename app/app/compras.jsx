@@ -1219,6 +1219,9 @@ function NovoFornecedorModal({ nome, onClose, onCriado }) {
 }
 const numBR = (v) => (v == null || v === "" ? "" : String(v).replace(".", ","));
 const lerNum = (v) => { if (v === "" || v == null) return null; const n = Number(String(v).replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : null; };
+// v1048 — item do PIC já seguido: tem cotação (sem "ninguém tem") ou OC. Daí em diante o acompanhamento é em Cotações / OC.
+const picItemSeguido = (i) => !!i.oc || ((i.cotacoes || []).length > 0 && !i.semCotacao);
+const picConcluido = (p) => p.itens.length > 0 && p.itens.every(picItemSeguido);
 export function PicCompras({ user, fases, ir }) {
   const [l, setL] = useState(null);
   const [forns, setForns] = useState(_fornPic || []);
@@ -1236,7 +1239,7 @@ export function PicCompras({ user, fases, ir }) {
     setTodosPic(todos);
     const naCot = (i) => (i.cotacoes || []).length > 0 && !i.semCotacao;
     setEmCot(todos.reduce((n, p) => n + p.itens.filter(naCot).length, 0));
-    setL(todos.map((p) => ({ ...p, itens: p.itens.filter((i) => !naCot(i)) })).filter((p) => p.itens.length)); setEd({}); const f = lerFoco("pic"); if (f) { const t = todos.find((p) => p.numero === f); if (t && !t.itens.some((i) => !((i.cotacoes || []).length > 0 && !i.semCotacao))) setGuia("todos"); if (t) setAbPic((m) => ({ ...m, [t.id]: true })); rolarDestacar(`pic-${f}`); } }).catch(() => setL([]));
+    setL(todos.map((p) => ({ ...p, itens: p.itens.filter((i) => !picItemSeguido(i)) })).filter((p) => p.itens.length));   /* v1048 — em andamento: só itens sem cotação e sem OC */ setEd({}); const f = lerFoco("pic"); if (f) { const t = todos.find((p) => p.numero === f); if (t && picConcluido(t)) setGuia("todos"); if (t) setAbPic((m) => ({ ...m, [t.id]: true })); rolarDestacar(`pic-${f}`); } }).catch(() => setL([]));
   useEffect(() => { carregar(); if (!_fornPic) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornPic = Array.isArray(x) ? x : []; setForns(_fornPic); }).catch(() => {}); }, []);
   const porNome = useMemo(() => Object.fromEntries(forns.map((f) => [nomeFornec(f).toUpperCase(), f])), [forns]);
   const [novoForn, setNovoForn] = useState(null);   // v609 — { item, nome, extra? }
@@ -1322,17 +1325,17 @@ export function PicCompras({ user, fases, ir }) {
       <p className="text-sm mb-3" style={{ color: C.sub }}>Os itens que o estoque não atende saem do <b>Cruzamento</b> num PIC, com os artigos iguais somados. Preencha o <b>fornecedor</b> e o <b>valor unitário</b> (a quantidade pode ser ajustada) e gere as <b>OCs</b>: uma por fornecedor. Itens de <b>PICs diferentes</b> podem ir na mesma cotação e na mesma OC: marque os itens e use a barra de baixo.</p>
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {/* v1047 — guias no padrão das OCs: em andamento (com itens sem OC e fora de cotação), baixados (tudo em OC) e todos */}
-      <Guias abas={[["andamento", `Em andamento (${(l || []).length})`, Clock], ["baixados", `Baixados (${todosPic.filter((p) => p.status === "OC").length})`, PackageCheck], ["todos", "Todos", Layers]]} atual={guia} onChange={setGuia}
+      <Guias abas={[["andamento", `Em andamento (${(l || []).length})`, Clock], ["baixados", `Baixados (${todosPic.filter(picConcluido).length})`, PackageCheck], ["todos", "Todos", Layers]]} atual={guia} onChange={setGuia}
         direita={<button onClick={carregar} title="Atualizar" className="p-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button>} />
-      {l && !(guia === "andamento" ? l : guia === "baixados" ? todosPic.filter((p) => p.status === "OC") : todosPic).length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>{guia === "andamento" ? "Nenhum PIC em andamento. Gere pelo Cruzamento com estoque (botão Gerar PIC)." : "Nenhum PIC aqui."}</div>}
+      {l && !(guia === "andamento" ? l : guia === "baixados" ? todosPic.filter(picConcluido) : todosPic).length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>{guia === "andamento" ? "Nenhum PIC em andamento. Gere pelo Cruzamento com estoque (botão Gerar PIC)." : "Nenhum PIC aqui."}</div>}
       {emCot > 0 && <div className="text-xs mb-3 flex items-center gap-2" style={{ color: C.sub }}>{emCot} item(ns) com cotação gerada estão em Cotações.{ir && <button onClick={() => ir("comprasCotacoes")} className="underline" style={{ color: C.accent }}>Abrir cotações</button>}</div>}
       {cot && <CotacaoModal cot={cot} onClose={() => setCot(null)} />}
       {novoForn && <NovoFornecedorModal nome={novoForn.nome} onClose={() => setNovoForn(null)} onCriado={(f) => {
         _fornPic = [...forns, f]; setForns(_fornPic); set(novoForn.item, "fornecedor", nomeFornec(f)); setNovoForn(null);
       }} />}
-      {(guia === "andamento" ? l || [] : guia === "baixados" ? todosPic.filter((p) => p.status === "OC") : todosPic).map((p) => {
-        const abertos = p.itens.filter((i) => !i.oc);
-        const corPic = p.status === "OC" ? C.green : abertos.length ? C.accent : C.blue, fundoPic = p.status === "OC" ? C.greenSoft : abertos.length ? C.accentSoft : C.blueSoft;
+      {(guia === "andamento" ? l || [] : guia === "baixados" ? todosPic.filter(picConcluido) : todosPic).map((p) => {
+        const abertos = p.itens.filter((i) => !picItemSeguido(i));   // v1048 — sem cotação e sem OC
+        const corPic = abertos.length ? C.accent : C.green, fundoPic = abertos.length ? C.accentSoft : C.greenSoft;
         const abertoPic = abPic[p.id] ?? guia === "andamento";   // em andamento começa aberto; baixados/todos recolhidos
         const tot = p.itens.reduce((s0, i) => { const v = val(i); return s0 + (lerNum(v.valor) || 0) * (lerNum(v.qtd) || 0); }, 0);
         const porF = {};
@@ -1343,7 +1346,7 @@ export function PicCompras({ user, fases, ir }) {
               {abertoPic ? <ChevronDown size={18} style={{ color: C.sub }} /> : <ChevronRight size={18} style={{ color: C.sub }} />}
               <div className="flex-1 min-w-0"><span className="text-xs font-bold px-2 py-0.5 rounded mr-2" style={{ background: fundoPic, color: corPic }}>{p.numero}</span><span className="text-xs" style={{ color: C.sub }}> {new Date(p.data).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}{p.criadoPorNome ? ` por ${p.criadoPorNome}` : ""} · {p.itens.length} artigo(s)</span></div>
               <div className="text-right"><div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.sub }}>Total</div><div className="text-base font-bold" style={{ color: C.navy }}>{brl(tot)}</div></div>
-              <Chip cor={p.status === "OC" ? C.green : C.accent} fundo={p.status === "OC" ? C.greenSoft : C.accentSoft}>{p.status === "OC" ? "OCs geradas" : `${abertos.length} sem OC`}</Chip>
+              <Chip cor={corPic} fundo={fundoPic}>{abertos.length ? `${abertos.length} sem cotação` : "em cotação / OC"}</Chip>
               {abertos.length > 0 && (() => {   // v527 — cotação e OC deste PIC: os marcados dele, ou todos os sem OC
                 const doPic = abertos.map((i) => ({ ...i, picNumero: p.numero }));
                 const marc = doPic.filter((i) => sel.has(i.id));
