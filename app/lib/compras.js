@@ -76,7 +76,16 @@ export function detComCor(det, corSel) {
   return { ...resto, cor: v.cor, codigo: v.codigo || null, ...(v.artigoId ? { artigoId: v.artigoId } : {}) };
 }
 export const coresDoDet = (d) => [d?.cor ? { cor: d.cor, codigo: d.codigo || null } : null, ...((d?.variantes || []).filter((x) => x && x.cor).map((x) => ({ cor: x.cor, codigo: x.codigo || null })))].filter(Boolean);
-export function materiaisDaFpp(fpp, params = [], corSel = null) {
+// v1067 — revenda: a grade do pedido vira uma demanda por tamanho (compra sai certa no fornecedor)
+const SEM_TAM = /^(U|UN|UNICO|ÚNICO|TU|TAM UNICO|TAMANHO UNICO)$/;
+export function gradeRevenda(grade) {
+  const g = (Array.isArray(grade) ? grade : []).map((x) => ({ tam: String(x?.tam || "").trim().toUpperCase(), qtd: Number(x?.qtd) || 0 })).filter((x) => x.tam && x.qtd > 0);
+  const junto = {};
+  for (const x of g) junto[x.tam] = (junto[x.tam] || 0) + x.qtd;
+  const l = Object.entries(junto).map(([tam, qtd]) => ({ tam, qtd }));
+  return l.length && !(l.length === 1 && SEM_TAM.test(l[0].tam)) ? l : [];
+}
+export function materiaisDaFpp(fpp, params = [], corSel = null, grade = null) {
   const e = fpp.entradas || {};
   const r = fpp.resultados || {};
   const ov = fpp.overrides || {};
@@ -87,9 +96,14 @@ export function materiaisDaFpp(fpp, params = [], corSel = null) {
     if (!desc) return [];
     const marca = String(e0.revendaMarca || "").trim().toUpperCase();
     const forn = String(e0.revendaFornecedor || "").trim().toUpperCase();
-    return [{ papel: "REVENDA", ref: { campo: "revendaDet" }, categoria: "OUTROS", unidade: "PC", nome: marca ? `${desc} - ${marca}` : desc,
+    const m0 = { papel: "REVENDA", ref: { campo: "revendaDet" }, categoria: "OUTROS", unidade: "PC", nome: marca ? `${desc} - ${marca}` : desc,
       det: { ...(e0.revendaDet || {}), ...(forn && !e0.revendaDet?.fornecedorId ? { fornecedorNome: forn } : {}), ...(marca ? { obs: `MARCA ${marca}` } : {}) },
-      consumoPorPeca: 1, valorUnitario: n0(e0.custoRevenda), base: `produto revenda · 1 por peça${marca ? ` · marca ${marca}` : ""}${forn ? ` · ${forn}` : ""}`, obs: marca ? `MARCA ${marca}` : null }];
+      consumoPorPeca: 1, valorUnitario: n0(e0.custoRevenda), base: `produto revenda · 1 por peça${marca ? ` · marca ${marca}` : ""}${forn ? ` · ${forn}` : ""}`, obs: marca ? `MARCA ${marca}` : null };
+    const gr = gradeRevenda(grade);
+    if (!gr.length) return [m0];
+    const tot = gr.reduce((a, x) => a + x.qtd, 0);
+    const { artigoId, ...detSem } = m0.det;   // cada tamanho é um artigo próprio (achado/cadastrado pelo nome)
+    return gr.map((x) => ({ ...m0, nome: `${m0.nome} - TAM ${x.tam}`, tamanho: x.tam, det: detSem, consumoPorPeca: x.qtd / tot, base: `${m0.base} · tam ${x.tam}: ${x.qtd} pç` }));
   }
   const tipo = fpp.tipo === "PLANO" ? "PLANO" : "MALHA";
   const aberta = ehPecaAberta(fpp.item);   // v512 — acessório: forro e todos os aviamentos
@@ -347,14 +361,21 @@ export async function refazerDemandasDaFpp(fppId, db = prisma) {
   if (!fpp) return 0;
   const its = await db.compraItem.findMany({ where: { fppId: fpp.id, status: "LEVANTAMENTO" } });
   for (const v of its) {
-    const demanda = await demandaDoItem(fpp, Number(v.quantidade), db, null, v.corFpp || null);
+    const demanda = await demandaDoItem(fpp, Number(v.quantidade), db, null, v.corFpp || null, { pedidoNumero: v.pedidoNumero, chave: v.chave });
     await db.compraItem.update({ where: { id: v.id }, data: { demanda: demanda.map((d) => ({ ...d, ...herdaDem(d, v.demanda) })) } });
   }
   return its.length;
 }
-export async function demandaDoItem(fpp, qtd, db = prisma, params0 = null, corSel = null) {
+// v1067 — grade: lista [{tam, qtd}] ou { pedidoNumero, chave } (busca a grade do item no pedido; só para revenda)
+async function gradeDoItem(db, ref) {
+  if (Array.isArray(ref) || !ref?.pedidoNumero) return Array.isArray(ref) ? ref : null;
+  const p = await db.pedidoVenda.findUnique({ where: { numero: String(ref.pedidoNumero) }, select: { itens: true } }).catch(() => null);
+  return p ? itensDoPedido(p).find((i) => i.chave === ref.chave)?.grade || null : null;
+}
+export async function demandaDoItem(fpp, qtd, db = prisma, params0 = null, corSel = null, grade = null) {
   const params = params0 || await db.fppParam.findMany({ where: { ativo: true }, select: { tipo: true, grupo: true, chave: true, valor: true, extra: true } });
-  const mats = materiaisDaFpp(fpp, params, corSel);
+  const gr = ehRevenda(fpp.item, fpp.tipo) && grade ? await gradeDoItem(db, grade) : null;
+  const mats = materiaisDaFpp(fpp, params, corSel, gr);
   const ids = mats.map((m) => (m.det || {}).artigoId).filter(Boolean);
   const arts = ids.length ? await db.artigo.findMany({ where: { id: { in: ids } }, include: { fornecedor: { select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true } } } }) : [];
   const porId = Object.fromEntries(arts.map((a) => [a.id, a]));
@@ -373,7 +394,7 @@ export async function demandaDoItem(fpp, qtd, db = prisma, params0 = null, corSe
       fornecedorId: a.fornecedorId, fornecedor: a.fornecedor ? (a.fornecedor.nome || a.fornecedor.nomeFantasia || a.fornecedor.razaoSocial || null) : null, cor: a.cor, codigo: a.codigo,
       largura: a.largura != null ? Number(a.largura) : null, base: m.base,
       consumoPorPeca: Math.round(m.consumoPorPeca * 10000) / 10000, quantidade: r3(m.consumoPorPeca * qtd), valorUnitario: m.valorUnitario,
-      embalagem: m.embalagem || null, obs: m.obs || null, equiparadoA: null });
+      embalagem: m.embalagem || null, obs: m.obs || null, equiparadoA: null, ...(m.tamanho ? { tamanho: m.tamanho } : {}) });
   }
   return out;
 }
@@ -569,7 +590,7 @@ export async function refazerLevantamento(db = prisma, forcar = false) {
   let n = 0;
   for (const v of its) {
     const fpp = fpps[v.fppId]; if (!fpp) continue;
-    const nova = (await demandaDoItem(fpp, Number(v.quantidade), db, params, v.corFpp || null)).map((d) => ({ ...d, ...herdaDem(d, v.demanda) }));
+    const nova = (await demandaDoItem(fpp, Number(v.quantidade), db, params, v.corFpp || null, { pedidoNumero: v.pedidoNumero, chave: v.chave })).map((d) => ({ ...d, ...herdaDem(d, v.demanda) }));
     if (chave(nova) !== chave(v.demanda)) { await db.compraItem.update({ where: { id: v.id }, data: { demanda: nova } }); n++; }
   }
   return n;
@@ -900,7 +921,7 @@ export async function regerarDemandasPedido(numero, quem, db = prisma) {
     if (!fppId) { semFpp.push(it.chave); continue; }
     const fpp = await db.fpp.findUnique({ where: { id: Number(fppId) } });
     if (!fpp) { semFpp.push(it.chave); continue; }
-    const demanda = await demandaDoItem(fpp, it.qtd, db, params, it.corFpp || null);
+    const demanda = await demandaDoItem(fpp, it.qtd, db, params, it.corFpp || null, it.grade);
     await db.compraItem.create({ data: { pedidoNumero: p.numero, chave: it.chave, descricao: it.descricao, quantidade: it.qtd, valorUnitario: it.preco || null, cliente: p.cliente, entrega: p.despacho,
       fppId: fpp.id, fppNumero: fpp.numero, corFpp: it.corFpp || null, status: "LEVANTAMENTO", demanda, vinculadoPorNome: quem || null } });
     gerados++;
@@ -1050,7 +1071,7 @@ export async function corrigirRibanaFaixa(db = prisma) {
   for (const v of l) {
     const fpp = await db.fpp.findUnique({ where: { id: v.fppId } });
     if (!fpp) continue;
-    const nova = (await demandaDoItem(fpp, Number(v.quantidade), db, params, v.corFpp || null)).map((d) => ({ ...d, ...herdaDem(d, v.demanda) }));
+    const nova = (await demandaDoItem(fpp, Number(v.quantidade), db, params, v.corFpp || null, { pedidoNumero: v.pedidoNumero, chave: v.chave })).map((d) => ({ ...d, ...herdaDem(d, v.demanda) }));
     if (v.status === "PIC") {
       // no PIC: troca só os aviamentos corrigidos (o resto do item segue como está)
       const antigos = (v.demanda || []).filter(velho);

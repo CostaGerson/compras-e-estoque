@@ -345,7 +345,7 @@ export async function efetivarPedido(id, quem) {
       const at = await prisma.compraItem.findUnique({ where: { pedidoNumero_chave: { pedidoNumero: numero, chave: ch } } });
       if (at && at.status !== "LEVANTAMENTO") continue;
       if (at && at.fppId === fpp.id && Number(at.quantidade) === it.qtd && (at.corFpp || null) === (it.corFpp || null)) continue;
-      const demanda = await demandaDoItem(fpp, it.qtd, undefined, null, it.corFpp || null);
+      const demanda = await demandaDoItem(fpp, it.qtd, undefined, null, it.corFpp || null, it.grade || { pedidoNumero: numero, chave: ch });
       const d = { descricao: it.descricao, quantidade: it.qtd, valorUnitario: it.preco || null, cliente: dados.cliente, entrega: it.entrega ? dUTC(it.entrega) : dados.despacho,   // v869
         fppId: fpp.id, fppNumero: fpp.numero, corFpp: it.corFpp || null, status: "LEVANTAMENTO", demanda, vinculadoPorNome: quem };
       if (at) await prisma.compraItem.update({ where: { id: at.id }, data: d });
