@@ -576,11 +576,13 @@ export async function itensAbertos(db = prisma) {
   const dispensados = await pedidosDispensados(db);   // v419
   const dItens = await itensDispensados(db);   // v862
   const itens = (await db.compraItem.findMany({ where: { status: "LEVANTAMENTO" }, orderBy: [{ entrega: "asc" }, { pedidoNumero: "asc" }] })).filter((i) => !dispensados.has(i.pedidoNumero) && !dItens.has(`${i.pedidoNumero}|${i.chave}`));
-  const peds = await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true, cliente: true, cronoItens: true, cronoSituacao: true, cronoCompras: true } });
+  const peds = await db.pedidoVenda.findMany({ where: { numero: { in: [...new Set(itens.map((i) => i.pedidoNumero))] }, status: "ANDAMENTO" }, select: { numero: true, cliente: true, fonte: true, cronoItens: true, cronoSituacao: true, cronoCompras: true } });
   const porNum = Object.fromEntries(peds.map((p) => [p.numero, p]));
   for (const i of itens) if (!i.cliente && porNum[i.pedidoNumero]?.cliente) i.cliente = porNum[i.pedidoNumero].cliente;   // v524 — nome do cliente sempre presente
   // v417/v418 — item programado/em produção no PCP sai do levantamento
-  const abertos = itens.filter((i) => ehAvulsa(i.pedidoNumero) || (porNum[i.pedidoNumero] && faseItemPcp(porNum[i.pedidoNumero], i.chave).fase !== "PRODUCAO"));
+  // v1053 — pedido lançado no sistema: o item no levantamento ainda não foi para o PCP (mesma regra da Sincronização de pedidos);
+  //   antes, pedido já "em produção" no PCP (outros itens) escondia do levantamento os itens que ganharam FPP depois
+  const abertos = itens.filter((i) => ehAvulsa(i.pedidoNumero) || (porNum[i.pedidoNumero] && (porNum[i.pedidoNumero].fonte === "SISTEMA" || faseItemPcp(porNum[i.pedidoNumero], i.chave).fase !== "PRODUCAO")));
   try { await equipararPeloEstoque(abertos, db); } catch (e) { console.log("compras/equiparar estoque:", e.message); }   // v625
   return abertos;
 }
