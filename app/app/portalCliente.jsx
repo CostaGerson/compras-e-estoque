@@ -65,6 +65,7 @@ export default function PortalCliente({ user, onSair, tamanhos, interno = null }
   const [ppNum, setPpNum] = useState("");          // v713 — nº do pedido no portal (0001…)
   const [itens, setItens] = useState([]);           // [{ key, padrao, grade, artes, dadosUnitarios, valorVenda }]
   const [oc, setOc] = useState("");
+  const [nfs, setNfs] = useState([]);   // v1078 — PDF(s) da NF emitida para o cliente final, ainda não enviados
   const [obs, setObs] = useState("");
   const [cf, setCf] = useState(vazioClienteFinal());
   const [st, setSt] = useState("");
@@ -80,6 +81,27 @@ export default function PortalCliente({ user, onSair, tamanhos, interno = null }
   const api = (url, o = {}) => fetch(url, { cache: "no-store", ...o, headers: { "Content-Type": "application/json", "x-usuario-id": String(user.id), ...(interno ? { "x-portal-cliente": String(interno) } : {}) } })
     .then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "Erro."); return j; });
   const carregar = () => api("/api/portal").then((j) => { setD(j); setErro(""); }).catch((e) => setErro(e.message));
+  // v1078 — NF do cliente (PDF): lê os arquivos (grandes sobem em partes)
+  const lerNfs = async (files) => {
+    const out = [];
+    for (const f of Array.from(files || []).filter((x) => x && x.size > 0)) {
+      if (!/pdf/i.test(`${f.type} ${f.name}`)) { alerta(`${f.name}: envie a NF em PDF.`); continue; }
+      try { setEnvArq(`Enviando ${f.name}…`); out.push({ nome: f.name, mime: "application/pdf", base64: await subirArquivo(f, user.id, (x) => setEnvArq(`Enviando ${f.name} · ${Math.round(x * 100)}%`)) }); }
+      catch (e) { alerta(e.message || `Não consegui enviar ${f.name}.`); }
+    }
+    setEnvArq("");
+    return out;
+  };
+  const urlNf = (id) => `/api/portal?nf=${id}&_u=${user.id}${interno ? `&_pc=${interno}` : ""}`;
+  const nfPedido = async (p, files) => {
+    const arquivos = await lerNfs(files);
+    if (!arquivos.length) return;
+    try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ acao: "nf", ppId: p.id, arquivos }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); alerta("NF anexada ao pedido."); } catch (e) { alerta(e.message); }
+  };
+  const tirarNf = async (a) => {
+    if (!(await confirmar(`Remover a NF "${a.nome}" do pedido?`))) return;
+    try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ acao: "nfRemover", anexoId: a.id }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); } catch (e) { alerta(e.message); }
+  };
   // v1076 — interno: data de despacho e etiqueta de envio
   const mudarDespacho = async (p, data) => {
     try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ acao: "despacho", ppId: p.id, data }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); }
@@ -116,12 +138,12 @@ export default function PortalCliente({ user, onSair, tamanhos, interno = null }
     if (add.length) setItens((l) => l.map((x) => (x.key === it.key ? { ...x, artes: [...x.artes, ...add] } : x)));
   };
   const replicarLocais = (de) => setItens((l) => l.map((it) => (it.key === de.key ? it : { ...it, dadosUnitarios: { ...(it.dadosUnitarios || { linhas: [] }), campos: de.dadosUnitarios.campos.map((c) => ({ ...c })), linhas: it.dadosUnitarios?.linhas || [] } })));
-  const limpar = () => { setPpId(null); setPpNum(""); setItens([]); setOc(""); setObs(""); setCf(vazioClienteFinal()); };
-  const corpo = (extra = {}) => ({ ppId, oc, obs, clienteFinal: cf, itens: itens.map((it) => ({ itemPadraoId: it.padrao.id, grade: it.grade, artes: it.artes, dadosUnitarios: it.dadosUnitarios, valorVenda: it.valorVenda })), ...extra });
+  const limpar = () => { setPpId(null); setPpNum(""); setItens([]); setOc(""); setObs(""); setNfs([]); setCf(vazioClienteFinal()); };
+  const corpo = (extra = {}) => ({ ppId, oc, obs, nfs, clienteFinal: cf, itens: itens.map((it) => ({ itemPadraoId: it.padrao.id, grade: it.grade, artes: it.artes, dadosUnitarios: it.dadosUnitarios, valorVenda: it.valorVenda })), ...extra });
 
   const salvarRascunho = async () => {
     setSt("Salvando…");
-    try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify(corpo({ acao: "rascunho" })) }); setPpId(j.id); setPpNum(j.numero || ""); setD((x) => ({ ...x, pedidos: j.pedidos })); alerta(`Pedido ${j.numero || ""} salvo como "Em aberto". Você continua de onde parou em Pedidos.`); }
+    try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify(corpo({ acao: "rascunho" })) }); setNfs([]); setPpId(j.id); setPpNum(j.numero || ""); setD((x) => ({ ...x, pedidos: j.pedidos })); alerta(`Pedido ${j.numero || ""} salvo como "Em aberto". Você continua de onde parou em Pedidos.`); }
     catch (e) { alerta(e.message); }
     setSt("");
   };
@@ -335,6 +357,18 @@ export default function PortalCliente({ user, onSair, tamanhos, interno = null }
 
             {itens.length > 0 && (
               <div className="rounded-xl p-4 mb-6" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                {/* v1078 — NF que a loja emite para o cliente final: vai para os anexos do pedido na Meridian */}
+                <div className="mb-3">
+                  <div className="text-xs" style={{ color: C.sub }}>NF emitida para o cliente (PDF, opcional) — fica nos anexos do pedido na Meridian</div>
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                    {(d?.pedidos?.find((x) => x.id === ppId)?.nfsCliente || []).map((a) => <a key={a.id} href={urlNf(a.id)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs px-2 py-1 rounded-md font-semibold" style={{ background: C.greenSoft, color: C.green }}><FileText size={12} /> {a.nome}</a>)}
+                    {nfs.map((a, k) => <span key={k} className="flex items-center gap-1 text-xs px-2 py-1 rounded-md font-semibold" style={{ background: C.accentSoft, color: C.accent }}><FileText size={12} /> {a.nome}
+                      <button onClick={() => setNfs((l) => l.filter((_, j) => j !== k))} title="Tirar"><X size={12} /></button></span>)}
+                    <label className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-md font-semibold cursor-pointer" style={{ border: `1px solid ${C.steel}`, color: C.steel }}><Paperclip size={13} /> Anexar NF (PDF)
+                      <input type="file" accept="application/pdf,.pdf" multiple className="hidden" onChange={async (e) => { const fs = e.target.files; e.target.value = ""; const l = await lerNfs(fs); if (l.length) setNfs((x) => [...x, ...l]); }} /></label>
+                    {envArq && <span className="text-xs" style={{ color: C.sub }}>{envArq}</span>}
+                  </div>
+                </div>
                 <label className="block text-xs" style={{ color: C.sub }}>Observações (opcional)
                   <input value={obs} onChange={(e) => setObs(e.target.value)} className="w-full rounded-lg px-3 py-2.5 mt-1 text-sm outline-none" style={{ ...inp, background: "#fff" }} /></label>
                 <ResumoValores v={val} mobile={mobile} />
@@ -361,6 +395,7 @@ export default function PortalCliente({ user, onSair, tamanhos, interno = null }
           onExcluir={() => excluirPedido(p)}
           salvarItem={async (k, body) => { const j = await api("/api/portal", { method: "PUT", body: JSON.stringify({ ppId: p.id, idx: k, ...body }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); }}
           interno={!!interno} onDespacho={(v) => mudarDespacho(p, v)} onEtiqueta={() => etiqueta(p)}
+          urlNf={urlNf} onNf={(files) => nfPedido(p, files)} onTirarNf={tirarNf}
           onCustos={async (b) => { try { const j = await api("/api/portal", { method: "POST", body: JSON.stringify({ acao: "custos", ppId: p.id, ...b }) }); setD((x) => ({ ...x, pedidos: j.pedidos })); return true; } catch (e) { alerta(e.message); return false; } }}
           onEntregue={async (valor) => {   // v1074 — o cliente marca o pedido despachado como entregue
             if (!(await confirmar(valor ? "Marcar este pedido como ENTREGUE ao cliente final?" : "Desfazer o \"entregue\" deste pedido?"))) return;
@@ -543,7 +578,7 @@ function ListaPedidos({ pedidos, mobile, onAbrir, onExcluir, interno, onDespacho
 }
 
 // v711 — dados gerais do pedido + edição
-function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEditar, onExcluir, salvarItem, onEntregue, interno, onDespacho, onEtiqueta, onCustos }) {
+function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEditar, onExcluir, salvarItem, onEntregue, interno, onDespacho, onEtiqueta, onCustos, urlNf, onNf, onTirarNf }) {
   const url = (t) => `${typeof window !== "undefined" ? window.location.origin : ""}/dados/${t}`;
   const copiar = async (t) => { try { await navigator.clipboard.writeText(url(t)); alerta("Link copiado."); } catch { window.prompt("Copie o link:", url(t)); } };
   return (
@@ -563,6 +598,19 @@ function DetalhePedido({ p, user, tamanhos, nomeCliente, mobile, onFechar, onEdi
       </div>
       <ResumoValores v={{ pecas: p.pecas, cmv: p.cmv, venda: p.venda, mc: p.mc, mcPct: p.mcPct, lead: p.leadTime, cmvItens: p.cmvItens, extras: p.custosExtrasTotal }} mobile={mobile} despacho={p.despacho} />
       <CustosExtras p={p} interno={interno} onCustos={onCustos} />
+      {p.status !== "CANCELADO" && (   // v1078 — NF emitida para o cliente final (PDF) → anexos do pedido na Meridian
+        <div className="rounded-lg mt-3 p-3" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide" style={{ color: C.sub }}>NF emitida para o cliente
+            <label className="ml-auto flex items-center gap-1 normal-case text-xs px-2.5 py-1 rounded-md font-semibold cursor-pointer" style={{ border: `1px solid ${C.steel}`, color: C.steel }}><Paperclip size={12} /> Anexar NF (PDF)
+              <input type="file" accept="application/pdf,.pdf" multiple className="hidden" onChange={(e) => { const fs = e.target.files; onNf(fs); e.target.value = ""; }} /></label></div>
+          {(p.nfsCliente || []).length ? p.nfsCliente.map((a) => (
+            <div key={a.id} className="flex items-center gap-2 text-xs py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
+              <FileText size={13} style={{ color: C.red }} />
+              <a href={urlNf(a.id)} target="_blank" rel="noreferrer" className="flex-1 font-semibold underline decoration-dotted" style={{ color: C.text }}>{a.nome}</a>
+              <span style={{ color: C.sub }}>{dBR(a.em)}</span>
+              <button onClick={() => onTirarNf(a)} title="Remover NF" style={{ color: C.sub }}><Trash2 size={13} /></button>
+            </div>)) : <div className="text-xs py-1" style={{ color: C.sub }}>Nenhuma NF anexada.</div>}
+        </div>)}
       {interno && !["CANCELADO", "EM_ABERTO"].includes(p.status) && (   // v1076 — só pelo ERP
         <label className="flex items-center gap-2 mt-2 text-xs font-semibold" style={{ color: C.accent }}>Data de despacho
           <input type="date" defaultValue={p.despachoISO || ""} key={p.despachoISO || "x"} onBlur={(e) => { if (e.target.value && e.target.value !== p.despachoISO) onDespacho(e.target.value); }} className="rounded px-2 py-1" style={{ border: `1px solid ${C.accent}`, background: "#fff", color: C.text }} />

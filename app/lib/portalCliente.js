@@ -46,7 +46,8 @@ export async function usuarioPortal(req) {
   const u = await usuarioAtivoFin(id);
   // v1076 — acesso interno pelo ERP (Gestão › S › Portal Way): usuário da Meridian com gestão, escolhendo o cliente do portal
   if (u && u.setor !== "CLIENTE") {
-    const cid = Number(req.headers.get("x-portal-cliente")) || 0;
+    let cid = Number(req.headers.get("x-portal-cliente")) || 0;
+    if (!cid) { try { cid = Number(new URL(req.url).searchParams.get("_pc")) || 0; } catch {} }
     if (!cid || !acessoInternoPortal(u)) return null;
     const cliente = await prisma.cliente.findUnique({ where: { id: cid } });
     return cliente ? { u, cliente, interno: true } : null;
@@ -93,6 +94,35 @@ export async function alterarCustos(cliente, ppId, { adicionar, remover }, u) {
   if (remover) l = l.filter((x) => String(x.id) !== String(remover));
   await prisma.pp.update({ where: { id: pp.id }, data: { custosExtras: l.length ? l : Prisma.DbNull } });
   return { ok: true };
+}
+// v1078 — NF que a loja emite para o cliente final (PDF): anexo do pedido no ERP, categoria NF_CLIENTE
+const PREF_NF = "NF do cliente · ";
+export async function anexarNfCliente(cliente, ppId, arquivos, u) {
+  const pp = await prisma.pp.findFirst({ where: { id: Number(ppId) || 0, portalClienteId: cliente.id }, select: { id: true } });
+  if (!pp) return { error: "Pedido não encontrado." };
+  const l = (Array.isArray(arquivos) ? arquivos : []).filter((a) => a && a.base64);
+  const { tokenDe, lerMeta } = await import("@/lib/arquivos");
+  let n = 0;
+  for (const a of l) {
+    const nome = String(a.nome || "nf.pdf").slice(0, 160);
+    if (!/pdf/i.test(`${a.mime || ""} ${nome}`)) return { error: `${nome}: envie a NF em PDF.` };
+    const b64 = String(a.base64).replace(/^data:[^,]+,/, "");
+    const t = tokenDe(b64), mt = t ? await lerMeta(t).catch(() => null) : null;
+    await prisma.ppAnexo.create({ data: { ppId: pp.id, nome: `${PREF_NF}${nome}`.slice(0, 200), tipo: "application/pdf", categoria: "NF_CLIENTE",
+      tamanho: mt ? mt.tamanho : Math.floor(b64.length * 3 / 4), base64: b64, criadoPorNome: `PORTAL · ${nomeU(u)}`.slice(0, 120) } });
+    n++;
+  }
+  if (n) await avisar(u, cliente, pp.id, `${n} NF(s) emitida(s) para o cliente anexada(s) ao pedido`).catch(() => null);
+  return { ok: true, n };
+}
+export async function removerNfCliente(cliente, anexoId) {
+  const a = await prisma.ppAnexo.findFirst({ where: { id: Number(anexoId) || 0, categoria: "NF_CLIENTE", pp: { portalClienteId: cliente.id } }, select: { id: true } });
+  if (!a) return { error: "NF não encontrada." };
+  await prisma.ppAnexo.delete({ where: { id: a.id } });
+  return { ok: true };
+}
+export async function nfClienteArquivo(cliente, anexoId) {
+  return prisma.ppAnexo.findFirst({ where: { id: Number(anexoId) || 0, categoria: "NF_CLIENTE", pp: { portalClienteId: cliente.id } } });
 }
 export const nomeCliente = (c) => String(c?.nomeFantasia || c?.razaoSocial || "").toUpperCase();
 
@@ -177,6 +207,7 @@ export async function salvarRascunho(ctx, b) {
   if (!(Array.isArray(b?.itens) && b.itens.length) && !b.clienteFinal) return { error: "Nada para salvar ainda." };
   const g = await gravar(ctx, b, b.ppId);
   if (g.error) return g;
+  if (Array.isArray(b.nfs) && b.nfs.length) { const r = await anexarNfCliente(ctx.cliente, g.id, b.nfs, ctx.u); if (r.error) return r; }   // v1078
   const pn = await prisma.pp.findUnique({ where: { id: g.id }, select: { portalNumero: true } });
   return { ok: true, id: g.id, numero: fmtNumPortal(pn?.portalNumero) };
 }
@@ -213,6 +244,7 @@ export async function enviarPedido(ctx, b) {
   const g = await gravar(ctx, b, b.ppId);
   if (g.error) return g;
   const id = g.id;
+  if (Array.isArray(b.nfs) && b.nfs.length) { const r = await anexarNfCliente(cliente, id, b.nfs, u); if (r.error) return r; }   // v1078
   // links de preenchimento (um por item com personalização exclusiva)
   if (modo === "LIMITE") {
     const { criarLink, mudarLimite } = await import("@/lib/dadosLink");
@@ -363,6 +395,7 @@ export async function pedidosDoCliente(clienteId, cliente) {
   const links = await prisma.dadoUnitarioLink.findMany({ where: { ppId: { in: pps.map((p) => p.id) } }, select: { ppId: true, itemIdx: true, limite: true, token: true, aberto: true, id: true } });
   const js = (s) => { try { return JSON.parse(s || "[]"); } catch { return []; } };
   const nums = pps.filter((p) => p.efetivadoEm && p.numero).map((p) => p.numero);   // v1074 — faturado / sem NF vem do pedido de venda
+  const nfsAll = pps.length ? await prisma.ppAnexo.findMany({ where: { ppId: { in: pps.map((p) => p.id) }, categoria: "NF_CLIENTE" }, select: { id: true, ppId: true, nome: true, tamanho: true, createdAt: true }, orderBy: { id: "asc" } }) : [];   // v1078
   const pvs = nums.length ? await prisma.pedidoVenda.findMany({ where: { numero: { in: nums } }, select: { numero: true, status: true, semNota: true } }) : [];
   const pvDe = Object.fromEntries(pvs.map((v) => [v.numero, v]));
   return pps.map((p) => {
@@ -380,6 +413,7 @@ export async function pedidosDoCliente(clienteId, cliente) {
       despacho: ["LIBERADO", "EM_PRODUCAO", "FINALIZADO", "DESPACHADO", "ENTREGUE"].includes(st) ? p.dtDespacho : null,
       despachoISO: p.dtDespacho && /^\d{2}\/\d{2}\/\d{4}$/.test(p.dtDespacho) ? p.dtDespacho.split("/").reverse().join("-") : null,
       custosExtras: extras, custosExtrasTotal: somaExtras,
+      nfsCliente: nfsAll.filter((a) => a.ppId === p.id).map((a) => ({ id: a.id, nome: a.nome.replace(PREF_NF, ""), tamanho: a.tamanho, em: a.createdAt })),
       rastreio: p.rastreio || null, despachadoEm: p.despachadoEm || null, entregueEm: p.entregueEm || null, entreguePor: p.entreguePor || null,   // v1074   // v714 — só depois de ir para a produção
       liberadoEm: p.portalLiberadoEm || null, leadTime: Math.max(0, ...p.itens.map((i) => (i.fppId && leadDe[i.fppId]) || 0)), oc: p.oc, obs: p.portalObs, enviadoPor: p.portalEnviadoPor,
       cliente: cf ? (cf.tipo === "PJ" ? cf.razaoSocial : cf.nome) || "" : "", clienteFinal: cf,

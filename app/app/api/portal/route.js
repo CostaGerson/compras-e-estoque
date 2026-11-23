@@ -1,6 +1,6 @@
 // v699/v711 — portal do cliente: itens padrão, pedidos (com status e valores), rascunho, envio e edição
 export const dynamic = "force-dynamic";
-import { usuarioPortal, negadoPortal, itensDoCliente, pedidosDoCliente, enviarPedido, salvarRascunho, nomeCliente, salvarItemPortal, pedidoParaEditar, excluirRascunho, marcarEntregue, clientesComPortal, acessoInternoPortal, alterarDespacho, alterarCustos } from "@/lib/portalCliente";
+import { usuarioPortal, negadoPortal, itensDoCliente, pedidosDoCliente, enviarPedido, salvarRascunho, nomeCliente, salvarItemPortal, pedidoParaEditar, excluirRascunho, marcarEntregue, clientesComPortal, acessoInternoPortal, alterarDespacho, alterarCustos, anexarNfCliente, removerNfCliente, nfClienteArquivo } from "@/lib/portalCliente";
 import { usuarioAtivoFin } from "@/lib/fin";
 
 // GET → { cliente, itens, pedidos } · ?editar=ID → pedido para editar
@@ -13,6 +13,13 @@ export async function GET(req) {
   }
   const p = await usuarioPortal(req);
   if (!p) return negadoPortal();
+  const nfq = new URL(req.url).searchParams.get("nf");   // v1078 — baixar a NF do cliente anexada
+  if (nfq) {
+    const a = await nfClienteArquivo(p.cliente, nfq);
+    if (!a) return Response.json({ error: "NF não encontrada." }, { status: 404 });
+    const { respostaAnexo } = await import("@/lib/arquivos");
+    return respostaAnexo(a.base64, { nome: a.nome, mime: a.tipo });
+  }
   const ed = new URL(req.url).searchParams.get("editar");
   if (ed) { const r = await pedidoParaEditar(p.cliente, ed); return Response.json(r, { status: r.error ? 400 : 200 }); }
   const [itens, pedidos] = await Promise.all([itensDoCliente(p.cliente.id), pedidosDoCliente(p.cliente.id, p.cliente)]);
@@ -29,6 +36,11 @@ export async function POST(req) {
     if (b.acao === "despacho") {   // v1076 — só pelo acesso interno (ERP)
       if (!p.interno) return Response.json({ error: "Só a Meridian altera a data de despacho." }, { status: 403 });
       const r = await alterarDespacho(p.cliente, b.ppId, b.data, p.u);
+      if (r.error) return Response.json(r, { status: 400 });
+      return Response.json({ ok: true, pedidos: await pedidosDoCliente(p.cliente.id, p.cliente) });
+    }
+    if (b.acao === "nf" || b.acao === "nfRemover") {   // v1078 — NF emitida para o cliente final (PDF) → anexo do pedido no ERP
+      const r = b.acao === "nf" ? await anexarNfCliente(p.cliente, b.ppId, b.arquivos, p.u) : await removerNfCliente(p.cliente, b.anexoId);
       if (r.error) return Response.json(r, { status: 400 });
       return Response.json({ ok: true, pedidos: await pedidosDoCliente(p.cliente.id, p.cliente) });
     }

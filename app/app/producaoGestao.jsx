@@ -403,7 +403,7 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
       if (p.pp && p.pp.origem !== "PEDIDOS") {
         const d = await fetch(`/api/pp/${p.pp.id}`, { cache: "no-store", headers: { "x-usuario-id": String(user?.id || "") } }).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); return x; });
         const { f, itens } = dadosImpressaoPp(d, veVal);
-        const anexos = (d.anexos || []).map((a) => ({ nome: a.nome, mime: a.tipo, src: `/api/pp/${p.pp.id}?anexo=${a.id}&_u=${user?.id}` }));   // v650
+        const anexos = (d.anexos || []).filter((a) => a.categoria !== "NF_CLIENTE").map((a) => ({ nome: a.nome, mime: a.tipo, src: `/api/pp/${p.pp.id}?anexo=${a.id}&_u=${user?.id}` }));   // v650
         imprimirPedido(tipo, f, itens, { componentes, alerta, anexos });
       } else {
         const { f, itens } = dadosImpressaoPedido(p);
@@ -654,7 +654,7 @@ function AnexosCard({ p, user, veVal }) {
   );
 }
 // v638 — guia OP: todos os dados de cada item do pedido (grade, parâmetros de produção, tecido/FPP, foto) e a fase de cada um no PCP
-const ANEXO_CAT = { OC: "OC", SOLICITACAO: "Solicitação", LAYOUT: "Layout", OUTRO: "Outro" };
+const ANEXO_CAT = { OC: "OC", SOLICITACAO: "Solicitação", LAYOUT: "Layout", OUTRO: "Outro", NF_CLIENTE: "NF do cliente (portal)" };   // v1078
 function GuiaOp({ p, user, componentes, verFpp, anexos }) {
   const tot = p.itens.reduce((s, i) => s + (Number(i.qtd) || 0), 0);
   const porFase = {};

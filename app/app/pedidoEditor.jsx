@@ -305,7 +305,7 @@ export function GradeEditor({ grade, tamanhos, onChange, personalizada = null, o
   );
 }
 
-const CATS = { OC: "OC do cliente", SOLICITACAO: "Solicitação", LAYOUT: "Layout / arte", OUTRO: "Outro" };
+const CATS = { OC: "OC do cliente", SOLICITACAO: "Solicitação", LAYOUT: "Layout / arte", OUTRO: "Outro", NF_CLIENTE: "NF do cliente (portal)" };   // v1078
 const catDoNome = (nome, tipo) => {
   const n = norm(nome);
   if (/solic|lancamento/.test(n)) return "SOLICITACAO";
