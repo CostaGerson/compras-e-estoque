@@ -1,4 +1,5 @@
 // v169 — Tarefas: demandas entre setores, recorrência, subtarefas, arquivos, dependências, play/stop e status das pessoas
+import { limparLocal } from "@/lib/tarefaLocal";   // v1043
 import { prisma } from "@/lib/prisma";
 import { ehMaster, setorTarefaDe, SETORES_TAREFA, NOME_SETOR_TAREFA } from "@/lib/acesso";
 import { enviarEmail, emailDisponivel } from "@/lib/email";
@@ -93,7 +94,7 @@ async function gerarDaSerie(s, limite) {
     await prisma.tarefa.createMany({ skipDuplicates: true, data: datas.map((d) => ({
       titulo: s.titulo, descricao: s.descricao, setor: s.setor, responsavelId: s.responsavelId, responsavelNome: s.responsavelNome,
       criadoPorId: s.criadoPorId, criadoPorNome: s.criadoPorNome, prazo: dUTC(d), tipo: "ROTINA", publica: s.publica, serieId: s.id,
-      hora: s.hora, horaFim: s.horaFim, periodo: s.periodo, lembreteMin: s.lembreteMin, natureza: s.natureza, projetoId: s.projetoId,
+      hora: s.hora, horaFim: s.horaFim, periodo: s.periodo, lembreteMin: s.lembreteMin, natureza: s.natureza, projetoId: s.projetoId, ...(s.local ? { local: s.local } : {}),
       subtarefas: (s.subtarefas || []).map((x) => ({ texto: x.texto, feita: false })), dependencias: [],
     })) });
   }
@@ -107,6 +108,7 @@ const resumo = (t, abertas = {}) => ({
   tempoTotal: t.tempoTotal, emAndamentoDesde: t.emAndamentoDesde, retorno: t.retorno, concluidaEm: t.concluidaEm, concluidaPorNome: t.concluidaPorNome,
   createdAt: t.createdAt, nArquivos: t._count?.arquivos ?? 0, sessaoAberta: abertas[t.id] || null,
   hora: t.hora || null, horaFim: t.horaFim || null, lembreteMin: t.lembreteMin ?? null, natureza: t.natureza || "FUNCIONAL", projetoId: t.projetoId || null, ordem: t.ordem ?? null,
+  local: t.local || null,   // v1043 — #101
   colaboracao: t.colaboracao || null,   // v992 — colaboradores (origem) / pedido de colaboração (filha)
   periodo: t.periodo || null, evento: !!t.evento, efetivo: t.efetivo ?? null, layout: t.layout || null, aprovacao: t.aprovacao || null,   // v757 decisao: t.decisao || null, reuniao: t.reuniao || null,   // v654 · v655
 });
@@ -226,6 +228,8 @@ function limpar(b) {
     efetivo: b.evento && Number(b.efetivo) > 0 ? Math.min(9999, Math.round(Number(b.efetivo))) : null,
   };
   if (t.hora) t.periodo = null;
+  // v1043 — #101: endereço (Google) e saída sugerida; saída aceita → aviso no celular na hora de sair
+  if (b.local !== undefined) { const r = limparLocal(b.local, t.hora); t.local = r.local; if (r.lembreteMin != null) t.lembreteMin = r.lembreteMin; }
   if (t.inicio && (!t.prazo || t.inicio >= t.prazo)) t.inicio = null;   // v902 — só vale se começar antes do fim
   if (t.hora && t.horaFim && t.horaFim <= t.hora) t.horaFim = null;
   if (!t.hora) t.horaFim = null;
@@ -309,7 +313,7 @@ export async function editar(id, b, u) {
   const doForm = b.titulo !== undefined;
   if (x.serieId && (doForm || b.projetoId !== undefined)) {
     const comuns = doForm ? { titulo: data.titulo, descricao: data.descricao, setor: data.setor, responsavelId: data.responsavelId, publica: data.publica,
-      hora: data.hora, horaFim: data.horaFim, periodo: data.periodo, lembreteMin: data.lembreteMin, natureza: data.natureza, projetoId: data.projetoId, ...(resp ? { responsavelNome: nome(resp) } : {}) }
+      hora: data.hora, horaFim: data.horaFim, periodo: data.periodo, lembreteMin: data.lembreteMin, natureza: data.natureza, projetoId: data.projetoId, ...(data.local !== undefined ? { local: data.local } : {}), ...(resp ? { responsavelNome: nome(resp) } : {}) }
       : { projetoId: data.projetoId, natureza: data.natureza };
     await prisma.tarefa.update({ where: { id: x.serieId }, data: { ...comuns, ...(doForm ? { subtarefas: data.subtarefas.map((s) => ({ texto: s.texto, feita: false })) } : {}) } });
     await prisma.tarefa.updateMany({ where: { serieId: x.serieId, id: { not: x.id }, status: "ABERTA" }, data: comuns });

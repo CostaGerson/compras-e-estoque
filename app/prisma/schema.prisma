@@ -1996,6 +1996,7 @@ model Tarefa {
   pcpChave         String?   @unique             // v752 — aviso de arte do PCP: a mesma chave não abre duas demandas
   aprovacao        Json?                         // v757 — demanda para o arte finalista: { etapa: EXECUCAO|AGUARDANDO|APROVADO|APROVACAO, solicitanteId, solicitanteNome, rodada, desdeArquivoId, motivo?, origemId?, aprovacaoId? }
   colaboracao      Json?                         // v992 — origem: { pedido, colaboradores: [ids] } · tarefa do colaborador: { origemId, pedido, solicitanteId, solicitanteNome, resposta?, respondidoEm? }
+  local            Json?                         // v1043 — #101: { endereco, lat, lng, origem, deslocMin, km, antecedenciaMin, aceito, saida }
   layout           Json?                         // v654 — { etapa: CRIACAO|APROVACAO, ppId, numero, cliente, vendedor, itens: [{ idx, descricao, codigo, arquivoId? }], origemId?, motivo? }
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -2827,4 +2828,18 @@ model ArteArquivo {
 
   @@index([pedidoNumero])
   @@index([status])
+}
+
+// v1043 — sugestão #101: endereços particulares (favoritos do Google Maps) de cada usuário — origem das tarefas com endereço
+model EnderecoParticular {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int
+  nome      String                     // CASA, FÁBRICA…
+  endereco  String
+  lat       Float
+  lng       Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([usuarioId])
 }

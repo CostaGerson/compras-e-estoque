@@ -10,7 +10,8 @@ import { SETORES_TAREFA, NOME_SETOR_TAREFA, setorTarefaDe } from "@/lib/acesso";
 import { TIPOS_REC, DIAS_SEMANA, ORDINAIS, descreverRecorrencia } from "@/lib/recorrencia";
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 import { useMobile } from "./useMobile";   // v550
-import AvisosPush from "./avisosPush";   // v551 — lembrete 30 min antes das tarefas
+import AvisosPush from "./avisosPush";
+import { LocalTarefa, LocalDetalhe } from "./tarefaLocal";   // v1043 — #101 endereço na tarefa   // v551 — lembrete 30 min antes das tarefas
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085",
@@ -320,7 +321,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
   const ed = !!inicial.id;
   const criador = ed ? inicial.criadoPorId : user.id;
   const [f, setF] = useState({
-    hora: inicial.hora || "", horaFim: inicial.horaFim || "", lembreteMin: inicial.lembreteMin === undefined ? 30 : inicial.lembreteMin, natureza: inicial.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", projetoId: inicial.projetoId || "",
+    hora: inicial.hora || "", horaFim: inicial.horaFim || "", lembreteMin: inicial.lembreteMin === undefined || inicial.local?.aceito ? 30 : inicial.lembreteMin, local: inicial.local || null,   // v1043 — saída aceita: o aviso é calculado no servidor natureza: inicial.natureza === "PESSOAL" ? "PESSOAL" : "FUNCIONAL", projetoId: inicial.projetoId || "",
     titulo: inicial.titulo || "", descricao: inicial.descricao || "", setor: inicial.setor || setorTarefaDe(user), responsavelId: inicial.responsavelId || "",
     prazo: inicial.prazo || hojeISO(), tipo: inicial.tipo === "URGENTE" || inicial.tipo === "GERENCIAL" ? inicial.tipo : "PADRAO", publica: inicial.publica !== false,
     multi: !!inicial.inicio, inicio: inicial.inicio || "",   // v902 — início e fim (tarefa de vários dias)
@@ -392,7 +393,7 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
     setSt(true); setErro("");
     const t = { titulo: f.titulo, descricao: f.descricao, setor: f.setor, responsavelId: Number(f.responsavelId), prazo: f.prazo, inicio: f.multi && !recorrente ? f.inicio : null, tipo: recorrente ? (f.tipo === "URGENTE" ? "URGENTE" : "ROTINA") : f.tipo,
       publica: publicaFinal, subtarefas: f.subtarefas, dependencias: f.dependencias.filter((id) => depsVal.some((t) => t.id === id)), recorrencia: recorrente ? f.rec : null, aplicarSerie: f.aplicarSerie,
-      hora: f.hora || null, horaFim: f.horaFim || null, periodo: f.hora ? null : f.periodo || null, evento: f.evento, efetivo: f.evento && f.efetivo ? Number(f.efetivo) : null, convidados: f.evento ? f.convidados : [], lembreteMin: f.lembreteMin,
+      hora: f.hora || null, horaFim: f.horaFim || null, periodo: f.hora ? null : f.periodo || null, evento: f.evento, efetivo: f.evento && f.efetivo ? Number(f.efetivo) : null, convidados: f.evento ? f.convidados : [], lembreteMin: f.lembreteMin, local: f.local,
       ...(f.decisao ? { decisao: { opcoes: f.opcoes.map((o) => o.trim()).filter(Boolean), envolvidos: f.envolvidos } } : {}), ...(ehColabFilha || recorrente ? {} : { colaboracao: f.colab ? { pedido: f.pedidoColab.trim(), colaboradores: f.colabs.filter((id) => id !== respFinal) } : { colaboradores: [] } }),   // v992
       natureza: pessoal ? "PESSOAL" : "FUNCIONAL", projetoId: projsOpc.some((p) => p.id === Number(f.projetoId)) ? Number(f.projetoId) : null };
     if (onRascunho) { try { await onRascunho({ ...t, tipo: "GERENCIAL", recorrencia: null, colaboracao: undefined }); onOk(); } catch (e) { setSt(false); setErro(e.message); } return; }
@@ -472,7 +473,8 @@ export function TarefaForm({ user, inicial, usuarios, projetos = [], onClose, on
         <label className="text-xs" style={{ color: C.sub }}>Horário (opcional)<input type="time" value={f.hora} onChange={(e) => set("hora", e.target.value)} className={`${inp} mt-1`} style={inpS} /></label>
         <label className="text-xs" style={{ color: C.sub }}>Até<input type="time" value={f.horaFim} disabled={!f.hora} onChange={(e) => set("horaFim", e.target.value)} className={`${inp} mt-1`} style={inpS} /></label>
       </div>
-      {f.hora && <AvisoPrevio valor={f.lembreteMin} onChange={(v) => set("lembreteMin", v)} />}
+      {f.hora && !f.local?.aceito && <AvisoPrevio valor={f.lembreteMin} onChange={(v) => set("lembreteMin", v)} />}
+      {!inicial.layout && !inicial.reuniao && <LocalTarefa user={user} local={f.local} hora={f.hora} prazo={f.prazo} onChange={(v) => set("local", v)} />}
       {!f.hora && <div className="flex items-center gap-1 mb-3 text-xs" style={{ color: C.sub }}>Período (sem horário):
         {[["", "—"], ["MANHA", "Manhã"], ["TARDE", "Tarde"]].map(([k, t]) => <button key={k} onClick={() => set("periodo", k)} className="px-2.5 py-1 rounded-lg font-semibold" style={f.periodo === k ? { background: C.navy, color: "#fff" } : { background: C.panel2, color: C.text }}>{t}</button>)}
       </div>}
@@ -812,6 +814,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
           <Linha k="Prioridade"><ChipTipo tipo={t.tipo} /></Linha>
           <Linha k="Setor">{NOME_SETOR_TAREFA[t.setor]}</Linha>
         </div>
+        <LocalDetalhe t={t} />
         {t.descricao && <div className="text-sm whitespace-pre-wrap mb-3 p-3 rounded-lg" style={{ background: C.panel2 }}>{t.descricao}</div>}
         {t.layout && <LayoutTarefa t={t} user={user} onMudou={() => { carregar(); onMudou?.(); }} />}
         {t.aprovacao && !t.layout && <AprovacaoPainel t={t} user={user} onMudou={() => { carregar(); onMudou?.(); }} />}

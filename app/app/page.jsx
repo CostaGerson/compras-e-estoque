@@ -56,6 +56,7 @@ import Integracoes from "./integracoes";   // v732
 import PecasProntas from "./pecasProntas";   // v906
 import Sistemas from "./sistemas";   // v907
 import Vendedores from "./vendedores";   // v747
+import EnderecosParticulares from "./tarefaLocal";   // v1043 — #101
 import PortalCliente from "./portalCliente";   // v699 — portal do cliente (Loja Way)   // v595 — lançamento de pedido sem o KM
 import { partesTecido } from "@/lib/pedidoLanc";   // v809
 
@@ -154,6 +155,7 @@ const MENU = [
     { key: "terceirizados", label: "Terceirizados", icon: Truck, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Facções e serviços: PIX, endereço e capacidade" },
     { key: "vendedores", label: "Vendedores", icon: Users2, desc: "Vendedores comissionados: dados, PIX e fechamento da comissão (mensal ou spot)" },   // v747
     { key: "artes", label: "Artes e layouts", icon: ImageIco, desc: "Layouts, artes de personalização e mockups do designer, guardados no Google Drive (uma pasta por pedido)" },   // v1003
+    { key: "enderecosParticulares", label: "Endereços particulares", icon: IcoRota, desc: "Seus pontos de saída (casa, fábrica…) para calcular a hora de sair nas tarefas com endereço — só você vê" },   // v1043 — #101
     { key: "destinatarios", label: "Destinatários", icon: IcoRota, desc: "Locais das demandas de rota (fora dos cadastros de fornecedores, terceirizados e clientes)" },
     { key: "notasfiscais", label: "Notas fiscais", icon: Receipt, perfis: ["FINANCEIRO"], desc: "Registro geral das NFs de entrada e de saída, com filtros" },
     { key: "dadosfin", label: "Dados financeiros", icon: Landmark, perfis: ["FINANCEIRO"], desc: "Plano de contas, palavras-chave e senhas de PDF" },
@@ -194,6 +196,7 @@ const PODE = {
   anCorte: (u) => gerencial(u), anPersonalizacao: (u) => gerencial(u), anSilk: (u) => gerencial(u), anBordado: (u) => gerencial(u), anCostura: (u) => gerencial(u), anExpedicao: (u) => gerencial(u), anLogistica: (u) => gerencial(u), anSublimacao: (u) => gerencial(u), anDtf: (u) => gerencial(u),
   rota: () => true,
   destinatarios: () => true,   // v430
+  enderecosParticulares: () => true,   // v1043 — #101
   artes: () => true,   // v1003
   empresa: (u) => gerencial(u) || T(u, "FINANCEIRO", "ADMINISTRATIVO"),   // v780
   documentacao: (u) => gerencial(u) || T(u, "FINANCEIRO", "ADMINISTRATIVO"),   // v780
@@ -214,6 +217,7 @@ function menuDoUsuario(u) {
   if (soTarefas(u)) return [   // v733 — só tarefas e agenda
     { key: "tarefas", label: "Minhas tarefas", icon: ListTodo, desc: "Suas tarefas" },
     { key: "agenda", label: "Agenda", icon: IcoAgenda, desc: "Sua agenda" },
+    { key: "enderecosParticulares", label: "Endereços particulares", icon: IcoRota, desc: "Seus pontos de saída para as tarefas com endereço" },   // v1043
   ];
   const f = (l) => l.map((n) => (n.filhos ? { ...n, filhos: f(n.filhos) } : n)).filter((n) => (n.pagina ? !!PODE[n.key]?.(u) : n.filhos ? n.filhos.length > 0 : !!PODE[n.key]?.(u)));
   return f(MENU);
@@ -503,6 +507,7 @@ export default function Home() {
           {["clientes", "fornecedores", "artigos"].includes(view) && <BancoDados key={view} abaFixa={view} master={master} money={money} perfil={perfil} />}
           {view === "freelancers" && <Prestadores key="free" user={user} tipo="FREELANCER" />}
           {view === "vendedores" && pode("vendedores") && <Vendedores user={user} />}
+          {view === "enderecosParticulares" && <EnderecosParticulares user={user} />}
           {view === "terceirizados" && <Prestadores key="terc" user={user} tipo="TERCEIRIZADO" />}
           {view === "notasfiscais" && pode("notasfiscais") && <NfRegistro user={user} />}
           {view === "dadosfin" && pode("dadosfin") && <DadosFinanceiros user={user} />}

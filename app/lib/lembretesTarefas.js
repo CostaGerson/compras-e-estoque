@@ -17,7 +17,7 @@ export async function enviarLembretes() {
   const { dia, min } = agoraSP();
   const hoje = new Date(`${dia}T00:00:00Z`);
   const l = await prisma.tarefa.findMany({ where: { prazo: { gte: hoje, lte: new Date(hoje.getTime() + 8 * 864e5) }, hora: { not: null }, lembreteMin: { not: null }, modelo: false, excluidaEm: null, status: { in: ["ABERTA", "EM_ANDAMENTO"] } },
-    select: { id: true, titulo: true, prazo: true, hora: true, horaFim: true, responsavelId: true, lembreteChave: true, lembreteMin: true } });
+    select: { id: true, titulo: true, prazo: true, hora: true, horaFim: true, responsavelId: true, lembreteChave: true, lembreteMin: true, local: true } });
   let n = 0;
   for (const t of l) {
     const ini = minDe(t.hora); if (ini == null) continue;
@@ -29,6 +29,13 @@ export async function enviarLembretes() {
     // marca antes de enviar: dois servidores/minutos não mandam em dobro
     const ok = await prisma.tarefa.updateMany({ where: { id: t.id, OR: [{ lembreteChave: null }, { lembreteChave: { not: chave } }] }, data: { lembreteChave: chave } });
     if (!ok.count) continue;
+    // v1043 — #101: tarefa com endereço e saída aceita: o aviso é a hora de sair (com o trajeto)
+    const lc = t.local && t.local.aceito && t.local.deslocMin != null ? t.local : null;
+    if (lc) {
+      await notificar(t.responsavelId, { titulo: `🚗 Hora de sair${falta > lc.deslocMin + (lc.antecedenciaMin ?? 5) + 2 ? ` em ${textoAntecedencia(falta - lc.deslocMin - (lc.antecedenciaMin ?? 5))}` : ""} · início ${diaT !== dia ? `${diaT.slice(8, 10)}/${diaT.slice(5, 7)} ` : ""}${t.hora}`,
+        texto: `${t.titulo}\n${lc.origem?.nome ? `${lc.origem.nome} → ` : ""}${lc.nome || lc.endereco} · ${lc.deslocMin} min${lc.km != null ? ` · ${String(lc.km).replace(".", ",")} km` : ""}`, url: "/?v=agenda", tag: `tarefa-${t.id}` }).catch((e) => console.log("lembrete:", e.message));
+      n++; continue;
+    }
     await notificar(t.responsavelId, { titulo: `⏰ Em ${falta ? textoAntecedencia(falta) : "instantes"} · ${diaT !== dia ? `${diaT.slice(8, 10)}/${diaT.slice(5, 7)} ` : ""}${t.hora}${t.horaFim ? `–${t.horaFim}` : ""}`, texto: t.titulo, url: "/?v=agenda", tag: `tarefa-${t.id}` }).catch((e) => console.log("lembrete:", e.message));
     n++;
   }
