@@ -29,6 +29,7 @@ const CRM_URL = process.env.NEXT_PUBLIC_CRM_URL || "https://crm.meridianpro.com.
 const brl = (n) => "R$ " + (Number(n) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const num = (v) => { const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? 0 : n; };
+const pcmTxt = (n) => String(Math.round(n * 100) / 100).replace(".", ",");   // v1041 — peças por metro (papel de sublimação)
 
 /* ---------- volta para a operação: por peça ----------
    Sempre: reembolso de consumo, corte, expedição/acabamento e LOGÍSTICA BASE (frete e embalagem são externos, nunca voltam).
@@ -598,7 +599,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     if (pend.length) return setMsg(`Escolha do estoque ou marque como "Artigo novo": ${pend.map(([n]) => n).join(", ")}.`);
     // v922 — sublimação total: papel (m/peça) e rendimento da malha (m/kg) são obrigatórios (deles sai o consumo de malha)
     const st = tipo === "MALHA" ? subTotalMalha(f) : null;
-    if (st?.falta === "PAPEL") return setMsg("Sublimação total: informe o consumo de papel (m/peça) na aplicação.");
+    if (st?.falta === "PAPEL") return setMsg("Sublimação total: informe o papel (peças por metro) na aplicação.");
     if (st?.falta === "RENDIMENTO") return setMsg("Sublimação total: preencha o rendimento da malha (m/kg) no + do artigo principal — é dele que sai o consumo de malha pelo papel.");
     setSalvando(true); setMsg("");
     // v968 — variar cores: a FPP desta tela é a principal (preta); cada outra cor vira uma FPP do mesmo grupo
@@ -2142,6 +2143,7 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT
   const mud = (i, k, v) => onChange(lista.map((a, j) => {
     if (j !== i) return a;
     const n = { ...a, [k]: v };
+    if (k === "pcm") n.papel = num(v) > 0 ? String(Math.round((1 / num(v)) * 1e6) / 1e6) : "";   // v1041 — digitado em peças/metro; as contas seguem em m/peça (papel = 1 ÷ pç/m)
     if (k === "metodo") {
       n.interno = (METODOS_PERS.find((x) => x[0] === v) || [])[2] ?? false;
       if (v !== "SUBLIMACAO") { delete n.corteSub; delete n.corteLaser; delete n.calandra; delete n.calandraValor; delete n.fixacao; if (n.local === "TOTAL") n.local = locais[0][0]; }
@@ -2173,10 +2175,10 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT
                 ? lbl("Cores", <select value={a.cores || 1} onChange={(e) => mud(i, "cores", Number(e.target.value))} className="w-full h-full px-2 rounded text-sm" style={sel}>
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n} cor{n > 1 ? "es" : ""}</option>)}
                   </select>)
-                : a.metodo === "SUBLIMACAO"   // v922 — papel (m/peça) + R$/peça
-                  ? lbl("Papel (m/pç) · R$/peça", <div className="flex gap-1 w-full h-full">
-                      <input value={a.papel || ""} onChange={(e) => mud(i, "papel", e.target.value)} inputMode="decimal" placeholder={a.local === "TOTAL" ? "m/peça" : String(papelSubPadrao(a.local, params) || "m/peça").replace(".", ",")}
-                        title={a.local === "TOTAL" ? "Total: comprimento de papel por peça (é o mesmo comprimento de malha)" : "Papel por peça neste local (vazio = padrão do banco de dados)"}
+                : a.metodo === "SUBLIMACAO"   // v922 — papel + R$/peça · v1041 — papel digitado em peças por metro
+                  ? lbl("Papel (pç/m) · R$/peça", <div className="flex gap-1 w-full h-full">
+                      <input value={a.pcm ?? (num(a.papel) > 0 ? pcmTxt(1 / num(a.papel)) : "")} onChange={(e) => mud(i, "pcm", e.target.value)} inputMode="decimal" placeholder={a.local === "TOTAL" ? "pç/m" : papelSubPadrao(a.local, params) > 0 ? pcmTxt(1 / papelSubPadrao(a.local, params)) : "pç/m"}
+                        title={a.local === "TOTAL" ? "Total: quantas peças saem em 1 metro de papel (o mesmo metro de malha)" : "Peças por metro de papel neste local (vazio = padrão do banco de dados)"}
                         className="w-1/2 min-w-0 h-full px-2 rounded text-sm" style={{ ...sel, borderColor: a.local === "TOTAL" && !(num(a.papel) > 0) ? C.accent : C.line }} />
                       <input value={a.valor || ""} onChange={(e) => mud(i, "valor", e.target.value)} inputMode="decimal" placeholder="R$/pç" title="Outros custos por peça (terceirizado: o valor cobrado)" className="w-1/2 min-w-0 h-full px-2 rounded text-sm" style={sel} />
                     </div>)
@@ -2197,7 +2199,7 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT
           </div>
           {/* v922 — sublimação: papel e consumo de malha */}
           {a.metodo === "SUBLIMACAO" && <div className="text-[11px] mt-1 ml-1" style={{ color: C.sub }}>
-            {papelSubDe(a, params) > 0 ? <>Papel {String(Math.round(papelSubDe(a, params) * 1000) / 1000).replace(".", ",")} m/peça{a.interno ? (papelPrecoDe(params) > 0 ? ` × ${brl(papelPrecoDe(params))}/m = ${brl(papelSubDe(a, params) * papelPrecoDe(params))}/pç` : " · sem R$/m do papel no banco de dados") : ""}</> : <span style={{ color: C.accent }}>Informe o papel (m/peça){a.local === "TOTAL" ? "" : " ou cadastre o padrão do local no banco de dados"}.</span>}
+            {papelSubDe(a, params) > 0 ? <>Papel {pcmTxt(1 / papelSubDe(a, params))} pç/m = {String(Math.round(papelSubDe(a, params) * 1000) / 1000).replace(".", ",")} m/peça{a.interno ? (papelPrecoDe(params) > 0 ? ` × ${brl(papelPrecoDe(params))}/m = ${brl(papelSubDe(a, params) * papelPrecoDe(params))}/pç` : " · sem R$/m do papel no banco de dados") : ""}</> : <span style={{ color: C.accent }}>Informe o papel (peças por metro){a.local === "TOTAL" ? "" : " ou cadastre o padrão do local no banco de dados"}.</span>}
             {a.local === "TOTAL" && subT && (subT.falta === "RENDIMENTO"
               ? <span style={{ color: "#E5484D" }}> · preencha o rendimento da malha (m/kg) no + do artigo: é dele que sai o consumo de malha</span>
               : subT.rendCons > 0 ? <> · malha = {String(subT.papel).replace(".", ",")} m ÷ {String(subT.rendM).replace(".", ",")} m/kg = <b style={{ color: C.text }}>{(subT.papel / subT.rendM).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} kg/peça</b> ({subT.rendCons.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} peças/kg)</> : null)}
