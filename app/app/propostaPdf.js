@@ -146,7 +146,7 @@ function pagina(conteudo, n, total, { wm = "dir" } = {}) {
     : wm === "esq" ? `<img class="wm" src="/proposta/emblema.png" style="left:-28mm;bottom:-28mm;width:95mm" />`
       : `<img class="wm" src="/proposta/emblema.png" style="right:-30mm;bottom:-40mm;width:140mm" />`;
   return `<section class="pg"><div class="topo"></div>${marcaDagua}
-    <div class="logo"><img src="/proposta/emblema.png" />MERIDIAN</div>
+    <div class="logo"><img src="/meridian-wordmark.svg" alt="MERIDIAN" style="height:9mm;width:auto" /></div>   <!-- v1064 — mesma logo do ERP (emblema + letreiro oficial) -->
     ${conteudo}
     <div class="num">${String(n).padStart(2, "0")} / ${String(total).padStart(2, "0")}</div><div class="base"></div></section>`;
 }
