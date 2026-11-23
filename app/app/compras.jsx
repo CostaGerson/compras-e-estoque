@@ -1439,6 +1439,16 @@ export function OrdensCompra({ user, fases, ir }) {
     const x = await r.json().catch(() => ({})); if (!r.ok) return alerta(x.error || "Erro.");
     carregar();
   };
+  // v1046 — cancelar a OC: os itens voltam para a cotação (outra OC ou dispensar)
+  const cancelarOc = async (o) => {
+    const aviso = o.nfNumero ? `\n\nATENÇÃO: a OC já tem NF do fornecedor (${o.nfNumero}). Combine a devolução/cancelamento da NF com ele.` : o.status === "ENVIADA" ? "\n\nA OC já foi enviada ao fornecedor: avise que ela foi cancelada." : "";
+    const motivo = await perguntar(`Cancelar a ${o.numero}?\nOs ${o.itens.length} item(ns) voltam para a cotação: dá para gerar outra OC ou dispensar as compras. A rota de coleta ainda não feita também é cancelada.${aviso}\n\nMotivo:`, "");
+    if (motivo === null) return;
+    const r = await fetch("/api/compras/oc", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: o.id, status: "CANCELADA", motivo, quem: nomeUser(user) }) });
+    const x = await r.json().catch(() => ({})); if (!r.ok) return alerta(x.error || "Erro.");
+    await alerta(`${o.numero} cancelada. ${x.itens || 0} item(ns) voltaram para a cotação.`);
+    carregar();
+  };
   const vis = (l || []).filter((o) => (filtro === "ativas" ? ["ABERTA", "ENVIADA", "NF_EMITIDA"].includes(o.status) : filtro === "baixadas" ? o.status === "RECEBIDA" : true));   // v532 — Baixadas
   const [nf, setNf] = useState({});   // v479 — { ocId: { numero, emissao } }
   const [edIt, setEdIt] = useState({});   // v487 — itens da OC em edição
@@ -1494,10 +1504,11 @@ export function OrdensCompra({ user, fases, ir }) {
                 <div className="flex flex-wrap items-end gap-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
                   <label className="text-xs" style={{ color: C.sub }}>Condição de faturamento<input defaultValue={o.condicaoFaturamento || ""} onBlur={(e) => e.target.value !== (o.condicaoFaturamento || "") && salvar(o, { condicaoFaturamento: e.target.value })} placeholder="ex.: 30 dias" className="block mt-1 px-2 py-1 rounded text-sm w-40" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
                   <label className="text-xs" style={{ color: C.sub }}>Prazo na fábrica<input type="date" defaultValue={o.prazoFabrica ? String(o.prazoFabrica).slice(0, 10) : ""} onChange={(e) => salvar(o, { prazoFabrica: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>
-                  <label className="text-xs" style={{ color: C.sub }}>Situação<select value={o.status} disabled={o.status === "RECEBIDA"} onChange={(e) => salvar(o, { status: e.target.value })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}>{Object.entries(ST_OC).filter(([k]) => k !== "RECEBIDA" || o.status === "RECEBIDA").map(([k, [t]]) => <option key={k} value={k}>{t}</option>)}</select></label>
+                  <label className="text-xs" style={{ color: C.sub }}>Situação<select value={o.status} disabled={o.status === "RECEBIDA"} onChange={(e) => (e.target.value === "CANCELADA" ? cancelarOc(o) : salvar(o, { status: e.target.value }))} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}>{Object.entries(ST_OC).filter(([k]) => k !== "RECEBIDA" || o.status === "RECEBIDA").map(([k, [t]]) => <option key={k} value={k}>{t}</option>)}</select></label>
                   {o.formaRecebimento && o.formaRecebimento !== "COLETA" && <label className="text-xs" style={{ color: C.sub }}>Previsão de chegada<input type="date" defaultValue={o.previsaoEntrega || ""} onChange={(e) => salvar(o, { previsaoEntrega: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>}   {/* v497 */}
                   <label className="text-xs" style={{ color: C.sub }}>Recebimento<select value={o.formaRecebimento || ""} onChange={(e) => salvar(o, { formaRecebimento: e.target.value || null })} className="block mt-1 px-2 py-1 rounded text-sm" style={{ border: `1px solid ${C.line}`, color: C.text }}><option value="">—</option>{FORMAS_REC.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></label>
                   {o.formaRecebimento === "TRANSPORTADORA" && <label className="text-xs" style={{ color: C.sub }}>Dias após faturar<input defaultValue={o.diasAposFaturamento ?? ""} onBlur={(e) => String(e.target.value) !== String(o.diasAposFaturamento ?? "") && salvar(o, { diasAposFaturamento: e.target.value })} className="block mt-1 px-2 py-1 rounded text-sm w-24" style={{ border: `1px solid ${C.line}`, color: C.text }} /></label>}
+                  {!["RECEBIDA", "CANCELADA"].includes(o.status) && <button onClick={() => cancelarOc(o)} title="Os itens voltam para a cotação (outra OC ou dispensar compras)" className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.red}`, color: C.red }}>Cancelar OC</button>}
                   {o.formaRecebimento === "COLETA" && !["RECEBIDA", "CANCELADA"].includes(o.status) && !o.rota && <button onClick={() => criarRotaColeta(o)} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ background: C.navy, color: "#fff" }}>Criar rota de coleta</button>}
                 </div>
                 {/* v479 — NF do fornecedor */}

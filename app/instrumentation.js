@@ -23,6 +23,8 @@ export async function register() {
     setTimeout(retomar, 60 * 1000); setInterval(retomar, 10 * 60 * 1000);
     // v1042 — #91: itens de pedidos antigos sem o prefixo "CLIENTE - " (uma vez só, 40 s após subir)
     setTimeout(async () => { try { const { corrigirPrefixosAntigos } = await import("./lib/nomeItemCliente"); const r = await corrigirPrefixosAntigos(); if (r) console.log(`[v1042] prefixo do cliente em ${r.length} pedido(s): ${r.join(", ")}`); } catch (e) { console.error("[v1042]", e.message); } }, 40 * 1000);
+    // v1046 — OCs canceladas antes (só a situação mudava): os itens voltam para a cotação
+    setTimeout(async () => { try { const { soltarOcsCanceladas } = await import("./lib/pic"); const r = await soltarOcsCanceladas(); if (r.length) console.log(`[v1046] OCs canceladas soltas: ${r.join(", ")}`); } catch (e) { console.error("[v1046]", e.message); } }, 50 * 1000);
     // v556 — casamento NF ↔ pedido só manual: remove uma vez os casamentos automáticos já feitos
     setTimeout(async () => { try { const { removerCasamentosAutomaticos } = await import("./lib/faturamentoCasamento"); const r = await removerCasamentosAutomaticos(); if (r) console.log(`[v556] casamentos automáticos removidos: ${r.length}`); } catch (e) { console.error("[v556]", e.message); } }, 20 * 1000);
   }

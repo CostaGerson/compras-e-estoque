@@ -137,6 +137,44 @@ export async function cancelarPic(picId) {
   return { ok: true };
 }
 
+// v1046 — cancelar a OC: os itens voltam para a cotação (sem OC), podem ir para outra OC ou ser dispensados.
+// OC recebida não cancela (use reabrir a baixa antes). Os itens que a OC tinha ficam registrados na observação dela.
+const dBRc = (d) => d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+async function devolverItensDaOc(o, quem, motivo) {
+  const its = o.itens || [];
+  const arts = its.length ? Object.fromEntries((await prisma.artigo.findMany({ where: { id: { in: its.map((i) => i.artigoId) } }, select: { id: true, nome: true } })).map((a) => [a.id, a.nome])) : {};
+  const resumo = its.map((i) => `${arts[i.artigoId] || `#${i.artigoId}`} ${String(r3(i.quantidade)).replace(".", ",")} × ${String(Number(i.valorUnitario)).replace(".", ",")}`).join("; ");
+  const pids = [...new Set([o.picId, ...its.map((i) => i.picItem?.picId)].filter(Boolean))];
+  if (its.length) await prisma.ocItem.deleteMany({ where: { ocId: o.id } });
+  const nota = `CANCELADA em ${dBRc(new Date())}${quem ? ` por ${quem}` : ""}${motivo ? ` · motivo: ${motivo}` : ""}${resumo ? ` · itens: ${resumo}` : ""}`;
+  await prisma.ordemCompra.update({ where: { id: o.id }, data: { status: "CANCELADA", obs: [o.obs, nota].filter(Boolean).join("\n").slice(0, 4000) } });
+  // cotações que viraram esta OC voltam a respondidas (dá para gerar outra OC ou dispensar)
+  await prisma.cotacao.updateMany({ where: { OR: [{ ocId: o.id }, ...(o.cotacaoId ? [{ id: o.cotacaoId, status: "OC" }] : [])] }, data: { status: "RESPONDIDA", ocId: null, aplicadaEm: null } });
+  // PIC volta a aberto; itens de compra em OC/NF voltam a PIC; avulsa comprada volta a aberta
+  for (const pid of pids) {
+    await prisma.pic.updateMany({ where: { id: pid, status: "OC" }, data: { status: "ABERTO" } });
+    const cis = await prisma.compraItem.findMany({ where: { picId: pid, status: { in: ["OC", "NF"] }, liberadoEm: null }, select: { id: true, pedidoNumero: true } });
+    if (cis.length) await prisma.compraItem.updateMany({ where: { id: { in: cis.map((x) => x.id) } }, data: { status: "PIC" } });
+    for (const av of [...new Set(cis.map((x) => x.pedidoNumero).filter(ehAvulsa))]) await prisma.compraAvulsa.updateMany({ where: { id: Number(av.slice(2)), status: "COMPRADA" }, data: { status: "ABERTA" } });
+  }
+  // rota de coleta da OC que ainda não saiu
+  await prisma.rotaDemanda.updateMany({ where: { ocId: o.id, status: { in: ["ABERTA", "NO_BLOCO"] } }, data: { status: "CANCELADA" } }).catch(() => null);
+  return { pics: pids.length, itens: its.length };
+}
+export async function cancelarOc(ocId, quem, motivo) {
+  const o = await prisma.ordemCompra.findUnique({ where: { id: Number(ocId) || 0 }, include: { itens: { include: { picItem: { select: { picId: true } } } } } });
+  if (!o) return { error: "OC não encontrada." };
+  if (o.status === "RECEBIDA") return { error: "OC já recebida (baixada): reabra a baixa antes de cancelar." };
+  if (o.status === "CANCELADA" && !o.itens.length) return { error: "OC já cancelada." };
+  const r = await devolverItensDaOc(o, quem, String(motivo || "").trim().slice(0, 300) || null);
+  return { ok: true, ...r };
+}
+// OCs canceladas antes da v1046 (só mudava a situação): os itens continuavam presos. Solta uma vez ao subir.
+export async function soltarOcsCanceladas() {
+  const l = await prisma.ordemCompra.findMany({ where: { status: "CANCELADA", itens: { some: {} } }, include: { itens: { include: { picItem: { select: { picId: true } } } } } });
+  for (const o of l) await devolverItensDaOc(o, "sistema (v1046)", "OC cancelada antes da v1046: itens devolvidos para cotação").catch((e) => console.log("[v1046]", o.numero, e.message));
+  return l.map((o) => o.numero);
+}
 export async function listarOcs() {
   const l = await prisma.ordemCompra.findMany({ orderBy: { id: "desc" }, take: 100, include: { fornecedor: true, itens: { include: { artigo: { select: { nome: true, cor: true, codigo: true, unidade: true } }, picItem: { select: { picId: true, info: true } } } } } });
   const piPorOc = {};
@@ -162,6 +200,7 @@ export async function listarOcs() {
 export async function salvarOc(b) {
   const o = await prisma.ordemCompra.findUnique({ where: { id: Number(b.id) } });
   if (!o) return { error: "OC não encontrada." };
+  if (b.status === "CANCELADA" && o.status !== "CANCELADA") return cancelarOc(o.id, b.quem || null, b.motivo || null);   // v1046 — cancelar devolve os itens para a cotação
   const dt = (v) => (v ? new Date(`${String(v).slice(0, 10)}T12:00:00Z`) : null);
   // v487 — itens da OC (quantidade e valor unitário): atualiza o item do PIC, o preço do artigo e a cotação de origem
   if (Array.isArray(b.itens)) {
