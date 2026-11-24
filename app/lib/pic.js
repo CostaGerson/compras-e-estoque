@@ -198,6 +198,26 @@ export async function cancelarOc(ocId, quem, motivo) {
   await (await import("@/lib/devolucoes")).liberarReservaOc(o.id).catch(() => null);   // v1086 — crédito reservado volta ao saldo
   return { ok: true, ...r };
 }
+// v1087 — cancelar um item da OC: o item volta ao PIC (sem OC) para outra compra; OC sem itens é cancelada
+export async function cancelarItemOc(ocItemId, quem, motivo) {
+  const it = await prisma.ocItem.findUnique({ where: { id: Number(ocItemId) || 0 }, include: { artigo: { select: { nome: true } }, picItem: { select: { id: true, picId: true } },
+    oc: { include: { itens: { include: { picItem: { select: { picId: true } } } } } } } });
+  if (!it) return { error: "Item não encontrado." };
+  const o = it.oc;
+  if (["RECEBIDA", "CANCELADA"].includes(o.status)) return { error: "OC recebida ou cancelada: use Devolver itens." };
+  const m = String(motivo || "").trim().toUpperCase().slice(0, 300);
+  if (m.length < 3) return { error: "Informe o motivo do cancelamento do item." };
+  if (o.itens.length === 1) { const r = await cancelarOc(o.id, quem, `ÚLTIMO ITEM CANCELADO: ${m}`); return r.error ? r : { ok: true, ocCancelada: true }; }
+  await prisma.ocItem.delete({ where: { id: it.id } });
+  const pid = it.picItem?.picId || o.picId;
+  if (pid) {
+    await prisma.pic.updateMany({ where: { id: pid, status: "OC" }, data: { status: "ABERTO" } });
+    await prisma.compraItem.updateMany({ where: { picId: pid, status: "OC", liberadoEm: null }, data: { status: "PIC" } });
+  }
+  const nota = `ITEM CANCELADO em ${dBRc(new Date())}${quem ? ` por ${quem}` : ""}: ${it.artigo?.nome || `#${it.artigoId}`} ${String(r3(it.quantidade)).replace(".", ",")} × ${String(Number(it.valorUnitario)).replace(".", ",")} · ${m}`;
+  await prisma.ordemCompra.update({ where: { id: o.id }, data: { obs: [o.obs, nota].filter(Boolean).join("\n").slice(0, 4000) } });
+  return { ok: true, voltouAoPic: !!it.picItem };
+}
 // OCs canceladas antes da v1046 (só mudava a situação): os itens continuavam presos. Solta uma vez ao subir.
 export async function soltarOcsCanceladas() {
   const l = await prisma.ordemCompra.findMany({ where: { status: "CANCELADA", itens: { some: {} } }, include: { itens: { include: { picItem: { select: { picId: true } } } } } });

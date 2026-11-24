@@ -1634,6 +1634,14 @@ export function OrdensCompra({ user, fases, ir }) {
                       <div key={i.id} className="flex gap-2 py-1.5 text-sm items-center" style={{ borderTop: `1px solid ${C.line}` }}>
                         <div className="flex-1">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{[i.cor, i.codigo].filter(Boolean).join(" · ")}</span>
                           {i.nfNome && norm(i.nfNome) !== norm(i.nome) && <div className="text-xs" style={{ color: C.blue }}>na NF: {i.nfNome}</div>}
+                          {pode && <button onClick={async () => {   /* v1087 — cancelar só este item: volta ao PIC */
+                            if ((o.nfs || []).length && !(await confirmar("A OC já tem NF. Se o item veio, use Devolver itens. Cancelar mesmo assim?"))) return;
+                            const m = await perguntar(`Cancelar ${i.nome} desta OC? Ele volta ao PIC para outra compra.${o.itens.length === 1 ? "\nÉ o último item: a OC será cancelada." : ""}\n\nMotivo:`, "");
+                            if (!m) return;
+                            const r = await fetch("/api/compras/oc", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "cancelarItem", ocItemId: i.id, motivo: m, quem: nomeUser(user) }) });
+                            const x = await r.json().catch(() => ({})); if (!r.ok) return alerta(x.error || "Erro.");
+                            await alerta(x.ocCancelada ? `${o.numero} cancelada (era o último item). O item voltou ao PIC.` : "Item cancelado: voltou ao PIC."); carregar();
+                          }} className="text-[11px] font-semibold" style={{ color: C.red }}>cancelar item</button>}
                           {(() => { const dv = (o.devolucoes || []).filter((d) => d.ocItemId === i.id).reduce((s0, d) => s0 + d.quantidade, 0); return dv > 0 ? <div className="text-xs font-semibold" style={{ color: C.red }}>↩ {String(dv).replace(".", ",")} devolvido(s) ao fornecedor</div> : null; })()}   {/* v1086 */}
                           {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{i.origens.map((x) => (x.avulsa ? "Avulsa" : rotOrigem(x))).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{pode && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} artigo={{ id: i.artigoId, nome: i.nome }} />}</div>}</div>
                         <div className="w-32 text-right">{pode ? <span className="inline-flex items-center gap-1"><input value={e[i.id]?.q ?? ""} onChange={(ev) => setE(i.id, "q", ev.target.value)} className="w-20 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /><span className="text-xs" style={{ color: C.sub }}>{String(i.unidade || "").toLowerCase()}</span></span> : qtdU(i.quantidade, i.unidade)}</div>

@@ -8,3 +8,6 @@
 - **Créditos por fornecedor** (cards): clique → boletos em aberto do fornecedor com a sugestão do crédito (vencimento mais próximo primeiro). Boleto coberto fica PAGO (sem movimento no banco); parcial tem o valor reduzido (nota e alteração no título). Ou "Guardar para novas compras".
 - **Gerar OC** para fornecedor com crédito: pergunta se usa o crédito → reserva até o total da OC (OC abatida; "a pagar" no card e na impressão). Quando a NF da OC chega: **usar o crédito para baixar as contas da NF** ou **aceitar a NF com valor** (o crédito volta ao saldo). OC cancelada devolve a reserva.
 - Arquivos: `lib/devolucoes.js`, `app/api/compras/devolucoes/route.js`, `app/devolucoesCompras.jsx`, `app/compras.jsx`, `app/adm.jsx`, `lib/pic.js`, `lib/admDemandas.js`, `app/page.jsx`.
+
+## v1087 — cancelar um item da OC
+- Em cada item da OC (aberta, enviada ou com NF): **cancelar item** com motivo. O item volta ao PIC (sem OC) para outra compra, o PIC reabre e a OC guarda a nota. Último item → a OC é cancelada. Com NF anexada, avisa para usar Devolver itens se o material chegou.
