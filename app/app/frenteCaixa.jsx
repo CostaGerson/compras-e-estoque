@@ -65,6 +65,10 @@ export default function FrenteCaixa({ user }) {
   );
 }
 
+// v1095 — ordem dos produtos pedida pelo Igor
+const ORDEM_GRUPOS = ["algodao-egipcio", "modal", "viscose", "algodao-30-1", "pv-gola-vies", "pv-gola-ribana", "polo-poliamida", "polo-piquet", "dryfit-sublimacao-total", "dry-fit-elastano", "calca-brim-leve", "calca-brim-pesado", "calca-social"];
+const ordemGrupo = (k) => { const i = ORDEM_GRUPOS.indexOf(k); return i < 0 ? 99 : i; };
+
 // ---------- caixa: catálogo + carrinho ----------
 function Caixa({ api, cat, carrinho, setCarrinho, onNovo, onFechou }) {
   const tab = cat.tabelas;
@@ -77,12 +81,12 @@ function Caixa({ api, cat, carrinho, setCarrinho, onNovo, onFechou }) {
   const porId = useMemo(() => Object.fromEntries(cat.produtos.map((p) => [p.id, p])), [cat]);
   const q = busca.trim().toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const lista = cat.produtos.filter((p) => (!grupo || p.grupo === grupo) && (!q || p.modelo.normalize("NFD").replace(/[̀-ͯ]/g, "").includes(q)));
-  const grupos = [...new Set(cat.produtos.map((p) => p.grupo))].map((k) => grupoDe(tab, k)).filter(Boolean);
+  const grupos = [...new Set(cat.produtos.map((p) => p.grupo))].sort((a, b) => ordemGrupo(a) - ordemGrupo(b)).map((k) => grupoDe(tab, k)).filter(Boolean);
   const cartoes = [...new Set(lista.map((p) => p.grupo))].map((k) => {   // v1093 — um card por produto (estava faltando: derrubava a tela)
     const g = grupoDe(tab, k); if (!g) return null;
     const prods = lista.filter((p) => p.grupo === k);
     return { g, prods, foto: prods.find((p) => p.fotos?.length)?.fotos[0] || null, estoque: prods.reduce((s, p) => s + (Number(p.estoqueTotal) || 0), 0) };
-  }).filter(Boolean);
+  }).filter(Boolean).sort((a, b) => ordemGrupo(a.g.k) - ordemGrupo(b.g.k));
   const itens = carrinho.itens;
   const tot = itens.length ? totaisPedido(tab, itens, { desconto: carrinho.desconto, acrescimo: carrinho.acrescimo }) : null;
   const salvarOrc = async () => {
