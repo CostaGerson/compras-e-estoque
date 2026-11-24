@@ -985,6 +985,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           <In label="Endereço" cls="col-span-3" value={f.clienteEndereco} onChange={(e) => set("clienteEndereco", e.target.value)} />
           <In label="Contato" value={f.clienteContato} onChange={(e) => set("clienteContato", e.target.value)} />
           </>}
+          {nortCanal && <Campo label="Cliente final" cls="col-span-4">   {/* v1092 — no lugar onde ficava o cliente */}
+            <ClienteFinalForm valor={clienteFinal || vazioClienteFinal()} onChange={setClienteFinal} />
+          </Campo>}
           {!nortCanal && <In label="OC do cliente" value={f.oc} onChange={(e) => set("oc", e.target.value)} />}
           <Campo label="Prazo de entrega" cls="col-span-2">
             {/* v869 — data de entrega única (padrão) ou uma data por item */}
@@ -1438,7 +1441,6 @@ function VendaFinalNort({ canal, vendaF, setVendaF, clienteFinal, setClienteFina
     <Card titulo={`Venda ao cliente final · ${canal === "LOJA" ? "loja física" : "NORT"}`} destaque>
       {passou && <div className="mb-3 px-3 py-2 rounded text-sm font-semibold" style={{ background: "#FDECEA", color: "#D92D20" }}>Pedido NORT vai até {LIMITE_NORT_PECAS} peças (este tem {pecas}). Acima disso é venda Meridian: lance como pedido normal.</div>}
       <div className="text-xs mb-3" style={{ color: C.sub }}>A Meridian cobra da NORT o custo das peças pela FPP{canal === "LOJA" ? " (peça lisa, sem personalização)" : ""}: a conta entra no financeiro da Meridian ao gerar o pedido. A venda abaixo vira contas a receber no Portal NORT.</div>
-      <div className="mb-3"><ClienteFinalForm valor={clienteFinal || vazioClienteFinal()} onChange={setClienteFinal} /></div>
       <div className="flex flex-wrap items-end gap-3 mb-2">
         <label className="text-xs" style={{ color: C.sub }}>Valor total da venda (R$)
           <input value={vendaF.valorTotal} onChange={(e) => set({ valorTotal: e.target.value })} inputMode="decimal" placeholder="0,00" className="block w-40 px-2 py-1.5 rounded outline-none text-sm mt-1" style={inp} /></label>
