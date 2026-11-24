@@ -14,3 +14,9 @@
 
 ## v1088 — PIC: trocar artigo por similar
 - Em cada item do PIC sem OC: **trocar por similar** → busca no cadastro de artigos (nome, cor, código, categoria, fornecedor) e troca o artigo do item. Fornecedor e valor passam a ser os do novo artigo; o original fica em `info.trocadoDe` (mostrado no item) com o motivo.
+
+## v1089 — OP · PV · FPP em cada item de compra (nova guia)
+- Itens do **PIC**, da **cotação** e da **OC** mostram, por pedido de origem, os botões **OP**, **PV** e **FPP**, que abrem em nova guia (`app/docsOrigem.jsx`).
+  - OP/PV: PDF do KM quando o pedido veio de lá; senão o mesmo layout da Produção (`imprimirPedido` aceita a janela já aberta, sem bloqueio de pop-up).
+  - FPP: pela demanda de compra do item (`GET /api/compras/origem-fpp?pedido=&chave=`) → `/?v=fpp&id=` abre a FPP no Comercial.
+- Compra avulsa não tem pedido: sem botões.

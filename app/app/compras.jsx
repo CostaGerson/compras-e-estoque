@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle, Boxes, CheckCircle2, ShoppingCart, KeyRound, Copy, Undo2, ClipboardList, PackageCheck, Paperclip, ImagePlus, Trash2, Send, Clock, MessageSquare } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";
+import DocsOrigem from "./docsOrigem";   // v1089 — OP · PV · FPP do pedido de origem
 import { desenharOc } from "./ocImagem";   // v1068 — OC em PNG para enviar
 import { ImportarNfs } from "./adm";   // v494 — NF subida pela OC passa pelo mesmo lançamento do movimento fiscal   // v424 — popups do sistema
 
@@ -1491,6 +1492,7 @@ export function PicCompras({ user, fases, ir }) {
                       {(inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${x.cliente?.split("·")[0]?.replace("AVULSA", "").trim() || x.pedido}` : rotOrigem(x))).filter((x, k, a) => a.indexOf(x) === k).join(" · ")}
                       {inf.embalagem ? ` · grosa de ${inf.embalagem}` : ""}
                     </div>
+                    <DocsOrigem l={inf.pedidos} user={user} />
                     {(i.cotacoes || []).length > 0 && !trav && (   // v484 — como está a cotação deste item
                       <div className="text-[11px] mt-0.5 flex flex-wrap gap-1">
                         {i.semCotacao && <span className="font-semibold px-1.5 rounded" style={{ background: C.redSoft, color: C.red }}>nenhum fornecedor tem · escolha outro e cote de novo</span>}
@@ -1694,7 +1696,7 @@ export function OrdensCompra({ user, fases, ir }) {
                             await alerta(x.ocCancelada ? `${o.numero} cancelada (era o último item). O item voltou ao PIC.` : "Item cancelado: voltou ao PIC."); carregar();
                           }} className="text-[11px] font-semibold" style={{ color: C.red }}>cancelar item</button>}
                           {(() => { const dv = (o.devolucoes || []).filter((d) => d.ocItemId === i.id).reduce((s0, d) => s0 + d.quantidade, 0); return dv > 0 ? <div className="text-xs font-semibold" style={{ color: C.red }}>↩ {String(dv).replace(".", ",")} devolvido(s) ao fornecedor</div> : null; })()}   {/* v1086 */}
-                          {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{i.origens.map((x) => (x.avulsa ? "Avulsa" : rotOrigem(x))).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{pode && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} artigo={{ id: i.artigoId, nome: i.nome }} />}</div>}</div>
+                          {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{i.origens.map((x) => (x.avulsa ? "Avulsa" : rotOrigem(x))).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{pode && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} artigo={{ id: i.artigoId, nome: i.nome }} />}</div>}<DocsOrigem l={i.origens} user={user} /></div>
                         <div className="w-32 text-right">{pode ? <span className="inline-flex items-center gap-1"><input value={e[i.id]?.q ?? ""} onChange={(ev) => setE(i.id, "q", ev.target.value)} className="w-20 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /><span className="text-xs" style={{ color: C.sub }}>{String(i.unidade || "").toLowerCase()}</span></span> : qtdU(i.quantidade, i.unidade)}</div>
                         <div className="w-28 text-right">{pode ? <input value={e[i.id]?.v ?? ""} onChange={(ev) => setE(i.id, "v", ev.target.value)} className="w-24 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /> : <span style={{ color: C.sub }}>{brl(i.valorUnitario)}</span>}</div>
                         <div className="w-28 text-right font-semibold">{brl((lerNum(e[i.id]?.q) || 0) * (lerNum(e[i.id]?.v) || 0))}</div>
@@ -2211,6 +2213,7 @@ export function Cotacoes({ user, fases, ir }) {
                           <div className="font-semibold truncate" style={{ color: C.text, textDecoration: di.naoTem ? "line-through" : "none" }} title={i.nome}>{i.nome}</div>
                           {i.det && <div className="text-[11px] truncate" style={{ color: C.sub }}>{i.det}</div>}
                           {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{(i.origens || []).map((o) => (o.avulsa ? "Avulsa" : rotOrigem(o))).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{!comOc && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} artigo={i.artigoId ? { id: i.artigoId, nome: i.nome } : undefined} />}</div>}   {/* v913 */}
+                          <DocsOrigem l={i.origens} user={user} />
                           {comOc && i.valorNegociado != null && !di.naoTem && <div className="text-[11px] font-semibold" style={{ color: C.green }}>negociado na {c.ocNumero}: {brl(i.valorNegociado)}</div>}
                           {m && m.n !== c.numero && <div className="text-[11px]" style={{ color: C.sub }}>menor preço: <b style={{ color: C.green }}>{brl(m.v * fatorC(i))}</b>{porEmb(i) ? ` ${porEmb(i)}` : ""} · {m.f}</div>}
                           {i.previstoFpp != null && !di.naoTem && (() => {   // v528 — valor previsto na FPP: confirmar com um clique

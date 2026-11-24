@@ -284,6 +284,7 @@ export default function Home() {
   useEffect(() => { try { const v = sessionStorage.getItem("ce_view"); if (v) setView(v); const t = sessionStorage.getItem("ce_tab"); if (t) setTab(t);
     const sp = new URLSearchParams(window.location.search), q = sp.get("v"); if (q === "agenda") { setView("agenda"); window.history.replaceState(null, "", "/"); }
     if (q === "pedido" && sp.get("numero")) { setPedidoInicial({ numero: sp.get("numero"), t: Date.now() }); setView("producao"); window.history.replaceState(null, "", "/"); }   // v828 — "conferir origem" da conta
+    if (q === "fpp" && Number(sp.get("id"))) { setFppInicial({ id: Number(sp.get("id")), t: Date.now() }); setView("comercial"); window.history.replaceState(null, "", "/"); }   // v1089 — FPP em nova guia (Compras)
     if (q === "matriz") { setFinInicial({ v: "matriz", id: Number(sp.get("id")) || null, t: Date.now() }); setView("financeiro"); window.history.replaceState(null, "", "/"); }   // v1011 — link da reunião abre a Matriz em outra guia
     if (q === "rota") { setView("rota"); if (sp.get("demanda")) sessionStorage.setItem("ce_abrir_demanda", `${sp.get("demanda")}|${sp.get("data") || ""}`); window.history.replaceState(null, "", "/"); } } catch {} }, []);   // v725 — link da demanda (PCP) abre a rota   // v551 — notificação abre a agenda
   useEffect(() => { try { sessionStorage.setItem("ce_view", view); } catch {} }, [view]);

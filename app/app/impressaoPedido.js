@@ -62,7 +62,7 @@ function cfHtml(c) {
   return `<div class="sec">Cliente final e envio</div><table class="pag">${l.map(([k, v]) => `<tr><td class="b" style="width:130px">${esc(k)}</td><td>${esc(v)}</td></tr>`).join("")}</table>`;
 }
 
-export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexos = [], previa = null } = {}) {   // v755 — previa: faixa de aviso (não é a OP oficial)
+export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexos = [], previa = null, janela = null } = {}) {   // v1089 — janela: aberta antes (nova guia sem bloqueio de pop-up)   // v755 — previa: faixa de aviso (não é a OP oficial)
   const PV = tipo === "PV";
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const servico = !!f.servico || f.tipoPedido === "SERVIÇO";
@@ -307,8 +307,9 @@ export function imprimirPedido(tipo, f, itens, { componentes = {}, alerta, anexo
   </script>
 </body></html>`;
 
-  const w = window.open("", "_blank");
+  const w = janela || window.open("", "_blank");
   if (!w) { (alerta || window.alert)("Permita pop-ups para imprimir o pedido."); return; }
+  if (janela) w.document.open();
   w.document.write(html); w.document.close();
 }
 
