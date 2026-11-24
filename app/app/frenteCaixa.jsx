@@ -3,6 +3,7 @@
 //   Catálogo (modelo = produto + cor, ligado a uma FPP) com o estoque LOJA por tamanho · item com grade, técnica e estampas por posição
 //   · carrinho com desconto de quantidade, taxa de bordado, desconto/acréscimo · fechamento com pagamento (entrada mínima 50% no
 //   personalizado/encomenda; abaixo disso ou desconto > 10% pede a senha de sócio) · vendas: pagamento do saldo, pronta, entrega, cancelamento.
+import ProdutoIcon from "./produtoIcon";
 import React, { useEffect, useMemo, useState } from "react";
 import { Plus, X, Search, ShoppingCart, Trash2, Pencil, Loader2, ArrowLeft, Settings, CheckCircle2, Package, MessageCircle, RefreshCw, Lock, Store } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";
@@ -108,9 +109,10 @@ function Caixa({ api, cat, carrinho, setCarrinho, onNovo, onFechou }) {
         {!cat.produtos.length && <div className="p-6 rounded-xl text-center text-sm" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>Catálogo da loja vazio. {cat.gerencial ? "Monte em Catálogo e preços › Importar do estoque NORT." : "Peça para a gestão montar o catálogo."}</div>}
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>   {/* v1091 — um card por produto (as cores ficam dentro), com a foto, como na calculadora */}
           {cartoes.map((c) => (
-            <button key={c.g.k} onClick={() => setItemEd({ grupo: c.g.k })} className="text-left rounded-3xl overflow-hidden transition-all hover:-translate-y-1 hover:shadow-lg" style={{ background: "linear-gradient(180deg,#FFFFFF 0%,#F7FAFE 100%)", border: `1px solid ${C.line}`, boxShadow: "0 2px 6px rgba(16,24,40,.06)" }}>
-              <div className="relative" style={{ height: 170, background: "radial-gradient(120% 120% at 50% 18%, #FFFFFF 0%, #E3EBF6 100%)" }}>
-                {c.foto ? <img src={c.foto} alt="" className="absolute inset-0 w-full h-full" style={{ objectFit: "cover", objectPosition: "center 30%" }} /> : <Package size={40} className="absolute inset-0 m-auto" style={{ color: C.sub }} />}
+            <button key={c.g.k} onClick={() => setItemEd({ grupo: c.g.k })} className="group text-left rounded-3xl overflow-hidden transition-all hover:-translate-y-1 hover:shadow-lg" style={{ background: "linear-gradient(180deg,#FFFFFF 0%,#F7FAFE 100%)", border: `1px solid ${C.line}`, boxShadow: "0 2px 6px rgba(16,24,40,.06)" }}>
+              <div className="relative flex items-center justify-center overflow-hidden rounded-2xl m-3 mb-0" style={{ height: 150, background: "radial-gradient(120% 120% at 50% 18%, #FFFFFF 0%, #E3EBF6 100%)" }}>   {/* v1094 — mesma ilustração da calculadora */}
+                <span aria-hidden className="absolute rounded-full" style={{ width: 116, height: 116, background: "radial-gradient(circle, #FDE4CF 0%, rgba(253,228,207,0) 70%)" }} />
+                <ProdutoIcon produtoId={c.g.k} className="relative h-24 w-24 transition-transform duration-300 group-hover:scale-[1.04]" />
                 {c.estoque > 0 && <span className="absolute top-2.5 right-2.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase" style={{ background: C.green, color: "#fff" }}>{c.estoque} em estoque</span>}
               </div>
               <div className="px-4 py-3">
