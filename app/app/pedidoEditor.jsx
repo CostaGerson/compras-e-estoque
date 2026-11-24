@@ -4,7 +4,7 @@
 // prazo de pagamento (entrada + parcelas por emissão / NF / entrega), obs da NF e anexos por arraste.
 import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Printer, Paperclip, FileText, X, Copy, Search, Wand2, RotateCcw } from "lucide-react";
-import { alerta, confirmar } from "./dialogo";
+import { alerta, confirmar, perguntar } from "./dialogo";
 import DadosUnitarios from "./dadosUnitarios";
 import { vazioDU } from "@/lib/dadosUnitarios";   // v743
 import ClienteFinalForm, { ClienteFinalResumo } from "./clienteFinal";
@@ -805,6 +805,22 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     if (ppId && !ppId0) await api(`/api/pp/${ppId}`, { method: "DELETE" }).catch(() => null);   // só o criado nesta tela (pedido do portal aberto aqui não é apagado)
     onVoltar();
   };
+  // v1106 — cancelar o pedido ou o rascunho de dentro dele: vai para a lixeira de pedidos (Produção › Excluídos), com o motivo
+  const cancelarPedido = async () => {
+    if (!ppId) { if (await confirmar("Descartar este lançamento? Nada foi salvo ainda.")) onVoltar(); return; }
+    const oque = efetivado ? `o pedido ${f.numero || ""}` : `o rascunho ${f.numero || ""}`;
+    const motivo = await perguntar(`Cancelar ${oque.trim()}? Ele vai para a lixeira de pedidos (Produção › Excluídos)${efetivado ? ", sai da produção e as contas a receber em aberto são canceladas" : ""}.\n\nMotivo:`, "");
+    if (motivo == null) return;
+    if (efetivado && !motivo.trim()) return alerta("Informe o motivo do cancelamento.");
+    setSalvando(true);
+    try {
+      const d = await api(`/api/pp/${ppId}?motivo=${encodeURIComponent(motivo.trim())}`, { method: "DELETE" }).then((r) => r.json());
+      if (d.error) throw new Error(d.error);
+      alerta(`${efetivado ? "Pedido" : "Rascunho"} ${f.numero || ""} cancelado.`.replace(/\s+/g, " "));
+      onVoltar();
+    } catch (e) { alerta(e.message); }
+    setSalvando(false);
+  };
   // v777 — #62: rascunho — salva tudo com o número reservado; fica fora da produção e dos indicadores até "Gerar pedido"
   const salvarRascunho = async () => {
     setSalvando(true);
@@ -886,6 +902,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           }} title="Limpa tudo e começa o pedido de novo" className="px-3 py-2 rounded flex items-center gap-1 text-sm" style={{ background: C.panel, color: C.red, border: `1px solid ${C.line}` }}><RotateCcw size={14} /> Resetar pedido</button>}
           {podeLancar && !efetivado && <button onClick={salvarRascunho} disabled={salvando} title="Salva com o número reservado, fora da produção e dos indicadores" className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.panel, color: C.yellow, border: `1px solid ${C.yellow}`, opacity: salvando ? 0.6 : 1 }}>
             Salvar rascunho</button>}
+          {podeLancar && !faturado && <button onClick={cancelarPedido} disabled={salvando} title="Cancela o pedido/rascunho: vai para a lixeira de pedidos" className="px-4 py-2 rounded font-semibold text-sm flex items-center gap-1" style={{ background: C.panel, color: C.red, border: `1px solid ${C.red}` }}><X size={14} /> {efetivado ? "Cancelar pedido" : "Cancelar rascunho"}</button>}
           {podeLancar && <button onClick={efetivar} disabled={salvando} className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
             {salvando ? "Salvando…" : efetivado ? "Salvar alterações" : "Gerar pedido"}</button>}
           {podeLancar && efetivado && !faturado && !f.interno && !somenteServico && <button onClick={() => setFat({ nf: "", emissaoNf: hojeISO(), entrega: despacho || "", pedirEntrega: false })} className="px-4 py-2 rounded font-semibold text-sm" style={{ background: C.blue, color: "#fff" }}>Faturar</button>}
@@ -1390,6 +1407,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       {podeLancar && <div className="flex justify-end gap-2 mt-2 mb-6">
         {!efetivado && <button onClick={salvarRascunho} disabled={salvando} title="Salva com o número reservado, fora da produção e dos indicadores" className="px-5 py-2.5 rounded font-semibold text-sm" style={{ background: C.panel, color: C.yellow, border: `1px solid ${C.yellow}`, opacity: salvando ? 0.6 : 1 }}>
           Salvar rascunho</button>}
+        {!faturado && <button onClick={cancelarPedido} disabled={salvando} title="Cancela o pedido/rascunho: vai para a lixeira de pedidos" className="px-5 py-2.5 rounded font-semibold text-sm flex items-center gap-1" style={{ background: C.panel, color: C.red, border: `1px solid ${C.red}` }}><X size={14} /> {efetivado ? "Cancelar pedido" : "Cancelar rascunho"}</button>}
         <button onClick={efetivar} disabled={salvando} className="px-5 py-2.5 rounded font-semibold text-sm" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>
           {salvando ? "Salvando…" : efetivado ? "Salvar alterações" : "Gerar pedido"}</button>
       </div>}
