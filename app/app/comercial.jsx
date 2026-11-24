@@ -7,7 +7,7 @@ import {
   Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2, Paperclip, Upload, Star, Store, ShoppingCart,
 } from "lucide-react";
 import FrenteCaixa from "./frenteCaixa";   // v1084
-import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
+import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 import { ItemPadraoModal } from "./itensPadrao";
 import SolicitarLancamento from "./solicitarLancamento";   // v812   // v701 — tornar a FPP um item padrão do cliente
 import { abrirJanelaFpp, imprimirFpps } from "./impressaoFpp";
@@ -843,8 +843,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
               <div className="av-row flex flex-wrap gap-4 items-start px-4 py-3 rounded-lg mb-2" style={{ background: C.panel2 }}>
                 {(tipo === "MALHA" || aberta) && (
                   <>
-                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.gola} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)}><Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>{r?.rib?.gola && <RibanaHint x={r.rib.gola} />}</div>
-                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.punho} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)}><Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>{r?.rib?.punho && <RibanaHint x={r.rib.punho} />}</div>
+                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.gola} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)}><Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>{r?.rib?.gola && <RibanaHint x={r.rib.gola} />}{tipo === "MALHA" && ehRibana(f.gola) && <CorRibana artigoDet={f.artigoDet} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)} />}</div>
+                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.punho} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)}><Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>{r?.rib?.punho && <RibanaHint x={r.rib.punho} />}{tipo === "MALHA" && ehRibana(f.punho) && <CorRibana artigoDet={f.artigoDet} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)} />}</div>
                   </>
                 )}
                 {(tipo === "PLANO" || aberta) && (
@@ -2524,6 +2524,40 @@ function buscarArtigos(arts, categoria, texto) {
   return res.sort((x, y) => (y.todas - x.todas) || (y.score - x.score) || String(x.base.nome).localeCompare(String(y.base.nome))).slice(0, 10);
 }
 const famDoDet = (arts, det) => { const a = det?.artigoId && arts.find((x) => x.id === det.artigoId); if (!a) return null; const k = famKey(a); return arts.filter((x) => famKey(x) === k); };
+
+// v1105 — cor da ribana (gola/punho): as cores do artigo principal ou outra cor (cadastro novo, com fornecedor, código…)
+function CorRibana({ artigoDet, det, onDet }) {
+  const [arts, setArts] = useState(_artCache || []);
+  const [novo, setNovo] = useState(null);   // det inicial do cadastro de outra cor
+  useEffect(() => { if (!_artCache || Date.now() - (_artCacheEm || 0) > 5 * 60e3) fetch("/api/artigos?estoque=1").then((r) => r.json()).then((l) => { _artCache = Array.isArray(l) ? l : []; _artCacheEm = Date.now(); setArts(_artCache); }).catch(() => {}); }, []);
+  const fam = useMemo(() => [...(famDoDet(arts, artigoDet) || [])].filter((m) => m.cor).sort(ordCor), [arts, artigoDet]);
+  const d = det || {};
+  const atual = !d.cor ? "" : fam.find((m) => String(m.cor).toUpperCase() === String(d.cor).toUpperCase() && !d.corNova) ? `A:${fam.find((m) => String(m.cor).toUpperCase() === String(d.cor).toUpperCase()).id}` : "NOVA";
+  const escolher = async (v) => {
+    if (v === "") return onDet({});   // mesma cor da malha (sai da malha principal na compra)
+    if (v === "OUTRA") {
+      const cor = (await perguntar("Nome da cor da ribana (cor que não existe no artigo principal):", ""))?.trim().toUpperCase();
+      if (cor) setNovo({ cor, corNova: true });
+      return;
+    }
+    const m = fam.find((x) => `A:${x.id}` === v); if (!m) return;
+    const { artigoId, ...dd } = detDoArtigo(m);   // a ribana é outro artigo: leva cor, fornecedor e código da cor escolhida
+    onDet({ ...dd, ...(d.obs ? { obs: d.obs } : {}) });
+  };
+  return (
+    <div className="mt-1">
+      <div className="text-[11px] mb-0.5" style={{ color: C.sub }}>Cor da ribana</div>
+      <select value={atual} onChange={(e) => escolher(e.target.value)} className="w-full px-2 rounded text-xs" style={{ height: 28, background: "#fff", border: `1px solid ${C.line}`, color: C.text }}>
+        <option value="">Mesma cor da malha</option>
+        {fam.map((m) => <option key={m.id} value={`A:${m.id}`}>{m.cor}</option>)}
+        {atual === "NOVA" && <option value="NOVA">{d.cor} (outra cor)</option>}
+        <option value="OUTRA">+ Outra cor…</option>
+      </select>
+      {atual === "NOVA" && <button type="button" onClick={() => setNovo({ ...d })} className="text-[11px] underline decoration-dotted" style={{ color: C.accent }}>cadastro da cor {d.cor}{d.fornecedorId ? "" : " · falta fornecedor"}</button>}
+      {novo && <ArtigoDetModal nome={`RIBANA ${novo.cor || ""}`.trim()} det={novo} categoria="AVIAMENTO" onClose={() => setNovo(null)} onSalvar={(x) => { onDet({ ...x, corNova: true }); setNovo(null); }} />}
+    </div>
+  );
+}
 
 function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet, onPick, podeVariar }) {
   const [arts, setArts] = useState(_artCache || []);
