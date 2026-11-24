@@ -70,7 +70,9 @@ export default function PersonalizacaoItem({ it, onChange, travado }) {
         {apl.map((a) => {
           const arqs = comK.filter(({ a: x }) => x.aplicacao === a.uid);
           return (
-            <div key={a.uid} className="rounded-lg p-2.5" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+            <div key={a.uid} className="rounded-lg p-2.5 flex gap-3" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+              <ArteQuadro arqs={arqs} travado={travado} onArquivos={(fs) => anexar(fs, a)} />   {/* v1107 — a arte da estampa à esquerda, como o layout */}
+              <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <select value={a.metodo} disabled={travado} onChange={(e) => mudApl(a.uid, { metodo: e.target.value, ...(e.target.value === "SILK" ? { cores: a.cores || 1 } : {}) })} className="px-2 py-1 rounded text-sm font-semibold" style={sel}>
                   {[...METODOS_ARTE, ...(METODOS_ARTE.includes(a.metodo) ? [] : [a.metodo])].map((m) => <option key={m} value={m}>{NOME_METODO[m] || m}</option>)}
@@ -91,6 +93,7 @@ export default function PersonalizacaoItem({ it, onChange, travado }) {
                 <Paperclip size={13} /> {arqs.length ? "Mais arquivos desta estampa" : "Arquivos de detalhe desta estampa"} <span className="font-normal">· arraste ou clique</span>
               </Soltar>
               <ListaArq itens={arqs} onTirar={travado ? null : tirarArq} />
+              </div>
             </div>
           );
         })}
@@ -127,4 +130,15 @@ export async function juntarAplicacoesFpp(it, rf, baixar) {
     }
   }
   return { aplicacoes: apl, anexos };
+}
+
+// v1107 — quadrado com a arte da estampa (1ª imagem anexada; PDF/outros mostram o nome e abrem ao clicar)
+const ehImg = (x) => /^image\//i.test(x.mime || "") || /\.(png|jpe?g|webp|gif|svg)$/i.test(x.nome || "");
+function ArteQuadro({ arqs, travado, onArquivos }) {
+  const lista = arqs.map(({ a }) => a);
+  const img = lista.find(ehImg), outro = !img && lista[0];
+  const box = { width: 130, height: 130, borderRadius: 10, border: `1px solid ${C.line}`, background: C.panel2, overflow: "hidden" };
+  if (img) return <button type="button" onClick={() => abrir(img)} title={`${img.nome} · clique para abrir`} className="shrink-0" style={{ ...box, background: "#fff" }}><img src={urlDoArquivo(img.base64) || img.base64} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} /></button>;
+  if (outro) return <button type="button" onClick={() => abrir(outro)} title="Clique para abrir" className="shrink-0 flex flex-col items-center justify-center gap-1 px-2 text-[11px] text-center" style={{ ...box, color: C.text }}><Paperclip size={20} style={{ color: "#3D6799" }} /><span className="break-all line-clamp-3">{outro.nome}</span></button>;
+  return <Soltar travado={travado} onArquivos={onArquivos} className="shrink-0 flex flex-col items-center justify-center gap-1 px-2 text-[11px] text-center cursor-pointer" style={{ ...box, border: `1.5px dashed ${C.accent}`, color: C.accent, background: C.accentSoft }}><Brush size={18} /><span className="font-semibold">Arte da estampa</span><span style={{ fontSize: 10 }}>arraste ou clique</span></Soltar>;
 }

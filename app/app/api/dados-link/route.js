@@ -24,6 +24,10 @@ export async function GET(req) {
 
 // POST { acao: "criar", titulo, clienteNome, campos, tamanhos } · { acao: "fechar" | "reabrir", id }
 export async function POST(req) {
+  try { return await post(req); }
+  catch (e) { console.log("dados-link POST:", e); return Response.json({ error: `Não foi possível gerar o link: ${String(e?.message || e).split("\n").filter(Boolean).slice(-1)[0] || "erro interno"}` }, { status: 500 }); }   // v1107 — mostra o motivo em vez de "Erro."
+}
+async function post(req) {
   const u = await quem(req);
   if (!u) return negado();
   const b = await req.json().catch(() => ({}));
