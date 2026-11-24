@@ -333,7 +333,7 @@ export default function Home() {
   const liberadas = folhas(menu);
   const pode = (k) => liberadas.includes(k);
   // tela que o usuário não tem: vai para a primeira que ele tem
-  if (!["mensagens", "notificacoes", "agenda", "tarefas", ...(pode("gestao") ? ["sistemas"] : [])].includes(view) && !pode(view) && !caminhoMenu(menu, view)?.length) setTimeout(() => setView(pode("gestao") ? "gestao" : tipo === "RH" && pode("rh") ? "rh" : liberadas[0] || "agenda"), 0);
+  if (!["mensagens", "notificacoes", "agenda", "tarefas", ...(pode("gestao") ? ["sistemas", "portalWay"] : [])].includes(view) && !pode(view) && !caminhoMenu(menu, view)?.length) setTimeout(() => setView(pode("gestao") ? "gestao" : tipo === "RH" && pode("rh") ? "rh" : liberadas[0] || "agenda"), 0);
   const inicio = soTarefas(user) ? "tarefas" : perfil === "RH" ? "rh" : "gestao";   // v733
   const caminho = caminhoMenu(menu, view) || [];
   const podeDemo = masterReal || diretor || pode("financeiro") || pode("gestao");   // v636 — chave do modo demonstração
