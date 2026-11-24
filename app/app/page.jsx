@@ -260,7 +260,7 @@ export default function Home() {
     const f = (e) => { const d = e.detail || {}; if (d.v === "pagrec") { setFinInicial({ v: "pagrec", rec: d.rec || null, t: Date.now() }); setView("financeiro"); }
       if (d.v === "fpp" && d.fppId) { setFppInicial({ id: d.fppId, voltar: d.voltar || null, t: Date.now() }); setView("comercial"); }
       if (d.v === "pedido" && d.numero) { setPedidoInicial({ numero: d.numero, t: Date.now() }); setView("producao"); }
-      if (d.v === "editarPedido" && (d.ppId || d.novo)) setPpEdit({ ppId: d.ppId || null, numero: d.numero || null, t: Date.now() });   // v729 — novo: Lançar pedido da Produção
+      if (d.v === "editarPedido" && (d.ppId || d.novo)) setPpEdit({ ppId: d.ppId || null, numero: d.numero || null, nort: d.nort || null, t: Date.now() });   // v729 — novo: Lançar pedido da Produção
       if (d.v === "reuniao") { setGestaoInicial({ v: "reunioes", mes: d.mes || null, t: Date.now() }); setView("gestao"); }   // v785 — tarefa da reunião → apresentação
       if (d.v === "rota" && d.nova) { setRotaInicial({ ...d.nova, t: Date.now() }); setView("rota"); } };   // v420 — Gestão da produção → editar a FPP
     window.addEventListener("ce:ir", f); return () => window.removeEventListener("ce:ir", f);
@@ -333,7 +333,7 @@ export default function Home() {
   const liberadas = folhas(menu);
   const pode = (k) => liberadas.includes(k);
   // tela que o usuário não tem: vai para a primeira que ele tem
-  if (!["mensagens", "notificacoes", "agenda", "tarefas", ...(pode("gestao") ? ["sistemas", "portalWay"] : [])].includes(view) && !pode(view) && !caminhoMenu(menu, view)?.length) setTimeout(() => setView(pode("gestao") ? "gestao" : tipo === "RH" && pode("rh") ? "rh" : liberadas[0] || "agenda"), 0);
+  if (!["mensagens", "notificacoes", "agenda", "tarefas", ...(pode("gestao") ? ["sistemas", "portalWay", "portalNort"] : [])].includes(view) && !pode(view) && !caminhoMenu(menu, view)?.length) setTimeout(() => setView(pode("gestao") ? "gestao" : tipo === "RH" && pode("rh") ? "rh" : liberadas[0] || "agenda"), 0);
   const inicio = soTarefas(user) ? "tarefas" : perfil === "RH" ? "rh" : "gestao";   // v733
   const caminho = caminhoMenu(menu, view) || [];
   const podeDemo = masterReal || diretor || pode("financeiro") || pode("gestao");   // v636 — chave do modo demonstração
@@ -459,8 +459,9 @@ export default function Home() {
           })()}
           {noAtual?.filhos && !noAtual.pagina && <CardsGrupo grupo={noAtual} ir={ir} user={user} />}
           {view === "compras" && (pode("pic") || pode("comprasPedidos")) && <PainelCompras ir={ir} />}   {/* v486 */}
-          {view === "sistemas" && pode("gestao") && <Sistemas user={user} onVoltar={() => setView("gestao")} onPortal={() => setView("portalWay")} />}
+          {view === "sistemas" && pode("gestao") && <Sistemas user={user} onVoltar={() => setView("gestao")} onPortal={(k) => setView(k === "PORTAL_NORT" ? "portalNort" : "portalWay")} />}
           {view === "portalWay" && pode("gestao") && <PortalInterno user={user} tamanhos={TAMANHOS} Portal={PortalCliente} onVoltar={() => setView("sistemas")} />}
+          {view === "portalNort" && pode("gestao") && <PortalInterno nort user={user} tamanhos={TAMANHOS} Portal={PortalCliente} onVoltar={() => setView("sistemas")} />}   {/* v1083 */}
           {view === "gestao" && pode("gestao") && <Gestao key={gestaoInicial?.t || "ges"} telaInicial={gestaoInicial} user={user} master={master} money={money} irMatriz={pode("financeiro") && gerencial(user) ? (id) => { setFinInicial({ v: "matriz", id: typeof id === "number" ? id : null, t: Date.now() }); setView("financeiro"); } : null} />}
           {view === "rh" && pode("rh") && <Rh user={user} />}
           {view === "movfiscal" && pode("movfiscal") && <MovimentoFiscal user={user} />}
@@ -476,7 +477,7 @@ export default function Home() {
           {view === "financeiro" && pode("financeiro") && <Financeiro key={finInicial?.t || "fin"} user={user} telaInicial={finInicial} irMetas={pode("gestao") ? (ano) => { setGestaoInicial({ v: "metas", ano, t: Date.now() }); setView("gestao"); } : null} />}
           {view === "fabrica" && <Producao />}
           {ppEdit && <div className="fixed inset-0 z-[45] overflow-auto p-4 md:p-6" style={{ background: C.bg }}>
-            <PedidoEditor key={ppEdit.t} ppId={ppEdit.ppId} podeLancar={lancaPP(user)} veVal={veValoresPP(user)} uid={user?.id} componentes={COMPONENTES} tamanhos={TAMANHOS} imprimir={imprimirPP}
+            <PedidoEditor key={ppEdit.t} ppId={ppEdit.ppId} nort={ppEdit.nort} podeLancar={lancaPP(user)} veVal={veValoresPP(user)} uid={user?.id} componentes={COMPONENTES} tamanhos={TAMANHOS} imprimir={imprimirPP}
               onVoltar={(num) => { const n = num || ppEdit.numero; setPpEdit(null); if (n) setTimeout(() => window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "pedido", numero: n } })), 0); }} />
           </div>}
           {view === "producao" && pode("producao") && <ProducaoGestao user={user} ir={ir} atalhos={(noAtual?.filhos || [])} abrirPedido={pedidoInicial} componentes={COMPONENTES} veVal={veValoresPP(user)} />}

@@ -20,6 +20,7 @@ const brData = (s) => (s ? String(s).slice(0, 10).split("-").reverse().join("/")
 export const chaveParcela = (numero, i) => `PED|${numero}|PARC|${i}`;
 
 // ---------- salvar (rascunho ou edição) ----------
+export const LIMITE_NORT = 70;   // v1083 — pedido NORT até 70 peças; acima é venda Meridian
 const CAMPOS_PP = ["clienteNome", "clienteCnpj", "clienteIe", "clienteEndereco", "clienteContato", "oc", "vendedor", "obs", "nfObs"];
 // v806 — personalizações do item (silk, DTF, bordado…): medidas da estampa; os arquivos vão em anexosJson com { aplicacao: uid }
 const numOuNull = (v) => { const n = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null; };
@@ -33,8 +34,11 @@ export function limparAplicacoes(l) {
 
 export async function salvarPp(id, b, quem) {
   const itens = Array.isArray(b.itens) ? b.itens : [];
-  const servico = !!b.servico;   // v614 — pedido de serviço: cliente, prazo, itens com tipo de serviço, quantidade e valor
-  const interno = !servico && !!b.interno;
+  // v1083 — pedido NORT × Meridian lançado no ERP (card Pedido NORT / frente de caixa da loja): interno, cliente NORT,
+  //   acerto pelo custo da FPP (contas a receber da Meridian) e venda ao cliente final no Portal NORT
+  const canalNort = ["NORT", "LOJA"].includes(b?.nort?.canal) ? b.nort.canal : null;
+  const servico = !canalNort && !!b.servico;   // v614 — pedido de serviço: cliente, prazo, itens com tipo de serviço, quantidade e valor
+  const interno = !!canalNort || (!servico && !!b.interno);
   const emissao = /^\d{4}-\d{2}-\d{2}$/.test(String(b.emissao || "")) ? b.emissao : hojeISO();
   // v869 — sem data única: cada item tem a sua data; o prazo do pedido vira a última delas (dias corridos)
   const entregaPorItem = !!b.entregaPorItem;
@@ -67,6 +71,18 @@ export async function salvarPp(id, b, quem) {
     condicaoPagamento: interno ? "INTERNO" : textoCondicao(b.pagamento, total) || null,
     valorTotal: total,
   };
+  if (canalNort) {
+    const pecas = itens.reduce((s, it) => s + qtdGrade(it.grade), 0);
+    if (canalNort === "NORT" && pecas > LIMITE_NORT) throw new Error(`Pedido NORT vai até ${LIMITE_NORT} peças (este tem ${pecas}). Acima disso é venda Meridian: lance como pedido normal.`);
+    const { clienteNortRow, limparVendaFinal } = await import("@/lib/portalFin");
+    const cn = await clienteNortRow();
+    Object.assign(data, {
+      clienteNome: cn?.razaoSocial || cn?.nomeFantasia || "NORT SPORTS LTDA", clienteCnpj: cn?.cnpj || null, clienteIe: cn?.inscricaoEstadual || null,
+      canalVenda: canalNort, vendaFinal: limparVendaFinal(b.nort.vendaFinal) || undefined,
+      clienteFinal: b.nort.clienteFinal && typeof b.nort.clienteFinal === "object" ? b.nort.clienteFinal : undefined,
+      vendedor: data.vendedor || (canalNort === "LOJA" ? "LOJA FÍSICA NORT" : "NORT"),
+    });
+  }
   const itensData = itens.map((it, i) => ({
     entregaData: entregaPorItem ? datasIt[i] : null,   // v869
     tipoPecaNome: it.tipoPecaNome || null, codigo: up(it.codigo), descricao: up(it.descricao),
@@ -86,7 +102,7 @@ export async function salvarPp(id, b, quem) {
   }));
   let pp;
   if (id) {
-    pp = await prisma.pp.findUnique({ where: { id: Number(id) }, select: { id: true } });
+    pp = await prisma.pp.findUnique({ where: { id: Number(id) }, select: { id: true, extRef: true, numero: true, efetivadoEm: true } });
     if (!pp) throw new Error("Pedido não encontrado.");
     await prisma.$transaction([
       prisma.ppItem.deleteMany({ where: { ppId: pp.id } }),
@@ -111,6 +127,13 @@ export async function salvarPp(id, b, quem) {
     await prisma.tarefa.updateMany({ where: { status: { in: ["ABERTA", "EM_ANDAMENTO"] }, modelo: false, titulo: { startsWith: "CRIAÇÃO DE LAYOUT" }, layout: { path: ["ppId"], equals: pp.id } },
       data: { status: "CANCELADA" } }).catch((e) => console.log("dispensaDesign:", e.message));
   }
+  if (canalNort) {   // v1083 — extRef NORT| faz o acerto pelo custo da FPP ao gerar o pedido; já gerado: atualiza as contas do Portal NORT
+    if (!pp.extRef) await prisma.pp.update({ where: { id: pp.id }, data: { extRef: `NORT|ERP-${pp.id}` } });
+    if (pp.efetivadoEm && pp.numero) {
+      const full = await prisma.pp.findUnique({ where: { id: pp.id } });
+      await (await import("@/lib/portalFin")).contasVendaFinal(full, pp.numero, quem).catch((e) => console.log("venda final NORT:", e.message));
+    }
+  }
   return pp.id;
 }
 
@@ -127,7 +150,7 @@ export function criticas(pp) {
     if (qtdGrade(it.grade) <= 0) erros.push(serv ? `Serviço ${i + 1}: sem quantidade.` : `Item ${i + 1}: grade vazia.`);
     if (!String(it.descricao || "").trim()) erros.push(serv ? `Serviço ${i + 1}: informe o tipo de serviço.` : `Item ${i + 1}: sem descrição.`);
     if (!pp.interno && !(num(it.valorUnitario) > 0)) erros.push(`${serv ? "Serviço" : "Item"} ${i + 1}: sem valor unitário.`);
-    if (!serv && !it.fppId) avisos.push(`Item ${i + 1}: sem FPP indexada (artigo e rendimento não vão para Compras).`);
+    if (!serv && !it.fppId) (pp.canalVenda ? erros : avisos).push(pp.canalVenda ? `Item ${i + 1}: pedido NORT precisa de FPP indexada (o custo cobrado da NORT vem dela).` : `Item ${i + 1}: sem FPP indexada (artigo e rendimento não vão para Compras).`);   // v1083
     if (!serv && temDU(it.dadosUnitarios)) {   // v699 — a lista de dados unitários tem que bater com a grade
       const cf = conferirComGrade(it.dadosUnitarios, it.grade);
       if (!it.dadosUnitarios.linhas?.length) erros.push(`Item ${i + 1}: personalização exclusiva ligada sem a lista de peças.`);
@@ -302,6 +325,9 @@ export async function efetivarPedido(id, quem) {
   // v906 — pedido da loja NORT (interno): o custo da FPP vai para o acerto NORT (guia NORT), sem contas a receber da Meridian
   if (String(pp.extRef || "").startsWith("NORT|")) {
     try { await (await import("@/lib/nortInteg")).acertoDoPedidoNort(pp, numero, despacho, quem); } catch (e) { console.log("acerto NORT:", e.message); avisos.push(`Acerto NORT não lançado: ${e.message}`); }
+    if (pp.canalVenda) {   // v1083 — venda ao cliente final → contas a receber no Portal NORT
+      try { const r = await (await import("@/lib/portalFin")).contasVendaFinal(pp, numero, quem); if (r.aviso) avisos.push(r.aviso); } catch (e) { console.log("venda final NORT:", e.message); avisos.push(`Contas do Portal NORT não lançadas: ${e.message}`); }
+    }
   }
 
   // contas a receber: entrada (na data informada) e parcelas contadas da emissão do pedido. NF/entrega: no faturamento

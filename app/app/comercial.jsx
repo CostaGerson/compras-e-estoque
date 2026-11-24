@@ -4,7 +4,7 @@ import Acompanhamento from "./acompanhamento";   // v381
 import { elasticoCalc, faixaCalc, botaoUnit, faixaPedeCor, FAIXA_CORES, semAv, fmtNum, obsBotao, PECAS_ESPECIAIS, ehPecaAberta, ehRevenda } from "@/lib/fppAv";   // v410 · v512
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
-  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2, Paperclip, Upload, Star,
+  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2, Paperclip, Upload, Star, Store,
 } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 import { ItemPadraoModal } from "./itensPadrao";
@@ -145,6 +145,8 @@ export default function Comercial({ user, master, fppInicial, componentes = {} }
           ["acomp", Layers, "Acompanhamento", "Seus pedidos e a situação de cada peça no PCP", () => setView("acomp")],
           ["crm", Briefcase, "CRM", "Abre o CRM Meridian em uma nova aba", () => window.open(CRM_URL, "_blank", "noopener")],
           ["solic", Send, "Solicitar lançamento", "Manda o pedido para o PCP lançar", () => setSolLanc(true)],   // v844 — card laranja
+          // v1083 — pedido NORT × Meridian (até 70 peças, custo da FPP) com a venda ao cliente final no Portal NORT
+          ["nort", Store, "Pedido NORT", "Venda da NORT (até 70 peças): a Meridian cobra o custo da FPP", () => window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "editarPedido", novo: true, nort: { canal: "NORT" } } }))],
         ].map(([k, Ico, t, sub, go]) => (
           <button key={k} onClick={go} className="text-left rounded-2xl p-5 transition-shadow hover:shadow-lg" style={k === "solic" ? { background: C.accent, border: `1px solid ${C.accent}`, color: "#fff" } : { background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
             <div className="flex items-center justify-between"><Ico size={26} style={{ color: k === "solic" ? "#fff" : C.accent }} />{k === "crm" && <ExternalLink size={15} style={{ color: C.sub }} />}</div>

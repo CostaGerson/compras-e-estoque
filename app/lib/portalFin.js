@@ -67,6 +67,8 @@ export async function salvarConta(clienteId, b) {
 
 // ---------- espelho: contas a receber da Meridian = contas a pagar do cliente ----------
 function descMeridian(t, portalDe) {
+  const np = String(t.chaveImport || "").match(/^NORTPED\|(.+)$/);   // v1083
+  if (np) return `PEDIDO ${np[1]} · CUSTO DAS PEÇAS (FPP)`;
   const m = String(t.chaveImport || "").match(/^PED\|([^|]+)\|([^|]+)(?:\|(\d+))?/);
   if (!m) return String(t.titulo || "Meridian").toUpperCase();
   const [, numero, tipo, n] = m;
@@ -79,7 +81,10 @@ export async function espelhoMeridian(cliente) {
   const portalDe = Object.fromEntries(pps.filter((p) => p.numero).map((p) => [p.numero, fmtNumPortal(p.portalNumero)]));
   const nomes = [...new Set([cliente.nomeFantasia, cliente.razaoSocial].filter(Boolean).map((s) => String(s).trim().toUpperCase()))];
   const doc = so(cliente.cnpj);
+  const nort = nomes.some((n) => /NORT SPORTS/.test(n));   // v1083 — Portal NORT: acerto dos pedidos NORT × Meridian (custo da FPP)
+  if (nort) nomes.push("NORT SPORTS");
   const OR = [
+    ...(nort ? [{ chaveImport: { startsWith: "NORTPED|" } }] : []),
     ...Object.keys(portalDe).map((n) => ({ chaveImport: { startsWith: `PED|${n}|` } })),
     ...(doc ? [{ documento: doc }] : []),
     ...nomes.map((n) => ({ parceiro: { equals: n, mode: "insensitive" } })),
@@ -272,3 +277,43 @@ export async function analiseMensal(cliente, { ano, regime }) {
   };
 }
 
+
+// ---------- v1083 — Portal NORT: venda ao cliente final dos pedidos NORT × Meridian ----------
+export async function clienteNortRow() {
+  return prisma.cliente.findFirst({ where: { OR: [{ razaoSocial: { contains: "NORT SPORTS", mode: "insensitive" } }, { nomeFantasia: { contains: "NORT SPORTS", mode: "insensitive" } }] }, orderBy: { id: "asc" } });
+}
+export const CANAIS_NORT = { NORT: "VENDA NORT", LOJA: "LOJA FÍSICA" };
+// limpa a venda final vinda da tela: { valorTotal, parcelas: [{ vencimento, valor, forma }], obs }
+export function limparVendaFinal(v) {
+  if (!v || typeof v !== "object") return null;
+  const parcelas = (Array.isArray(v.parcelas) ? v.parcelas : []).map((p) => ({ vencimento: okData(p?.vencimento) ? p.vencimento : null, valor: r2(num(p?.valor)), forma: p?.forma ? String(p.forma).slice(0, 30) : null }))
+    .filter((p) => p.vencimento && p.valor > 0).slice(0, 48);
+  return { valorTotal: r2(num(v.valorTotal)) || r2(parcelas.reduce((s, p) => s + p.valor, 0)), parcelas, obs: v.obs ? String(v.obs).slice(0, 500) : null };
+}
+const nomeCf = (cf) => String((cf && (cf.tipo === "PJ" ? cf.razaoSocial || cf.nome : cf.nome || cf.razaoSocial)) || "").trim().toUpperCase();
+// contas a receber do Portal NORT = parcelas da venda final (uma por parcela; a recebida fica como está)
+export async function contasVendaFinal(pp, numero, quem = null) {
+  if (!pp?.canalVenda || !numero) return { n: 0 };
+  const cli = await clienteNortRow();
+  if (!cli) return { n: 0, aviso: "Cliente NORT SPORTS não cadastrado: as contas do Portal NORT não foram geradas." };
+  await garantirPlano(cli.id);
+  const conta = await prisma.portalFinConta.findFirst({ where: { clienteId: cli.id, codigo: "1.01" }, select: { id: true } });
+  const vf = limparVendaFinal(pp.vendaFinal) || { parcelas: [] };
+  const pre = `PED|${numero}|VF|`;
+  const ja = await prisma.portalFinTitulo.findMany({ where: { clienteId: cli.id, chave: { startsWith: pre } } });
+  const porChave = Object.fromEntries(ja.map((t) => [t.chave, t]));
+  const n = vf.parcelas.length, canal = CANAIS_NORT[pp.canalVenda] || "VENDA NORT", parceiro = nomeCf(pp.clienteFinal) || null;
+  for (const [i, p] of vf.parcelas.entries()) {
+    const chave = `${pre}${i + 1}`, t = porChave[chave];
+    if (t && t.status === "PAGO") continue;
+    const d = { clienteId: cli.id, tipo: "RECEBER", descricao: `${canal} · PEDIDO ${numero}${n > 1 ? ` ${i + 1}/${n}` : ""}`.slice(0, 160), parceiro, numeroDoc: numero,
+      parcela: n > 1 ? i + 1 : null, parcelas: n > 1 ? n : null, valor: p.valor, vencimento: dUTC(p.vencimento), contaId: conta?.id || null, formaPagamento: p.forma || null,
+      ppId: pp.id, observacao: vf.obs, status: "ABERTO" };
+    if (t) await prisma.portalFinTitulo.update({ where: { id: t.id }, data: { ...d, atualizadoPorNome: quem } });
+    else await prisma.portalFinTitulo.create({ data: { ...d, chave, criadoPorNome: quem } });
+  }
+  // parcelas que saíram da condição (em aberto) são apagadas
+  const sobra = ja.filter((t) => t.status !== "PAGO" && Number(t.chave.slice(pre.length)) > n).map((t) => t.id);
+  if (sobra.length) await prisma.portalFinTitulo.deleteMany({ where: { id: { in: sobra } } });
+  return { n };
+}

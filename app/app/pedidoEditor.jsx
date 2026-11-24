@@ -7,7 +7,8 @@ import { Plus, Trash2, Printer, Paperclip, FileText, X, Copy, Search, Wand2, Rot
 import { alerta, confirmar } from "./dialogo";
 import DadosUnitarios from "./dadosUnitarios";
 import { vazioDU } from "@/lib/dadosUnitarios";   // v743
-import { ClienteFinalResumo } from "./clienteFinal";   // v709 — cliente final e envio (pedido do portal)   // v699 — dados por peça (nome, tipo sanguíneo…) e link para o cliente preencher
+import ClienteFinalForm, { ClienteFinalResumo } from "./clienteFinal";
+import { vazioClienteFinal } from "@/lib/clienteFinal";   // v1083   // v709 — cliente final e envio (pedido do portal)   // v699 — dados por peça (nome, tipo sanguíneo…) e link para o cliente preencher
 import PersonalizacaoItem, { juntarAplicacoesFpp } from "./personalizacaoItem";
 import { SERVICOS, servicoDe } from "@/lib/servicosLista";   // v826 — tipo de serviço → receita   // v806 — estampas com medidas e arquivos
 import { subirArquivo, tokenDe, urlDoArquivo, LIMITE_MB } from "@/lib/arquivosCliente";   // v865 — arquivos grandes (RAR, ZIP…) em partes
@@ -399,7 +400,7 @@ export { paramsDoKm, fundirParams };
 // descrição do KM sem espaços/sinais repetidos e sem os parâmetros colados no nome
 export const limparDescKm = (d) => String(d || "").split(/\*{3,}/)[0].replace(/([-·,/])(\s*\1)+/g, "$1").replace(/\s+/g, " ").replace(/^[\s\-·,/]+|[\s\-·,/]+$/g, "").trim().toUpperCase();
 
-export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true, veVal = true, uid, componentes, tamanhos, imprimir, somenteServico = false }) {   // v1006 — somenteServico: ferramenta de Silk/Bordado do PCP
+export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true, veVal = true, uid, componentes, tamanhos, imprimir, somenteServico = false, nort = null }) {   // v1083 — nort: { canal: NORT | LOJA } (card Pedido NORT)   // v1006 — somenteServico: ferramenta de Silk/Bordado do PCP
   const TIPOS = Object.keys(componentes);
   const novoItem = () => ({ tipoPecaNome: "",   // v631 — sem pré-preenchimento: o vendedor escolhe
     codigo: "", descricao: "", valorUnitario: "", grade: tamanhos.map((t) => ({ tam: t, qtd: "" })), parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null, aplicacoes: [] });
@@ -407,13 +408,15 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const novoServico = () => ({ tipoPecaNome: "SERVIÇO", anexos: [], codigo: "", descricao: "", valorUnitario: "", quantidade: "", grade: [], parametros: {}, fotoBase64: "", fppId: null, fppNumero: null, fpp: null });
   const api = (url, o = {}) => fetch(url, { cache: "no-store", ...o, headers: { ...(o.headers || {}), "Content-Type": "application/json", "x-usuario-id": String(uid || "") } });
   const [ppId, setPpId] = useState(ppId0 || null);
-  const [f, setF] = useState(() => (somenteServico ? { ...vazioF(), servico: true } : vazioF()));
+  const [f, setF] = useState(() => (somenteServico ? { ...vazioF(), servico: true } : nort ? { ...vazioF(), interno: true, prazoTipo: "CORRIDOS" } : vazioF()));
   const [itens, setItens] = useState(() => [somenteServico ? novoServico() : novoItem()]);
   const [anexos, setAnexos] = useState([]);
   const [envArq, setEnvArq] = useState("");   // v865 — progresso do envio de arquivo grande
   const [carregado, setCarregado] = useState(!ppId0);
   const [recDet, setRecDet] = useState(false);
-  const [clienteFinal, setClienteFinal] = useState(null);   // v707 — fase "recebendo detalhes" (link de preenchimento aberto)
+  const [clienteFinal, setClienteFinal] = useState(nort ? vazioClienteFinal() : null);   // v707 — fase "recebendo detalhes" (link de preenchimento aberto)
+  const [nortCanal, setNortCanal] = useState(nort?.canal || null);   // v1083 — pedido NORT × Meridian: NORT | LOJA
+  const [vendaF, setVendaF] = useState({ valorTotal: "", parcelas: [], obs: "" });   // v1083 — venda ao cliente final (Portal NORT)
   const [salvando, setSalvando] = useState(false);
   const [clientes, setClientes] = useState([]);
   const [proximo, setProximo] = useState("");
@@ -441,7 +444,13 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         clienteCnpj: fmtCnpj(d.clienteCnpj), servico: d.tipoPedido === "SERVIÇO",
       });
       setRecDet(!!d.recebendoDetalhes);
-      setClienteFinal(d.clienteFinal || null);
+      setClienteFinal(d.clienteFinal || (d.canalVenda ? vazioClienteFinal() : null));
+      if (d.canalVenda) {   // v1083
+        setNortCanal(d.canalVenda);
+        const vf = d.vendaFinal || {};
+        setVendaF({ valorTotal: vf.valorTotal ? String(Number(vf.valorTotal).toFixed(2)).replace(".", ",") : "", obs: vf.obs || "",
+          parcelas: (vf.parcelas || []).map((p) => ({ vencimento: p.vencimento, valor: String(Number(p.valor).toFixed(2)).replace(".", ","), forma: p.forma || "" })) });
+      }
       const its = (d.itens || []).map((it) => {
         let par = {}; try { par = it.parametrosJson ? JSON.parse(it.parametrosJson) : {}; } catch {}
         let grade = []; try { grade = it.gradeJson ? JSON.parse(it.gradeJson) : []; } catch {}
@@ -488,6 +497,12 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const efetivado = !!f.efetivadoEm;
   const faturado = f.status === "FATURADO";
 
+  // v1083 — pedido NORT: cliente NORT SPORTS automático
+  useEffect(() => {
+    if (!nortCanal || ppId0 || f.clienteNome || !clientes.length) return;
+    const c = clientes.find((x) => /NORT SPORTS/i.test(`${x.razaoSocial || ""} ${x.nomeFantasia || ""}`));
+    if (c) setF((s) => ({ ...s, clienteNome: c.razaoSocial || c.nomeFantasia || "", clienteCnpj: fmtCnpj(c.cnpj), clienteIe: c.inscricaoEstadual || "" }));
+  }, [clientes, nortCanal]);
   // ---------- cliente ----------
   const buscarCliente = async (q) => {
     const n = norm(q), d = dig(q);
@@ -748,6 +763,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     comissao: veVal ? f.comissao : undefined,   // v747 — quem não vê valores não mexe na comissão
     desconto: veVal ? f.desconto : undefined,   // v750
     anexos: anexos.map((a) => (a.id ? { id: a.id, categoria: a.categoria } : a)),
+    ...(nortCanal ? { nort: { canal: nortCanal, vendaFinal: vendaF, clienteFinal } } : {}),   // v1083
   });
   // v810 — item padrão do cliente com parâmetros de produção editados no pedido: pergunta se atualiza o item padrão
   const respPadrao = useRef({});   // "id|assinatura" → já respondido nesta tela (não pergunta de novo)
@@ -943,13 +959,19 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       {/* ---------- Dados do pedido ---------- */}
       <Card titulo="Dados do pedido">
         <div className="grid grid-cols-4 gap-3">
-          <Campo label="Tipo de pedido">
-            <div className="flex rounded overflow-hidden text-sm" style={{ border: `1px solid ${C.line}` }}>
+          <Campo label={nortCanal ? "Canal da venda (pedido NORT × Meridian)" : "Tipo de pedido"}>
+            {nortCanal ? (   /* v1083 */
+              <div className="flex rounded overflow-hidden text-sm" style={{ border: `1px solid ${C.line}` }}>
+                {[["NORT", "Venda NORT"], ["LOJA", "Loja física"]].map(([v, t]) => (
+                  <button key={v} type="button" onClick={() => setNortCanal(v)} className="flex-1 px-2 py-1.5" style={{ background: nortCanal === v ? C.navy : C.panel2, color: nortCanal === v ? "#fff" : C.sub, fontWeight: nortCanal === v ? 600 : 400 }}>{t}</button>
+                ))}
+              </div>
+            ) : <div className="flex rounded overflow-hidden text-sm" style={{ border: `1px solid ${C.line}` }}>
               {[["VENDA", "Venda normal"], ["INTERNO", "Interno"], ["SERVICO", "Serviço"]].filter(([v]) => !somenteServico || v === "SERVICO").map(([v, t]) => { const atual = f.servico ? "SERVICO" : f.interno ? "INTERNO" : "VENDA"; return (
                 <button key={t} type="button" disabled={efetivado && (v === "SERVICO") !== f.servico} title={efetivado && (v === "SERVICO") !== f.servico ? "Pedido já efetivado: não muda entre produto e serviço" : ""}
                   onClick={() => trocarTipo(v)} className="flex-1 px-2 py-1.5" style={{ background: atual === v ? C.accent : C.panel2, color: atual === v ? "#fff" : C.sub, fontWeight: atual === v ? 600 : 400 }}>{t}</button>
               ); })}
-            </div>
+            </div>}
           </Campo>
           <Campo label="Nº do pedido"><div className="px-2 py-1.5 rounded text-sm font-semibold" style={{ ...inp, color: f.numero ? C.text : C.sub }}>{f.numero || (proximo ? `${proximo} (automático)` : "automático")}</div></Campo>
           <In label="Data de emissão" type="date" upper={false} value={f.emissao} onChange={(e) => set("emissao", e.target.value || hojeISO())} />
@@ -1194,7 +1216,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       </button>}
 
       {/* ---------- Entrega ---------- */}
-      {clienteFinal && <div className="mb-4"><ClienteFinalResumo c={clienteFinal} titulo="Cliente final e envio (informado no portal do cliente)" /></div>}
+      {clienteFinal && !nortCanal && <div className="mb-4"><ClienteFinalResumo c={clienteFinal} titulo="Cliente final e envio (informado no portal do cliente)" /></div>}
       {!f.servico && <Card titulo="Entrega">
         <div className="flex gap-2 mb-3">
           {Object.entries(MODOS_ENTREGA).map(([v, t]) => (
@@ -1318,7 +1340,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           )}
           <div className="text-xs mt-1" style={{ color: C.sub }}>Parcela sem valor divide igualmente o que sobra. Parcelas da emissão do pedido vão para o contas a receber ao efetivar; as da NF e da entrega, ao faturar.</div>
         </Card>
-      ) : <Card titulo="Prazo de pagamento"><div className="text-sm" style={{ color: C.sub }}>Pedido interno: não gera contas a receber — entra só nos dados gerenciais (peças produzidas etc.).</div></Card>}
+      ) : nortCanal ? <VendaFinalNort canal={nortCanal} vendaF={vendaF} setVendaF={setVendaF} clienteFinal={clienteFinal} setClienteFinal={setClienteFinal} pecas={totalPecas} emissao={f.emissao} />   /* v1083 */
+        : <Card titulo="Prazo de pagamento"><div className="text-sm" style={{ color: C.sub }}>Pedido interno: não gera contas a receber — entra só nos dados gerenciais (peças produzidas etc.).</div></Card>}
 
       {/* ---------- NF ---------- */}
       <Card titulo="Observações da NF">
@@ -1394,5 +1417,50 @@ function FppBusca({ api, cliente, item, veVal, onPick, onFechar }) {
         </button>
       ))}
     </Modal>
+  );
+}
+
+// v1083 — pedido NORT × Meridian: a Meridian cobra da NORT o custo da FPP (acerto ao gerar o pedido);
+//   aqui vai a venda ao cliente final, que vira contas a receber no Portal NORT (Gestão › S)
+const LIMITE_NORT_PECAS = 70;
+const FORMAS_VF = [["", "—"], ["PIX", "PIX"], ["CARTAO", "Cartão"], ["DINHEIRO", "Dinheiro"], ["BOLETO", "Boleto"], ["TED", "TED"]];
+const mais30 = (iso, k) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + k); return d.toISOString().slice(0, 10); };
+function VendaFinalNort({ canal, vendaF, setVendaF, clienteFinal, setClienteFinal, pecas, emissao }) {
+  const n2 = (v) => { const s = String(v ?? "").trim(); const x = Number(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s); return Number.isFinite(x) ? x : 0; };
+  const br = (x) => (Math.round(x * 100) / 100).toFixed(2).replace(".", ",");
+  const tot = n2(vendaF.valorTotal), soma = vendaF.parcelas.reduce((s, p) => s + n2(p.valor), 0);
+  const set = (patch) => setVendaF((v) => ({ ...v, ...patch }));
+  const upP = (i, patch) => set({ parcelas: vendaF.parcelas.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
+  const dividir = (n) => {
+    const k = Math.max(1, Math.min(24, n)), base = Math.floor((tot / k) * 100) / 100;
+    set({ parcelas: Array.from({ length: k }, (_, i) => ({ vencimento: mais30(emissao, i), valor: br(i === k - 1 ? tot - base * (k - 1) : base), forma: vendaF.parcelas[0]?.forma || "" })) });
+  };
+  const passou = canal === "NORT" && pecas > LIMITE_NORT_PECAS;
+  return (
+    <Card titulo={`Venda ao cliente final · ${canal === "LOJA" ? "loja física" : "NORT"}`} destaque>
+      {passou && <div className="mb-3 px-3 py-2 rounded text-sm font-semibold" style={{ background: "#FDECEA", color: "#D92D20" }}>Pedido NORT vai até {LIMITE_NORT_PECAS} peças (este tem {pecas}). Acima disso é venda Meridian: lance como pedido normal.</div>}
+      <div className="text-xs mb-3" style={{ color: C.sub }}>A Meridian cobra da NORT o custo das peças pela FPP{canal === "LOJA" ? " (peça lisa, sem personalização)" : ""}: a conta entra no financeiro da Meridian ao gerar o pedido. A venda abaixo vira contas a receber no Portal NORT.</div>
+      <div className="mb-3"><ClienteFinalForm valor={clienteFinal || vazioClienteFinal()} onChange={setClienteFinal} /></div>
+      <div className="flex flex-wrap items-end gap-3 mb-2">
+        <label className="text-xs" style={{ color: C.sub }}>Valor total da venda (R$)
+          <input value={vendaF.valorTotal} onChange={(e) => set({ valorTotal: e.target.value })} inputMode="decimal" placeholder="0,00" className="block w-40 px-2 py-1.5 rounded outline-none text-sm mt-1" style={inp} /></label>
+        <span className="text-xs" style={{ color: C.sub }}>Dividir em</span>
+        {[1, 2, 3, 4, 6].map((k) => <button key={k} type="button" disabled={!tot} onClick={() => dividir(k)} className="px-2.5 py-1.5 rounded text-xs font-semibold" style={{ border: `1px solid ${C.line}`, color: C.text, background: C.panel, opacity: tot ? 1 : 0.5 }}>{k === 1 ? "à vista" : `${k}x`}</button>)}
+      </div>
+      {vendaF.parcelas.map((p, i) => (
+        <div key={i} className="flex flex-wrap items-center gap-2 mb-1.5 text-sm">
+          <span className="w-10 text-xs" style={{ color: C.sub }}>{i + 1}ª</span>
+          <input type="date" value={p.vencimento || ""} onChange={(e) => upP(i, { vencimento: e.target.value })} className="px-2 py-1.5 rounded outline-none text-sm" style={inp} />
+          <input value={p.valor} onChange={(e) => upP(i, { valor: e.target.value })} inputMode="decimal" className="w-32 px-2 py-1.5 rounded outline-none text-sm" style={inp} />
+          <select value={p.forma || ""} onChange={(e) => upP(i, { forma: e.target.value })} className="px-2 py-1.5 rounded outline-none text-sm" style={inp}>{FORMAS_VF.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select>
+          <button type="button" onClick={() => set({ parcelas: vendaF.parcelas.filter((_, j) => j !== i) })} title="Tirar a parcela"><Trash2 size={14} style={{ color: C.red }} /></button>
+        </div>
+      ))}
+      <div className="flex items-center gap-3 mt-1">
+        <button type="button" onClick={() => set({ parcelas: [...vendaF.parcelas, { vencimento: mais30(emissao, vendaF.parcelas.length), valor: "", forma: vendaF.parcelas[0]?.forma || "" }] })} className="text-xs font-semibold flex items-center gap-1" style={{ color: C.accent }}><Plus size={13} /> Parcela</button>
+        {vendaF.parcelas.length > 0 && <span className="text-xs" style={{ color: Math.abs(soma - tot) < 0.01 ? C.green : C.red }}>Parcelas somam R$ {br(soma)}{Math.abs(soma - tot) < 0.01 ? "" : ` · diferença R$ ${br(tot - soma)}`}</span>}
+      </div>
+      <input value={vendaF.obs || ""} onChange={(e) => set({ obs: e.target.value })} placeholder="Observação da venda (opcional)" className="w-full px-2 py-1.5 rounded outline-none text-sm mt-3" style={inp} />
+    </Card>
   );
 }

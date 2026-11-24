@@ -58,10 +58,10 @@ function calcValores(itens) {
 }
 
 // v1076 — interno: id do cliente do portal acessado pelo ERP (Gestão › S › Portal Way); muda despacho e gera etiqueta
-export default function PortalCliente({ user, onSair, tamanhos, interno = null }) {
+export default function PortalCliente({ user, onSair, tamanhos, interno = null, soFinanceiro = false }) {   // v1083 — soFinanceiro: Portal NORT
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
-  const [aba, setAba] = useState("NOVO");
+  const [aba, setAba] = useState(soFinanceiro ? "FINANCEIRO" : "NOVO");
   const [ppId, setPpId] = useState(null);          // pedido em edição (null = novo)
   const [ppNum, setPpNum] = useState("");          // v713 — nº do pedido no portal (0001…)
   const [itens, setItens] = useState([]);           // [{ key, padrao, grade, artes, dadosUnitarios, valorVenda }]
@@ -192,7 +192,7 @@ export default function PortalCliente({ user, onSair, tamanhos, interno = null }
   const catalogo = (d?.itens || []).filter((p) => !n || [p.nome, p.nomeNf, p.codigo].join(" ").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(n));
   const val = calcValores(itens);
 
-  const ABAS = [["NOVO", ppId ? "Editar pedido" : "Novo pedido", Package], ["PEDIDOS", `Pedidos${d ? ` (${d.pedidos.length})` : ""}`, ClipboardList], ["FINANCEIRO", "Financeiro", Wallet]];
+  const ABAS = soFinanceiro ? [["FINANCEIRO", "Financeiro", Wallet]] : [["NOVO", ppId ? "Editar pedido" : "Novo pedido", Package], ["PEDIDOS", `Pedidos${d ? ` (${d.pedidos.length})` : ""}`, ClipboardList], ["FINANCEIRO", "Financeiro", Wallet]];
   const nomeUser = [user.nome, user.sobrenome].filter(Boolean).join(" ");
   const tituloAba = aba === "NOVO" ? (ppId ? `Editar pedido ${ppNum}` : "Novo pedido") : aba === "FINANCEIRO" ? "Financeiro" : "Pedidos";
   return (

@@ -423,6 +423,8 @@ model Pp {
   entregueEm        DateTime? // v1074 — o cliente do portal (Loja Way) marca como entregue ao cliente final
   entreguePor       String?
   custosExtras      Json?     // v1077 — custos adicionados pela Meridian (acesso interno): [{ id, descricao, valor, por, em }] — somam no CMV do portal
+  canalVenda        String?   // v1083 — pedido NORT × Meridian lançado no ERP: NORT (venda da NORT) | LOJA (loja física)
+  vendaFinal        Json?     // v1083 — venda ao cliente final: { valorTotal, parcelas: [{ vencimento, valor, forma }], obs } → contas a receber no Portal NORT
   extRef            String?   @unique   // v906 — pedido vindo de sistema de fora: "NORT|<ref>" (não duplica; o editor não apaga)
   clienteFinal      Json?     // v709 — cliente final e envio (portal): { tipo: PF|PJ, nome/cpf | razaoSocial/cnpj/ie/contato/cargo, endereço, whatsapp, email }
 
@@ -2888,6 +2890,7 @@ model PortalFinTitulo {
   contaId          Int?
   formaPagamento   String?                  // PIX | BOLETO | CARTAO | DINHEIRO | TED | DEBITO_AUTOMATICO
   ppId             Int?                     // pedido do portal ligado (conta a receber da venda)
+  chave            String?   @unique        // v1083 — gerada pelo sistema (ex.: "PED|<nº>|VF|1" = parcela da venda final do pedido NORT)
   observacao       String?
   criadoPorNome    String?
   atualizadoPorNome String?

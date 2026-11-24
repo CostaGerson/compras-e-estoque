@@ -11,6 +11,13 @@ export async function GET(req) {
     if (!acessoInternoPortal(u) || u.setor === "CLIENTE") return negadoPortal();
     return Response.json({ clientes: await clientesComPortal() });
   }
+  if (new URL(req.url).searchParams.get("nort")) {   // v1083 — Portal NORT: id do cliente NORT SPORTS (acesso interno)
+    const u = await usuarioAtivoFin(req.headers.get("x-usuario-id"));
+    if (!acessoInternoPortal(u) || u.setor === "CLIENTE") return negadoPortal();
+    const c = await (await import("@/lib/portalFin")).clienteNortRow();
+    if (!c) return Response.json({ error: "Cliente NORT SPORTS não está cadastrado." }, { status: 404 });
+    return Response.json({ id: c.id });
+  }
   const p = await usuarioPortal(req);
   if (!p) return negadoPortal();
   const nfq = new URL(req.url).searchParams.get("nf");   // v1078 — baixar a NF do cliente anexada
