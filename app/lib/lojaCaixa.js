@@ -109,9 +109,10 @@ const semAc = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g
 function corDaFpp(cor, f) {
   if (!f) return { fppCor: null, fppNome: null, corConfere: null };
   const e = f.entradas || {}, fppCor = String(e.artigoDet?.cor || "").trim() || null;
-  const ws = semAc(cor).replace(/\bBB\b/g, "").split(/\s+/).filter((w) => w.length > 1);
-  const alvo = semAc(`${fppCor || ""} ${f.nomeComercial || ""}`).replace(/OFF[- ]?WHITE/g, "OFFWHITE");
-  const confere = !ws.length ? null : ws.every((w) => alvo.includes(w.replace(/OFF[- ]?WHITE/, "OFFWHITE")) || (w === "OFF-WHITE" && alvo.includes("OFFWHITE")));
+  // "AZUL MARINHO" = "MARINHO", "VERDE BANDEIRA" = "VERDE BB", "ROSA BEBE" = "ROSA BB"
+  const ws = semAc(cor).replace(/OFF[- ]?WHITE/g, "OFFWHITE").replace(/\bBANDEIRA\b|\bBEBE\b/g, "BB").split(/\s+/).filter((w) => w.length > 1 && w !== "AZUL");
+  const alvo = semAc(`${fppCor || ""} ${f.nomeComercial || ""}`).replace(/OFF[- ]?WHITE/g, "OFFWHITE").replace(/\bBANDEIRA\b|\bBEBE\b/g, "BB");
+  const confere = !ws.length ? null : ws.every((w) => alvo.includes(w));
   return { fppCor, fppNome: f.nomeComercial || null, corConfere: confere };
 }
 // cria o catálogo a partir dos modelos do estoque da NORT (grupo pelo nome; FPP pelo nome comercial igual ao modelo)
