@@ -2518,7 +2518,7 @@ function buscarArtigos(arts, categoria, texto) {
     if (ok < Math.max(1, Math.ceil(q.length * 0.6))) continue;
     let membros = fm.membros;
     if (tCor.length) { const f = membros.filter((m) => tCor.every((t) => casaTok(t, normBusca([m.cor, m.codigo]).split(" ")))); if (f.length) membros = f; }
-    membros = [...membros].sort((x, y) => (ehPreto(y.cor) - ehPreto(x.cor)) || String(x.cor || "").localeCompare(String(y.cor || "")));
+    membros = [...membros].sort((x, y) => ordCor(x, y));
     res.push({ ...fm, membros, todos: fm.membros, score, todas: ok === q.length });
   }
   return res.sort((x, y) => (y.todas - x.todas) || (y.score - x.score) || String(x.base.nome).localeCompare(String(y.base.nome))).slice(0, 10);
@@ -2589,7 +2589,7 @@ function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet, onPick, pod
             return (
               <div key={fm.k} className="px-3 py-2" style={{ borderBottom: `1px solid ${C.line}` }}>
                 <div className="flex items-start justify-between gap-2">
-                  <button type="button" onMouseDown={(e) => { e.preventDefault(); escolher(fm.membros[0]); }} className="text-left text-sm min-w-0">
+                  <button type="button" onMouseDown={(e) => { e.preventDefault(); escolher(fm.membros.find((m) => ehPreto(m.cor)) || fm.membros[0]); }} className="text-left text-sm min-w-0">
                     <b style={{ color: C.text }}>{a.nome}</b>
                     <span className="text-xs" style={{ color: C.sub }}>{[nomeFornA(a), a.composicao, a.gramatura ? `${n4(a.gramatura)} g/m²` : null, a.largura ? `${n4(a.largura)} m` : null].filter(Boolean).map((x) => ` · ${x}`).join("")}</span>
                     {!fm.todas && <span className="text-[10px] ml-1 px-1.5 rounded" style={{ background: C.panel2, color: C.sub }}>semelhante</span>}
@@ -2628,8 +2628,11 @@ function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet, onPick, pod
     </div>
   );
 }
+// v1104 — cores do artigo em ordem alfabética do nome, sem o número/código ("BORDÔ (7906)" → BORDÔ)
+const nomeCorOrd = (c) => String(c || "").replace(/\([^)]*\)/g, " ").split(/\s+/).filter((w) => w && !/\d/.test(w) && !/^[-·#/.]+$/.test(w)).join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+const ordCor = (x, y) => nomeCorOrd(x.cor).localeCompare(nomeCorOrd(y.cor), "pt-BR") || String(x.cor || "").localeCompare(String(y.cor || ""), "pt-BR", { numeric: true });
 function VariarCoresModal({ membros, marcados, onClose, onOk }) {
-  const ord = useMemo(() => [...membros].sort((x, y) => (ehPreto(y.cor) - ehPreto(x.cor)) || String(x.cor || "").localeCompare(String(y.cor || ""))), [membros]);
+  const ord = useMemo(() => [...membros].sort((x, y) => ordCor(x, y)), [membros]);
   const [sel, setSel] = useState(() => new Set(marcados && marcados.length > 1 ? marcados : ord.map((m) => m.id)));
   const [q, setQ] = useState("");
   const vis = ord.filter((m) => !q || normBusca([m.cor, m.codigo, m.especificacao].join(" ")).includes(normBusca(q)));
