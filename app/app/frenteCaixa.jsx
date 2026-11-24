@@ -77,6 +77,11 @@ function Caixa({ api, cat, carrinho, setCarrinho, onNovo, onFechou }) {
   const q = busca.trim().toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const lista = cat.produtos.filter((p) => (!grupo || p.grupo === grupo) && (!q || p.modelo.normalize("NFD").replace(/[̀-ͯ]/g, "").includes(q)));
   const grupos = [...new Set(cat.produtos.map((p) => p.grupo))].map((k) => grupoDe(tab, k)).filter(Boolean);
+  const cartoes = [...new Set(lista.map((p) => p.grupo))].map((k) => {   // v1093 — um card por produto (estava faltando: derrubava a tela)
+    const g = grupoDe(tab, k); if (!g) return null;
+    const prods = lista.filter((p) => p.grupo === k);
+    return { g, prods, foto: prods.find((p) => p.fotos?.length)?.fotos[0] || null, estoque: prods.reduce((s, p) => s + (Number(p.estoqueTotal) || 0), 0) };
+  }).filter(Boolean);
   const itens = carrinho.itens;
   const tot = itens.length ? totaisPedido(tab, itens, { desconto: carrinho.desconto, acrescimo: carrinho.acrescimo }) : null;
   const salvarOrc = async () => {
