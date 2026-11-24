@@ -100,6 +100,7 @@ export async function atualizar(id, b, u) {
     } else Object.assign(data, { status: b.status, concluidaEm: null, concluidaPorNome: null });
   }
   const n = await prisma.admDemanda.update({ where: { id: d.id }, data });
+  if (data.status === "CONCLUIDA" && d.tipo === "NF_DEVOLUCAO") await (await import("@/lib/devolucoes")).concluidaNfDevolucao(d, data.retorno).catch((e) => console.log("devolução/adm:", e.message));   // v1086
   if (data.status === "CONCLUIDA" && d.status !== "CONCLUIDA")
     await avisar(d.criadoPorId ? [d.criadoPorId] : await gestores(), `DEMANDA ADM CONCLUÍDA: ${n.titulo} — POR ${nomeU(u)} · RETORNO: ${n.retorno}`, u.id).catch(() => 0);
   return { ok: true, demanda: demandaOut(n) };

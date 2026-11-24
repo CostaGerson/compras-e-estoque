@@ -4,7 +4,7 @@ import { useMobile, useGaveta } from "./useMobile";   // v550
 import { COMPONENTES, TAMANHOS } from "@/lib/componentesPedido";   // v1006
 import { ETIQUETAS } from "@/lib/msgEtiquetas";   // v862
 import {
-  LayoutList, Trello, LayoutDashboard, CalendarDays, Package, ShoppingCart,
+  LayoutList, Trello, Wallet, LayoutDashboard, CalendarDays, Package, ShoppingCart,
   FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database, Trash2, Printer,
   ChevronRight, ChevronLeft, Eye, EyeOff, Mountain, CheckCircle2, Workflow, Camera, Pencil, X,
   Bell, Inbox, LogOut, Send, AlertTriangle, Briefcase, Landmark, Compass, Factory, Truck, Building2, Tags, ChevronDown,
@@ -54,6 +54,7 @@ import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups d
 import PedidoEditor from "./pedidoEditor";
 import Integracoes from "./integracoes";   // v732
 import PecasProntas from "./pecasProntas";   // v906
+import Devolucoes from "./devolucoesCompras";   // v1086
 import Sistemas, { PortalInterno } from "./sistemas";   // v907
 import Vendedores from "./vendedores";   // v747
 import EnderecosParticulares from "./tarefaLocal";   // v1043 — #101
@@ -125,6 +126,7 @@ const MENU = [
       { key: "pic", label: "PIC", icon: ClipboardList, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Itens que o estoque não atende: fornecedor e valor de cada artigo e geração das OCs" },
       { key: "comprasCotacoes", label: "Cotações", icon: FileText, perfis: ["FINANCEIRO", "PCP", ...PROD], desc: "Cotações enviadas aos fornecedores, respostas e aplicação do preço no PIC" },   // v478
       { key: "oc", label: "Ordens de compra", icon: ShoppingCart, perfis: ["FINANCEIRO", "COMPRAS"], desc: "PICs consolidados por fornecedor" },
+      { key: "devolucoes", label: "Devoluções", icon: Wallet, perfis: ["FINANCEIRO", "COMPRAS"], desc: "Itens devolvidos aos fornecedores, ordens de devolução (OD) e crédito por fornecedor" },   // v1086
     ] },
     // v182 — análises operacionais por setor (custo por peça × meta × terceirizar)
     { key: "analisesOp", label: "Análises operacionais", icon: IcoAnalise, desc: "Custo por peça de cada setor: corte, silk, bordado, costura, expedição e logística", filhos: [
@@ -190,6 +192,7 @@ const PODE = {
   comprasAvulsas: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v468 — mesmo acesso de Pedidos
   comprasAtendidos: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),
   oc: (u) => gerencial(u) || T(u, "PRODUCAO"),
+  devolucoes: (u) => gerencial(u) || T(u, "PRODUCAO"),   // v1086
   estoque: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),
   pecasProntas: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER", "COMPRAS", "NORT") || tem(u, "pic"),   // v906
   fme: (u) => tem(u, "fme"),
@@ -494,6 +497,7 @@ export default function Home() {
           {view === "pic" && pode("pic") && <PicCompras user={user} />}   {/* v469 */}
           {view === "comprasCotacoes" && pode("comprasCotacoes") && <Cotacoes user={user} />}
           {view === "oc" && pode("oc") && <OrdensCompra user={user} />}
+          {view === "devolucoes" && pode("devolucoes") && <Devolucoes user={user} />}   {/* v1086 */}
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
           {view === "pecasProntas" && pode("pecasProntas") && <PecasProntas user={user} />}
           {view === "fme" && pode("fme") && <FME user={user} perfil={perfil} />}

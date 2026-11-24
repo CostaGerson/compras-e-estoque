@@ -596,6 +596,8 @@ model OrdemCompra {
   baixaEm             DateTime?                     // v532 — baixa: material recebido
   baixaPorNome        String?
   baixaJustificativa  String?                       // obrigatória quando a OC é baixada sem NF
+  creditoUsado        Decimal?  @db.Decimal(14, 2)  // v1086 — crédito de devolução do fornecedor usado nesta OC (abate o valor a pagar)
+  creditoStatus       String?                       // v1086 — RESERVADO (aguarda a NF) | APLICADO (baixou contas da NF) | DEVOLVIDO (NF aceita com valor: crédito voltou ao saldo)
   obs                 String?
   criadoPorNome       String?
   createdAt           DateTime  @default(now())
@@ -2972,4 +2974,63 @@ model PersonalizacaoDemanda {
   @@index([pedidoNumero])
   @@index([status])
   @@index([updatedAt])
+}
+
+// v1086 — devolução de itens da OC ao fornecedor (veio errado): o item volta ao PIC; com NF anexada, o ADM emite a NF de devolução
+model OcDevolucao {
+  id            Int       @id @default(autoincrement())
+  ocId          Int
+  ocNumero      String
+  ocItemId      Int
+  artigoId      Int
+  fornecedorId  Int
+  nome          String
+  unidade       String?
+  quantidade    Decimal   @db.Decimal(14, 3)
+  valorUnitario Decimal   @db.Decimal(16, 6)
+  total         Decimal   @db.Decimal(14, 2)
+  motivo        String
+  fiscalNotaId  Int?                            // NF do fornecedor (já emitida e anexada à OC)
+  nfNumero      String?
+  nfChave       String?
+  admDemandaId  Int?                            // demanda do ADM: emitir a NF de devolução
+  nfDevolucao   String?                         // retorno do ADM (nº da NF de devolução emitida)
+  picItemId     Int?                            // item que voltou ao PIC (compra de novo)
+  status        String    @default("PENDENTE")  // PENDENTE (em devolução, sem OD) | EM_OD | CANCELADA
+  odId          Int?
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+
+  @@index([ocId])
+  @@index([fornecedorId, status])
+}
+
+// v1086 — ordem de devolução: junta itens devolvidos do mesmo fornecedor e gera crédito com ele
+model OrdemDevolucao {
+  id            Int       @id @default(autoincrement())
+  numero        String    @unique
+  fornecedorId  Int
+  total         Decimal   @db.Decimal(14, 2)
+  status        String    @default("EMITIDA")   // EMITIDA | CANCELADA
+  obs           String?
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+}
+
+// v1086 — conta corrente de crédito com o fornecedor: CREDITO (OD) e USO (boleto baixado ou reserva numa OC)
+model FornecedorCredito {
+  id            Int       @id @default(autoincrement())
+  fornecedorId  Int
+  tipo          String                          // CREDITO | USO
+  valor         Decimal   @db.Decimal(14, 2)    // sempre positivo
+  odId          Int?
+  ocId          Int?
+  tituloId      Int?
+  reserva       Boolean   @default(false)       // USO reservado numa OC, aguardando a NF
+  descricao     String
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+
+  @@index([fornecedorId])
+  @@index([ocId])
 }

@@ -233,7 +233,7 @@ function BuscarFpp({ cliente, onClose, onEscolher }) {
 // v415 — fases de compras na guia superior (troca de tela entre as fases)
 export const FASES_COMPRAS = [
   ["comprasPedidos", "Sincronização de pedidos", ClipboardList], ["levantamento", "Levantamento", Layers],   // v483 — cruzamento e atendidos dentro do Levantamento
-  ["pic", "PIC diário", ClipboardList], ["comprasCotacoes", "Cotações", FileText], ["oc", "Ordens de compra", ShoppingCart],
+  ["pic", "PIC diário", ClipboardList], ["comprasCotacoes", "Cotações", FileText], ["oc", "Ordens de compra", ShoppingCart], ["devolucoes", "Devoluções", Undo2],   // v1086
 ];
 export function FasesCompras({ atual, fases, ir }) {
   if (!ir) return null;
@@ -1324,13 +1324,23 @@ export function PicCompras({ user, fases, ir }) {
       const nP = new Set(alvo.filter((i) => prontos.some((x) => x.id === i.id)).map((i) => i.picNumero)).size;
       if (!(await confirmar(`Gerar ${nF} OC(s), uma por fornecedor, com ${prontos.length} item(ns) de ${nP} PIC(s)?${prontos.length < its.length ? ` ${its.length - prontos.length} item(ns) sem fornecedor ou valor ficam no PIC.` : ""}`))) return;
       var juntarEm = await perguntarJuntarOc(prontos.map((x) => x.fornecedorId));   // v1072
+      // v1086 — fornecedor com crédito de devoluções: usar nesta OC?
+      var usarCredito = [];
+      try {
+        const fids = [...new Set(prontos.map((x) => x.fornecedorId))];
+        const sd = await fetch(`/api/compras/devolucoes?saldos=${fids.join(",")}`).then((rr) => rr.json());
+        for (const [fid, v] of Object.entries(sd.saldos || {})) {
+          const nomeF = prontos.find((x) => String(x.fornecedorId) === String(fid))?.nomeForn || "O fornecedor";
+          if (await confirmar(`${nomeF} tem ${brl(v)} de crédito de devoluções.\nUsar o crédito nesta OC? A OC sai abatida; quando a NF chegar, você escolhe aceitar a NF com valor ou usar o crédito para baixar as contas dela.`)) usarCredito.push(Number(fid));
+        }
+      } catch { /* sem crédito: segue */ }
     }
     setOc(true);
-    const r = await fetch("/api/compras/pic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, itens: its.map(({ nomeForn, ...x }) => ({ ...x, fornecedorId: x.fornecedorId || null })), ids: its.map((x) => x.id), quem: nomeUser(user), ...(acao === "ocsItens" && juntarEm ? { juntarEm } : {}) }) });
+    const r = await fetch("/api/compras/pic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, itens: its.map(({ nomeForn, ...x }) => ({ ...x, fornecedorId: x.fornecedorId || null })), ids: its.map((x) => x.id), quem: nomeUser(user), ...(acao === "ocsItens" && juntarEm ? { juntarEm } : {}), ...(acao === "ocsItens" && usarCredito?.length ? { usarCredito } : {}) }) });
     const x = await r.json().catch(() => ({}));
     setOc(false);
     if (!r.ok) return alerta(x.error || "Erro.");
-    if (acao === "ocsItens") { await alerta(`${x.ocs.map((o) => `${o.numero}${o.juntada ? " (itens juntados)" : ""}`).join(", ")} gerada(s)/atualizada(s).${x.faltam ? ` ${x.faltam} item(ns) continuam no PIC.` : ""}`); setSel(new Set()); }
+    if (acao === "ocsItens") { await alerta(`${x.ocs.map((o) => `${o.numero}${o.juntada ? " (itens juntados)" : ""}${o.credito ? ` (crédito ${brl(o.credito)})` : ""}`).join(", ")} gerada(s)/atualizada(s).${x.faltam ? ` ${x.faltam} item(ns) continuam no PIC.` : ""}`); setSel(new Set()); }
     carregar();
   }
   async function cotacao(alvo = alvoGeral) {
@@ -1491,10 +1501,70 @@ function imprimirOc(o) {
     <div class="cab"><div><img src="/meridian-wordmark.svg" style="height:26px"><div class="k" style="margin-top:6px">Ordem de compra</div><h1>${o.numero}</h1></div>
     <div style="text-align:right;font-size:13px"><b>${o.fornecedor.razaoSocial || o.fornecedor.nome}</b><br>${[o.fornecedor.contato, o.fornecedor.telefone, o.fornecedor.email].filter(Boolean).join(" · ")}<br><span class="k">Emitida em ${dt(o.createdAt)}${o.pic ? ` · ${o.pic}` : ""}</span></div></div>
     <table><tr><th>Artigo</th><th class="n">Quantidade</th><th class="n">Valor unit.</th><th class="n">Total</th></tr>${linhas}
-    <tr><td colspan="3" class="n tot">Total</td><td class="n tot">${brl(o.total)}</td></tr></table>
+    <tr><td colspan="3" class="n tot">Total</td><td class="n tot">${brl(o.total)}</td></tr>${o.creditoUsado > 0 && o.creditoStatus !== "DEVOLVIDO" ? `<tr><td colspan="3" class="n">Crédito de devolução</td><td class="n">− ${brl(o.creditoUsado)}</td></tr><tr><td colspan="3" class="n tot">A pagar</td><td class="n tot">${brl(Math.max(0, o.total - o.creditoUsado))}</td></tr>` : ""}</table>
     <p style="font-size:13px;margin-top:18px">Condição de faturamento: <b>${o.condicaoFaturamento || "—"}</b> · Prazo de entrega: <b>${dt(o.prazoFabrica)}</b>${o.formaRecebimento ? ` · Recebimento: <b>${(FORMAS_REC.find((x) => x[0] === o.formaRecebimento) || [])[1]}</b>${o.diasAposFaturamento ? ` (${o.diasAposFaturamento} dias após o faturamento)` : ""}` : ""}${o.nfNumero ? `<br>NF ${o.nfNumero}` : ""}${o.obs ? `<br>Obs.: ${o.obs}` : ""}</p>
     <script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`;
   const w = window.open("", "_blank"); if (!w) return alerta("Permita pop-ups para imprimir a OC."); w.document.write(html); w.document.close();
+}
+// v1086 — devolver itens da OC (vieram errados): voltam ao PIC; com NF anexada, o ADM recebe a demanda da NF de devolução
+function DevolverItensModal({ o, user, onClose, onOk }) {
+  const dev = (id) => (o.devolucoes || []).filter((d) => d.ocItemId === id).reduce((s0, d) => s0 + d.quantidade, 0);
+  const [q, setQ] = useState({});
+  const [motivo, setMotivo] = useState("");
+  const [oc, setOc] = useState(false);
+  const temNf = (o.nfs || []).length > 0;
+  const total = o.itens.reduce((s0, i) => s0 + (lerNum(q[i.id]) || 0) * Number(i.valorUnitario || 0), 0);
+  const ir = async () => {
+    setOc(true);
+    const r = await fetch("/api/compras/devolucoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "devolver", ocId: o.id, motivo, quem: nomeUser(user), itens: o.itens.map((i) => ({ ocItemId: i.id, quantidade: q[i.id] })) }) });
+    const x = await r.json().catch(() => ({})); setOc(false);
+    if (!r.ok) return alerta(x.error || "Erro.");
+    await alerta(`${x.devolucoes} item(ns) em devolução. ${x.voltaramAoPic} voltaram ao PIC para comprar de novo.${x.demandaAdm ? "\nO ADM recebeu a demanda de emitir a NF de devolução (chave, itens e arquivos)." : x.semNf ? "\nA OC não tem NF anexada: não há NF de devolução a emitir." : ""}\nGere a OD na guia Devoluções para lançar o crédito com o fornecedor.`);
+    onOk();
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(16,24,40,.45)" }} onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-xl" style={{ background: C.panel, maxHeight: "92vh", overflow: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3.5 font-bold flex items-center gap-2" style={{ color: C.navy, borderBottom: `1px solid ${C.line}` }}><Undo2 size={16} style={{ color: C.red }} /> Devolver itens · {o.numero} · {o.fornecedor.nome}</div>
+        <div className="px-5 py-4">
+          <div className="text-xs mb-3 px-3 py-2 rounded" style={{ background: temNf ? C.yellowSoft : C.panel2, color: temNf ? C.yellow : C.sub }}>{temNf ? `NF ${o.nfs.map((n) => n.numero).join(", ")} anexada: o ADM vai receber a tarefa de emitir a NF de devolução.` : "Sem NF anexada: os itens voltam ao PIC e entram na guia Devoluções, sem NF de devolução."}</div>
+          {o.itens.map((i) => { const livre = Math.max(0, Number(i.quantidade) - dev(i.id)); return (
+            <div key={i.id} className="flex items-center gap-3 py-2 text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
+              <div className="flex-1">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{[i.cor, i.codigo].filter(Boolean).join(" · ")}</span><div className="text-xs" style={{ color: C.sub }}>na OC {qtdU(i.quantidade, i.unidade)}{dev(i.id) ? ` · já devolvido ${qtdU(dev(i.id), i.unidade)}` : ""} · {brlU(i.valorUnitario)}</div></div>
+              <input value={q[i.id] || ""} onChange={(e) => setQ((m) => ({ ...m, [i.id]: e.target.value }))} placeholder="0" disabled={!livre} className="w-24 px-2 py-1 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} />
+              <button onClick={() => setQ((m) => ({ ...m, [i.id]: String(livre).replace(".", ",") }))} disabled={!livre} className="text-xs" style={{ color: C.blue }}>tudo</button>
+            </div>); })}
+          <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="O que veio errado? (vai para a NF de devolução e para o histórico da OC)" className="w-full mt-3 px-3 py-2 rounded text-sm" style={{ border: `1px solid ${C.line}` }} />
+        </div>
+        <div className="flex items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
+          <span className="text-sm mr-auto" style={{ color: C.text }}>Valor devolvido: <b style={{ color: C.navy }}>{brl(total)}</b></span>
+          <button onClick={onClose} className="px-4 py-2 rounded text-sm" style={{ border: `1px solid ${C.line}` }}>Cancelar</button>
+          <button disabled={oc || !total || motivo.trim().length < 3} onClick={ir} className="px-4 py-2 rounded text-sm font-semibold flex items-center gap-1.5" style={{ background: C.red, color: "#fff", opacity: oc || !total || motivo.trim().length < 3 ? 0.5 : 1 }}>{oc ? <Loader2 size={14} className="animate-spin" /> : <Undo2 size={14} />} Devolver</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+// v1086 — OC com crédito de devolução: abate o valor; quando a NF chega, aceitar a NF com valor ou usar o crédito nas contas dela
+function CreditoOc({ o, user, onMudou }) {
+  const total = o.total, aPagar = Math.max(0, total - o.creditoUsado);
+  const decidir = async (decisao) => {
+    const r = await fetch("/api/compras/devolucoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "decidirNf", ocId: o.id, decisao, quem: nomeUser(user) }) });
+    const x = await r.json().catch(() => ({})); if (!r.ok) return alerta(x.error || "Erro.");
+    await alerta(decisao === "ACEITAR_NF" ? `NF aceita com valor. ${brl(x.devolvido)} voltaram ao crédito do fornecedor.` : `${brl(x.aplicado)} do crédito baixaram as contas a pagar da NF.${x.sobra > 0 ? ` Sobra de ${brl(x.sobra)} voltou ao saldo.` : ""}`);
+    onMudou();
+  };
+  const st = { RESERVADO: "reservado", APLICADO: "aplicado nas contas da NF", DEVOLVIDO: "não usado (NF aceita com valor)" }[o.creditoStatus] || "";
+  return (
+    <div className="mt-3 px-3 py-2.5 rounded-lg text-sm" style={{ background: C.greenSoft, color: C.text }}>
+      <div><b style={{ color: C.green }}>Crédito de devolução {brl(o.creditoUsado)}</b> · {st} · total da OC {brl(total)} · a pagar <b>{brl(o.creditoStatus === "DEVOLVIDO" ? total : aPagar)}</b></div>
+      {o.creditoStatus === "RESERVADO" && (o.nfs || []).length > 0 && <div className="flex flex-wrap items-center gap-2 mt-2">
+        <span className="text-xs" style={{ color: C.sub }}>A NF chegou. O que fazer com o crédito?</span>
+        <button onClick={() => decidir("BAIXAR_CONTAS")} className="text-xs px-2.5 py-1.5 rounded-md font-semibold" style={{ background: C.green, color: "#fff" }}>Usar o crédito para baixar as contas da NF</button>
+        <button onClick={() => decidir("ACEITAR_NF")} className="text-xs px-2.5 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.line}`, background: C.panel }}>Aceitar a NF com valor (crédito volta ao saldo)</button>
+      </div>}
+    </div>
+  );
 }
 export function OrdensCompra({ user, fases, ir }) {
   const [l, setL] = useState(null);
@@ -1522,6 +1592,7 @@ export function OrdensCompra({ user, fases, ir }) {
   const [nf, setNf] = useState({});   // v479 — { ocId: { numero, emissao } }
   const [edIt, setEdIt] = useState({});   // v487 — itens da OC em edição
   const [fotoOc, setFotoOc] = useState(null);   // v1068 — OC em PNG
+  const [devOc, setDevOc] = useState(null);   // v1086 — devolver itens da OC
   return (
     <div className="w-full">
       <FasesCompras atual="oc" fases={fases} ir={ir} />
@@ -1529,6 +1600,7 @@ export function OrdensCompra({ user, fases, ir }) {
         direita={<><span className="text-sm" style={{ color: C.sub }}>Total: <b style={{ color: C.navy }}>{brl(vis.reduce((s0, o) => s0 + o.total, 0))}</b></span>
           <button onClick={carregar} title="Atualizar" className="p-1.5 rounded-md" style={{ border: `1px solid ${C.line}`, background: C.panel }}><RefreshCw size={14} style={{ color: C.sub }} /></button></>} />
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
+      {devOc && <DevolverItensModal o={devOc} user={user} onClose={() => setDevOc(null)} onOk={() => { setDevOc(null); carregar(); }} />}
       {fotoOc && <PicFotoModal p={fotoOc} desenhar={desenharOc} aoEnviar={() => fotoOc.status === "ABERTA" && salvar(fotoOc, { status: "ENVIADA" })} onClose={() => setFotoOc(null)} />}
       {l && !vis.length && <div className="text-sm py-6 text-center" style={{ color: C.sub }}>Nenhuma OC. Elas são geradas no PIC, uma por fornecedor.</div>}
       {vis.map((o) => {
@@ -1562,6 +1634,7 @@ export function OrdensCompra({ user, fases, ir }) {
                       <div key={i.id} className="flex gap-2 py-1.5 text-sm items-center" style={{ borderTop: `1px solid ${C.line}` }}>
                         <div className="flex-1">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{[i.cor, i.codigo].filter(Boolean).join(" · ")}</span>
                           {i.nfNome && norm(i.nfNome) !== norm(i.nome) && <div className="text-xs" style={{ color: C.blue }}>na NF: {i.nfNome}</div>}
+                          {(() => { const dv = (o.devolucoes || []).filter((d) => d.ocItemId === i.id).reduce((s0, d) => s0 + d.quantidade, 0); return dv > 0 ? <div className="text-xs font-semibold" style={{ color: C.red }}>↩ {String(dv).replace(".", ",")} devolvido(s) ao fornecedor</div> : null; })()}   {/* v1086 */}
                           {(i.origens || []).length > 0 && <div className="text-[11px] flex items-center gap-1.5 flex-wrap" style={{ color: C.sub }}>{i.origens.map((x) => (x.avulsa ? "Avulsa" : rotOrigem(x))).filter((x, j, a) => a.indexOf(x) === j).join(" · ")}{pode && <BotaoDispensar origens={i.origens} user={user} onFeito={carregar} artigo={{ id: i.artigoId, nome: i.nome }} />}</div>}</div>
                         <div className="w-32 text-right">{pode ? <span className="inline-flex items-center gap-1"><input value={e[i.id]?.q ?? ""} onChange={(ev) => setE(i.id, "q", ev.target.value)} className="w-20 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /><span className="text-xs" style={{ color: C.sub }}>{String(i.unidade || "").toLowerCase()}</span></span> : qtdU(i.quantidade, i.unidade)}</div>
                         <div className="w-28 text-right">{pode ? <input value={e[i.id]?.v ?? ""} onChange={(ev) => setE(i.id, "v", ev.target.value)} className="w-24 px-2 py-0.5 rounded text-sm text-right" style={{ border: `1px solid ${C.line}` }} /> : <span style={{ color: C.sub }}>{brl(i.valorUnitario)}</span>}</div>
@@ -1592,9 +1665,11 @@ export function OrdensCompra({ user, fases, ir }) {
                       await alerta(`${x.juntadas.join(", ")} juntada(s) na ${o.numero}.`); carregar();
                     }} title="Uma OC só por fornecedor" className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><Merge size={14} /> Juntar {irm.map((y) => y.numero).join(", ")}</button>;
                   })()}
+                  {o.status !== "CANCELADA" && o.status !== "ABERTA" && o.itens.length > 0 && <button onClick={() => setDevOc(o)} title="Itens que vieram errados: voltam ao PIC; com NF anexada, o ADM emite a NF de devolução" className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.red}`, color: C.red, background: C.panel }}><Undo2 size={14} /> Devolver itens</button>}   {/* v1086 */}
                   {!["RECEBIDA", "CANCELADA"].includes(o.status) && <button onClick={() => cancelarOc(o)} title="Os itens voltam para a cotação (outra OC ou dispensar compras)" className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.red}`, color: C.red }}>Cancelar OC</button>}
                   {o.formaRecebimento === "COLETA" && !["RECEBIDA", "CANCELADA"].includes(o.status) && !o.rota && <button onClick={() => criarRotaColeta(o)} className="text-sm px-3 py-1.5 rounded-md font-semibold" style={{ background: C.navy, color: "#fff" }}>Criar rota de coleta</button>}
                 </div>
+                {o.creditoUsado > 0 && <CreditoOc o={o} user={user} onMudou={carregar} />}   {/* v1086 */}
                 {/* v479 — NF do fornecedor */}
                 <div className="flex flex-wrap items-end gap-3 pt-3 mt-3" style={{ borderTop: `1px dashed ${C.line}` }}>
                   {!(o.nfs || []).length && (() => { const v = nf[o.id] || { numero: o.nfNumero || "", emissao: o.nfEmissao || "" }; const setV = (k, x) => setNf((n) => ({ ...n, [o.id]: { ...v, [k]: x } }));

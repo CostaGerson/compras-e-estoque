@@ -813,7 +813,7 @@ export function DemandasAdm({ user, master }) {
             <span>Responsável: <b style={{ color: C.text }}>{abrir.responsavelNome || "TODO O ADMINISTRATIVO"}</b></span>
             <span>Criada por {abrir.criadoPorNome} em {dBR(abrir.createdAt)}</span>
           </div>
-          <div className="text-sm whitespace-pre-wrap mb-3">{abrir.descricao || <span style={{ color: C.sub }}>Sem descrição.</span>}</div>
+          {abrir.tipo === "NF_DEVOLUCAO" && abrir.dados?.devolucao ? <NfDevolucaoInfo dm={abrir} /> : <div className="text-sm whitespace-pre-wrap mb-3">{abrir.descricao || <span style={{ color: C.sub }}>Sem descrição.</span>}</div>}   {/* v1086 */}
           <AcoesPedido user={user} dm={abrir} onMudou={async () => { const l = await api(`/api/adm/demandas?u=${user.id}`).catch(() => null); if (l) { setD(l); setAbrir((l.demandas || []).find((y) => y.id === abrir.id) || null); } }} />
           {abrir.cotacao && (
             <div className="rounded-lg p-3 text-sm mb-3" style={{ background: C.panel2 }}>
@@ -987,6 +987,46 @@ export function Rota() {
       <div className="text-lg font-bold mt-2" style={{ color: C.navy }}>Rota</div>
       <div className="text-sm mt-1" style={{ color: C.sub }}>Em construção — aqui vão entrar as rotas de entrega e coleta (motorista, paradas, pedidos e retorno).</div>
       <div className="inline-flex items-center gap-1 text-xs mt-3 px-3 py-1 rounded-full" style={{ background: C.panel2, color: C.sub }}><Truck size={13} /> próximas demandas da logística</div>
+    </div>
+  );
+}
+
+// v1086 — demanda do ADM: emitir NF de devolução ao fornecedor (dados da NF de origem, emitente, itens e arquivos)
+function NfDevolucaoInfo({ dm }) {
+  const d = dm.dados || {};
+  const [copiou, setCopiou] = useState("");
+  const brl = (v) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const copiar = async (t, k) => { try { await navigator.clipboard.writeText(t); } catch { const x = document.createElement("textarea"); x.value = t; document.body.appendChild(x); x.select(); document.execCommand("copy"); x.remove(); } setCopiou(k); setTimeout(() => setCopiou(""), 1500); };
+  const Cp = ({ t, k }) => t ? <button onClick={() => copiar(String(t), k)} className="text-[11px] px-1.5 py-0.5 rounded ml-1" style={{ border: `1px solid ${C.line}`, color: copiou === k ? C.green : C.sub }}>{copiou === k ? "copiado" : "copiar"}</button> : null;
+  const Linha = ({ r, v, k }) => <div className="flex items-center gap-1 text-sm py-0.5"><span className="w-40 shrink-0 text-xs" style={{ color: C.sub }}>{r}</span><span className="font-semibold break-all" style={{ color: C.text }}>{v || "—"}</span><Cp t={v} k={k} /></div>;
+  return (
+    <div className="mb-3 rounded-lg p-3" style={{ background: C.panel2 }}>
+      <div className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: C.sub }}>NF de origem (do fornecedor)</div>
+      <Linha r="Chave de acesso" v={d.chave} k="chave" />
+      <Linha r="Número / série" v={`${d.nfNumero || "—"}${d.nfSerie ? ` / ${d.nfSerie}` : ""}`} k="num" />
+      <Linha r="Emissão · valor" v={`${d.nfEmissao ? d.nfEmissao.split("-").reverse().join("/") : "—"} · ${brl(d.nfValor)}`} k="em" />
+      <div className="flex gap-2 my-2">
+        {d.temXml && <a href={`/api/compras/oc/nf?id=${d.nfId}&arq=xml`} target="_blank" rel="noreferrer" className="text-xs px-2.5 py-1 rounded font-semibold" style={{ background: C.navy, color: "#fff" }}>XML da NF</a>}
+        {d.temPdf && <a href={`/api/compras/oc/nf?id=${d.nfId}&arq=pdf`} target="_blank" rel="noreferrer" className="text-xs px-2.5 py-1 rounded font-semibold" style={{ background: C.navy, color: "#fff" }}>PDF (DANFE)</a>}
+        {!d.temXml && !d.temPdf && <span className="text-xs" style={{ color: C.yellow }}>NF sem arquivo anexado na OC.</span>}
+      </div>
+      <div className="text-xs font-bold uppercase tracking-wide mt-2 mb-1" style={{ color: C.sub }}>Destinatário da devolução (fornecedor)</div>
+      <Linha r="Razão social" v={d.emitente?.razaoSocial} k="rz" />
+      <Linha r="CNPJ" v={d.emitente?.cnpj} k="cnpj" />
+      <Linha r="Inscrição estadual" v={d.emitente?.ie} k="ie" />
+      <Linha r="Endereço" v={d.emitente?.endereco} k="end" />
+      <div className="text-xs font-bold uppercase tracking-wide mt-2 mb-1" style={{ color: C.sub }}>Natureza e CFOP sugeridos</div>
+      <Linha r="Natureza da operação" v={d.natureza} k="nat" />
+      <Linha r="CFOP" v={d.cfopSugerido} k="cfop" />
+      <div className="text-xs font-bold uppercase tracking-wide mt-2 mb-1" style={{ color: C.sub }}>Itens a devolver</div>
+      <div className="overflow-auto"><table className="w-full text-xs" style={{ minWidth: 620 }}>
+        <thead><tr style={{ color: C.sub }} className="text-left"><th className="py-1">Item da NF</th><th>Produto</th><th>NCM</th><th>CFOP NF</th><th className="text-right">Qtd.</th><th className="text-right">Unit.</th><th className="text-right">Total</th></tr></thead>
+        <tbody>{(d.itens || []).map((i, k) => <tr key={k} style={{ borderTop: `1px solid ${C.line}` }}><td className="py-1">{i.itemNf || "—"}</td><td>{i.nome}{i.codigo ? ` (${i.codigo})` : ""}</td><td>{i.ncm || "—"}</td><td>{i.cfopNf || "—"}</td>
+          <td className="text-right">{String(i.quantidade).replace(".", ",")} {String(i.unidade || "").toLowerCase()}</td><td className="text-right">{brl(i.valorUnitario)}</td><td className="text-right font-semibold">{brl(i.total)}</td></tr>)}</tbody>
+      </table></div>
+      <div className="text-sm font-bold text-right mt-1" style={{ color: C.navy }}>Total da devolução {brl(d.total)}</div>
+      <div className="text-xs mt-2" style={{ color: C.text }}><b>Motivo:</b> {d.motivo}</div>
+      <div className="text-xs mt-1" style={{ color: C.sub }}>{d.ocNumero} · ao concluir, escreva no retorno o número da NF de devolução emitida.</div>
     </div>
   );
 }

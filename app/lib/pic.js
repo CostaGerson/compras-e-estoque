@@ -88,7 +88,7 @@ export async function salvarItensPic(picId, itens) {
 
 // v477 — OCs com itens de um ou vários PICs (os mesmos fornecedores viram uma OC só)
 // v1072 — juntarEm: { fornecedorId: ocId } → os itens entram na OC ABERTA do mesmo fornecedor em vez de abrir outra
-export async function gerarOcsItens(itemIds, quem, juntarEm = null) {
+export async function gerarOcsItens(itemIds, quem, juntarEm = null, usarCredito = []) {   // v1086 — usarCredito: fornecedores cujo crédito de devolução entra na OC
   const its = await prisma.picItem.findMany({ where: { id: { in: (itemIds || []).map(Number).filter(Boolean) } }, include: { ocItens: { select: { id: true } } } });
   const livres = its.filter((i) => !i.ocItens.length);
   const prontos = livres.filter((i) => i.fornecedorId && i.valorUnitario != null && Number(i.valorUnitario) > 0 && Number(i.quantidade) > 0);
@@ -115,6 +115,11 @@ export async function gerarOcsItens(itemIds, quem, juntarEm = null) {
     ocs.push({ id: oc.id, numero, itens: gi.length, pics: pics.length });
   }
   for (const pid of [...new Set(its.map((i) => i.picId))]) await fecharPicSeCompleto(pid);
+  const comCred = new Set((usarCredito || []).map(Number));
+  if (comCred.size) {
+    const { reservarNaOc } = await import("@/lib/devolucoes");
+    for (const o of ocs) { const oc = await prisma.ordemCompra.findUnique({ where: { id: o.id }, select: { fornecedorId: true } }); if (oc && comCred.has(oc.fornecedorId)) { const r = await reservarNaOc(o.id, quem).catch(() => null); if (r?.ok) o.credito = r.valor; } }
+  }
   return { ok: true, ocs, faltam: livres.length - prontos.length };
 }
 // PIC com todos os itens em OC: PIC = OC, itens de compra = OC, avulsas completas = COMPRADA
@@ -190,6 +195,7 @@ export async function cancelarOc(ocId, quem, motivo) {
   if (o.status === "RECEBIDA") return { error: "OC já recebida (baixada): reabra a baixa antes de cancelar." };
   if (o.status === "CANCELADA" && !o.itens.length) return { error: "OC já cancelada." };
   const r = await devolverItensDaOc(o, quem, String(motivo || "").trim().slice(0, 300) || null);
+  await (await import("@/lib/devolucoes")).liberarReservaOc(o.id).catch(() => null);   // v1086 — crédito reservado volta ao saldo
   return { ok: true, ...r };
 }
 // OCs canceladas antes da v1046 (só mudava a situação): os itens continuavam presos. Solta uma vez ao subir.
@@ -209,7 +215,9 @@ export async function listarOcs({ ids } = {}) {   // v1080 — ids: só estas OC
   const rotas = await rotasDeColeta(l);   // v486
   const fnL = await prisma.fiscalNota.findMany({ where: { ocId: { in: l.map((o) => o.id) } }, select: { id: true, ocId: true, numero: true, emissao: true, valor: true, temXml: true, temPdf: true, acao: true, parcelas: true, parceiro: true }, orderBy: { emissao: "asc" } });   // v494
   const arqs = await prisma.ocArquivo.findMany({ where: { ocId: { in: l.map((o) => o.id) } }, select: { id: true, ocId: true, tipo: true, nome: true, tamanho: true, createdAt: true }, orderBy: { id: "asc" } });
-  return l.map((o) => ({ id: o.id, numero: o.numero, status: o.status, createdAt: o.createdAt, criadoPorNome: o.criadoPorNome, obs: o.obs,
+  const devs = await prisma.ocDevolucao.findMany({ where: { ocId: { in: l.map((o) => o.id) }, status: { not: "CANCELADA" } }, select: { ocId: true, ocItemId: true, quantidade: true, status: true, createdAt: true, motivo: true } }).catch(() => []);   // v1086
+  return l.map((o) => ({ creditoUsado: o.creditoUsado != null ? Number(o.creditoUsado) : null, creditoStatus: o.creditoStatus || null,
+    devolucoes: devs.filter((d) => d.ocId === o.id).map((d) => ({ ...d, quantidade: Number(d.quantidade) })), id: o.id, numero: o.numero, status: o.status, createdAt: o.createdAt, criadoPorNome: o.criadoPorNome, obs: o.obs,
     condicaoFaturamento: o.condicaoFaturamento, prazoFabrica: o.prazoFabrica, prazoTransportadora: o.prazoTransportadora, pic: (piPorOc[o.id].length ? piPorOc[o.id] : [o.picId]).map((x) => pics[x]).filter(Boolean).join(", ") || null,
     fornecedor: { id: o.fornecedor.id, nome: nomeForn(o.fornecedor), razaoSocial: o.fornecedor.razaoSocial, contato: o.fornecedor.contato || o.fornecedor.preposto, telefone: o.fornecedor.telefone || o.fornecedor.telefones, email: o.fornecedor.email, endereco: juntaEnd(o.fornecedor) },
     cotacao: cotsDaOc(o), rota: rotas[o.id] || null, arquivos: arqs.filter((a) => a.ocId === o.id),
