@@ -1240,6 +1240,53 @@ const lerNum = (v) => { if (v === "" || v == null) return null; const n = Number
 // v1048 — item do PIC já seguido: tem cotação (sem "ninguém tem") ou OC. Daí em diante o acompanhamento é em Cotações / OC.
 const picItemSeguido = (i) => !!i.oc || ((i.cotacoes || []).length > 0 && !i.semCotacao);
 const picConcluido = (p) => p.itens.length > 0 && p.itens.every(picItemSeguido);
+// v1088 — trocar o artigo do item do PIC por um similar do cadastro (busca como na FPP: nome, cor, código, fornecedor)
+let _artsPic = null, _artsPicEm = 0;
+const semAcentoUp = (s) => semAcento(s).toUpperCase();
+function TrocarArtigoModal({ item, user, onClose, onOk }) {
+  const inf = item.info || {};
+  const [arts, setArts] = useState(_artsPic || []);
+  const [q, setQ] = useState(inf.nome || "");
+  const [motivo, setMotivo] = useState("");
+  const [oc, setOc] = useState(false);
+  useEffect(() => { if (!_artsPic || Date.now() - _artsPicEm > 5 * 60e3) fetch("/api/artigos").then((r) => r.json()).then((l) => { _artsPic = (Array.isArray(l) ? l : []).map((a) => ({ id: a.id, nome: a.nome, cor: a.cor, codigo: a.codigo, unidade: a.unidade, categoria: a.categoria, valorUnitario: a.valorUnitario, fornecedor: a.fornecedor ? (a.fornecedor.nomeFantasia || a.fornecedor.nome || a.fornecedor.razaoSocial) : null })); _artsPicEm = Date.now(); setArts(_artsPic); }).catch(() => {}); }, []);
+  const pal = semAcentoUp(q).split(/\s+/).filter(Boolean);
+  const lista = useMemo(() => !pal.length ? [] : arts.filter((a) => a.id !== item.artigoId).map((a) => { const t = semAcentoUp([a.nome, a.cor, a.codigo, a.fornecedor, a.categoria].filter(Boolean).join(" ")); const n = pal.filter((p) => t.includes(p)).length; return { a, n, ini: semAcentoUp(a.nome).startsWith(pal[0]) ? 1 : 0 }; })
+    .filter((x) => x.n > 0).sort((x, y) => (y.n - x.n) || (y.ini - x.ini) || String(x.a.nome).localeCompare(String(y.a.nome))).slice(0, 40), [arts, q]);
+  const trocar = async (a) => {
+    if (!(await confirmar(`Trocar ${inf.nome}${inf.cor ? ` · ${inf.cor}` : ""} por ${a.nome}${a.cor ? ` · ${a.cor}` : ""}?\nFornecedor e valor passam a ser os do cadastro do novo artigo (confira antes de gerar a OC).`))) return;
+    setOc(true);
+    const r = await fetch("/api/compras/pic", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "trocarArtigo", picItemId: item.id, artigoId: a.id, motivo, quem: nomeUser(user) }) });
+    const x = await r.json().catch(() => ({})); setOc(false);
+    if (!r.ok) return alerta(x.error || "Erro.");
+    onOk();
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(16,24,40,.45)" }} onClick={onClose}>
+      <div className="w-full max-w-2xl rounded-xl flex flex-col" style={{ background: C.panel, maxHeight: "90vh" }} onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-3.5" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <div className="font-bold" style={{ color: C.navy }}>Trocar por artigo similar</div>
+          <div className="text-xs" style={{ color: C.sub }}>Hoje: {inf.nome}{inf.cor ? ` · ${inf.cor}` : ""}{inf.codigo ? ` · ${inf.codigo}` : ""} · {qtdU(item.quantidade, inf.unidade)}</div>
+        </div>
+        <div className="px-5 py-3">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg mb-2" style={{ border: `1px solid ${C.accent}` }}><Search size={15} style={{ color: C.sub }} />
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nome, cor, código ou fornecedor do artigo…" className="flex-1 outline-none text-sm" /></div>
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo da troca (opcional): ex.: fornecedor sem estoque da cor" className="w-full px-3 py-2 rounded-lg text-sm mb-2" style={{ border: `1px solid ${C.line}` }} />
+        </div>
+        <div className="px-5 pb-3 overflow-auto flex-1">
+          {!arts.length ? <div className="text-sm flex items-center gap-2" style={{ color: C.sub }}><Loader2 size={14} className="animate-spin" /> Carregando artigos…</div>
+            : !lista.length ? <div className="text-sm" style={{ color: C.sub }}>Nenhum artigo. Mude a busca.</div>
+            : lista.map(({ a }) => (
+              <button key={a.id} disabled={oc} onClick={() => trocar(a)} className="w-full text-left px-3 py-2 rounded-lg mb-1 text-sm hover:shadow-sm" style={{ border: `1px solid ${C.line}` }}>
+                <b style={{ color: C.navy }}>{a.nome}</b>{a.cor ? <span style={{ color: C.text }}> · {a.cor}</span> : null}
+                <span className="text-xs" style={{ color: C.sub }}>{[a.codigo, a.categoria, a.unidade, a.fornecedor, a.valorUnitario != null ? brlU(a.valorUnitario) : null].filter(Boolean).map((x) => ` · ${x}`).join("")}</span>
+              </button>))}
+        </div>
+        <div className="flex justify-end px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}><button onClick={onClose} className="px-4 py-2 rounded text-sm" style={{ border: `1px solid ${C.line}` }}>Fechar</button></div>
+      </div>
+    </div>
+  );
+}
 export function PicCompras({ user, fases, ir }) {
   const [l, setL] = useState(null);
   const [forns, setForns] = useState(_fornPic || []);
@@ -1247,6 +1294,7 @@ export function PicCompras({ user, fases, ir }) {
   const [oc, setOc] = useState(false);
   const [cot, setCot] = useState(null);   // v476 — cotação por fornecedor
   const [sel, setSel] = useState(new Set());   // v477 — itens escolhidos (de qualquer PIC)
+  const [troca, setTroca] = useState(null);   // v1088 — item do PIC trocando de artigo
   // v912 — item com cotação gerada sai do PIC e fica só em Cotações (volta se todos os fornecedores responderem "não tem")
   const [emCot, setEmCot] = useState(0);
   const [todosPic, setTodosPic] = useState([]);   // v1047 — PICs completos (guias Baixados e Todos)
@@ -1382,6 +1430,7 @@ export function PicCompras({ user, fases, ir }) {
   return (
     <div className="w-full">
       <FasesCompras atual="pic" fases={fases} ir={ir} />
+      {troca && <TrocarArtigoModal item={troca} user={user} onClose={() => setTroca(null)} onOk={() => { setTroca(null); carregar(); }} />}
       <p className="text-sm mb-3" style={{ color: C.sub }}>Os itens que o estoque não atende saem do <b>Cruzamento</b> num PIC, com os artigos iguais somados. Preencha o <b>fornecedor</b> e o <b>valor unitário</b> (a quantidade pode ser ajustada) e gere as <b>OCs</b>: uma por fornecedor. Itens de <b>PICs diferentes</b> podem ir na mesma cotação e na mesma OC: marque os itens e use a barra de baixo.</p>
       {!l && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>}
       {/* v1047 — guias no padrão das OCs: em andamento (com itens sem OC e fora de cotação), baixados (tudo em OC) e todos */}
@@ -1435,7 +1484,9 @@ export function PicCompras({ user, fases, ir }) {
                 <div key={i.id} className="flex px-4 py-2 gap-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}`, opacity: trav ? 0.7 : 1, background: sel.has(i.id) ? C.accentSoft : undefined }}>
                   <div className="w-5">{!trav && <input type="checkbox" checked={sel.has(i.id)} onChange={() => togSel(i.id)} title="Escolher para cotação/OC (pode misturar PICs)" />}</div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate" style={{ color: C.text }}>{inf.nome || `Artigo #${i.artigoId}`} <span className="text-xs font-normal" style={{ color: C.sub }}>{[inf.cor, inf.codigo].filter(Boolean).join(" · ")}</span></div>
+                    <div className="font-semibold truncate" style={{ color: C.text }}>{inf.nome || `Artigo #${i.artigoId}`} <span className="text-xs font-normal" style={{ color: C.sub }}>{[inf.cor, inf.codigo].filter(Boolean).join(" · ")}</span>
+                      {!trav && <button onClick={() => setTroca(i)} title="Trocar por um artigo similar do cadastro" className="ml-2 text-[11px] font-semibold" style={{ color: C.blue }}>trocar por similar</button>}</div>   {/* v1088 */}
+                    {inf.trocadoDe && <div className="text-[11px]" style={{ color: C.yellow }}>trocado de {inf.trocadoDe.nome}{inf.trocadoDe.cor ? ` · ${inf.trocadoDe.cor}` : ""}{inf.trocadoDe.por ? ` por ${inf.trocadoDe.por}` : ""}</div>}
                     <div className="text-[11px] truncate" style={{ color: C.sub }} title={(inf.pedidos || []).map((x) => `${x.avulsa ? "Avulsa" : "Pedido"} ${x.pedido} ${ch(x.chave)} · ${qtdU(x.quantidade, inf.unidade)}`).join("\n")}>
                       {(inf.pedidos || []).map((x) => (x.avulsa ? `Avulsa ${x.cliente?.split("·")[0]?.replace("AVULSA", "").trim() || x.pedido}` : rotOrigem(x))).filter((x, k, a) => a.indexOf(x) === k).join(" · ")}
                       {inf.embalagem ? ` · grosa de ${inf.embalagem}` : ""}

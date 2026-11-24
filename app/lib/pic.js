@@ -198,6 +198,20 @@ export async function cancelarOc(ocId, quem, motivo) {
   await (await import("@/lib/devolucoes")).liberarReservaOc(o.id).catch(() => null);   // v1086 — crédito reservado volta ao saldo
   return { ok: true, ...r };
 }
+// v1088 — trocar o artigo de um item do PIC (sem OC) por um similar do cadastro; guarda o original em info.trocadoDe
+export async function trocarArtigoPic(picItemId, artigoId, quem, motivo) {
+  const it = await prisma.picItem.findUnique({ where: { id: Number(picItemId) || 0 }, include: { ocItens: { select: { id: true } }, artigo: { select: { id: true, nome: true, cor: true, codigo: true, unidade: true } } } });
+  if (!it) return { error: "Item do PIC não encontrado." };
+  if (it.ocItens.length) return { error: "O item já está numa OC: cancele o item na OC primeiro." };
+  const a = await prisma.artigo.findUnique({ where: { id: Number(artigoId) || 0 }, select: { id: true, nome: true, cor: true, codigo: true, unidade: true, fornecedorId: true, valorUnitario: true, ativo: true } });
+  if (!a || !a.ativo) return { error: "Artigo não encontrado." };
+  if (a.id === it.artigoId) return { error: "É o mesmo artigo." };
+  const info = { ...(it.info || {}), nome: a.nome, cor: a.cor || null, codigo: a.codigo || null, unidade: a.unidade || null,
+    trocadoDe: { artigoId: it.artigoId, nome: it.artigo?.nome, cor: it.artigo?.cor || null, em: new Date().toISOString(), por: quem || null, motivo: motivo ? String(motivo).slice(0, 200) : null } };
+  await prisma.picItem.update({ where: { id: it.id }, data: { artigoId: a.id, info, fornecedoresCotacao: [],
+    ...(a.fornecedorId ? { fornecedorId: a.fornecedorId } : {}), ...(a.valorUnitario != null && Number(a.valorUnitario) > 0 ? { valorUnitario: a.valorUnitario } : { valorUnitario: null }) } });
+  return { ok: true, artigo: a.nome };
+}
 // v1087 — cancelar um item da OC: o item volta ao PIC (sem OC) para outra compra; OC sem itens é cancelada
 export async function cancelarItemOc(ocItemId, quem, motivo) {
   const it = await prisma.ocItem.findUnique({ where: { id: Number(ocItemId) || 0 }, include: { artigo: { select: { nome: true } }, picItem: { select: { id: true, picId: true } },

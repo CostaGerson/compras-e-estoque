@@ -11,3 +11,6 @@
 
 ## v1087 — cancelar um item da OC
 - Em cada item da OC (aberta, enviada ou com NF): **cancelar item** com motivo. O item volta ao PIC (sem OC) para outra compra, o PIC reabre e a OC guarda a nota. Último item → a OC é cancelada. Com NF anexada, avisa para usar Devolver itens se o material chegou.
+
+## v1088 — PIC: trocar artigo por similar
+- Em cada item do PIC sem OC: **trocar por similar** → busca no cadastro de artigos (nome, cor, código, categoria, fornecedor) e troca o artigo do item. Fornecedor e valor passam a ser os do novo artigo; o original fica em `info.trocadoDe` (mostrado no item) com o motivo.
