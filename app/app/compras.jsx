@@ -1,6 +1,6 @@
 "use client";
 // v404 — Compras: pedidos do KM desmembrados em itens → FPP base → demanda de matéria-prima → Levantamento
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, ChevronDown, ChevronRight, X, Search, FileText, Link2, Unlink, RefreshCw, Layers, Merge, PackageSearch, AlertTriangle, Boxes, CheckCircle2, ShoppingCart, KeyRound, Copy, Undo2, ClipboardList, PackageCheck, Paperclip, ImagePlus, Trash2, Send, Clock, MessageSquare } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";
 import DocsOrigem from "./docsOrigem";   // v1089 — OP · PV · FPP do pedido de origem
@@ -2016,8 +2016,7 @@ function ChipEntrega({ e }) {
   );
 }
 function GerarOcCotacao({ cs, user, onClose, onOk }) {
-  const [porM, setPorM] = useState({});   // v1101 — "ci|k": o valor negociado digitado é pela unidade inicial (m/kg), não pelo rolo
-  const vEmb = (i, ci, k) => { const n = lerNum(f.itens[ci][k]?.valorNegociado) || 0; return porM[`${ci}|${k}`] ? n * fatorC(i) : n; };
+  const vEmb = (i, ci, k) => lerNum(f.itens[ci][k]?.valorNegociado) || 0;   // v1102 — mesma unidade da cotação (sem escolher de novo)
   const [f, setF] = useState({ itens: cs.map((c) => c.itens.map((i) => ({ valorNegociado: numBR(i.valorNegociado ?? i.valorUnitario) }))), prazoEntrega: cs.map((c) => c.prazoEntrega).filter(Boolean).sort().pop() || "", forma: "", dias: "", condicao: cs.find((c) => c.condicao)?.condicao || "" });
   const [oc, setOc] = useState(false);
   const tot = cs.reduce((s1, c, ci) => s1 + c.itens.reduce((s0, i, k) => s0 + (i.naoTem ? 0 : vEmb(i, ci, k)) * qPreco(i), 0), 0);   // v1059 · v1070 · v1101
@@ -2025,7 +2024,7 @@ function GerarOcCotacao({ cs, user, onClose, onOk }) {
     if (!f.forma) return alerta("Escolha a forma de recebimento.");
     const jo = await perguntarJuntarOc([cs[0].fornecedorId]);   // v1072
     setOc(true);
-    const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "gerarOc", juntarOc: jo[Number(cs[0].fornecedorId)] || null, cotacoes: cs.map((c, ci) => ({ id: c.id, itens: c.itens.map((i, k) => (porM[`${ci}|${k}`] ? { valorNegociado: valBR(Math.round(vEmb(i, ci, k) * 1e6) / 1e6) } : f.itens[ci][k])) })), prazoEntrega: f.prazoEntrega, forma: f.forma, diasAposFaturamento: f.dias, condicao: f.condicao, quem: nomeUser(user) }) });
+    const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "gerarOc", juntarOc: jo[Number(cs[0].fornecedorId)] || null, cotacoes: cs.map((c, ci) => ({ id: c.id, itens: f.itens[ci] })), prazoEntrega: f.prazoEntrega, forma: f.forma, diasAposFaturamento: f.dias, condicao: f.condicao, quem: nomeUser(user) }) });
     const x = await r.json().catch(() => ({}));
     setOc(false);
     if (!r.ok) return alerta(x.error || "Erro ao gerar a OC.");
@@ -2051,8 +2050,7 @@ function GerarOcCotacao({ cs, user, onClose, onOk }) {
               <div className="w-24 text-right">{i.comercial ? <><div className="font-semibold" style={{ color: C.accent }}>{txtComercial(i.comercial)}</div><div className="text-[11px]" style={{ color: C.sub }}>= {qtdU(qBase(i), i.comercial.unidade)}</div></> : qtdU(i.quantidade, i.unidade)}</div>
               <div className="w-24 text-right" style={{ color: C.sub }}>{brlU(i.valorUnitario)}{i.comercial && <><div className="text-[10px]">{porEmb(i)}</div><div className="text-[10px]">= {brlU((Number(i.valorUnitario) || 0) / fatorC(i))}/{String(i.comercial.unidade || "").toLowerCase()}</div></>}</div>
               <div className="w-28 text-right"><input value={f.itens[ci][k]?.valorNegociado || ""} onChange={(e) => setF((x) => ({ ...x, itens: x.itens.map((arr, cj) => (cj !== ci ? arr : arr.map((y, j) => (j === k ? { valorNegociado: e.target.value } : y)))) }))} className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} />
-                {i.comercial && <div className="flex justify-end gap-1 mt-0.5 text-[10px]" title="O valor digitado é por rolo ou pela unidade inicial (m/kg)?">{[[false, porEmb(i)], [true, `por ${String(i.comercial.unidade || "").toLowerCase()}`]].map(([m, t]) => { const on = !!porM[`${ci}|${k}`] === m; return <button key={t} type="button" onClick={() => setPorM((o) => ({ ...o, [`${ci}|${k}`]: m }))} className="px-1.5 rounded font-semibold" style={on ? { background: C.accent, color: "#fff" } : { color: C.accent, border: `1px solid ${C.accent}` }}>{t}</button>; })}</div>}
-                {i.comercial && porM[`${ci}|${k}`] && <div className="text-[10px]" style={{ color: C.sub }}>= {brlU(vEmb(i, ci, k))} {porEmb(i)}</div>}</div>
+                {i.comercial && <div className="text-[10px]" style={{ color: C.sub }}>{porEmb(i)} · = {brlU(vEmb(i, ci, k) / fatorC(i))}/{String(i.comercial.unidade || "").toLowerCase()}</div>}</div>
               <div className="w-24 text-right font-semibold" style={{ color: C.navy }}>{brl(vEmb(i, ci, k) * qPreco(i))}</div>
             </div>
           ))}
@@ -2130,7 +2128,25 @@ export function Cotacoes({ user, fases, ir }) {
   const carregar = () => fetch("/api/compras/cotacoes").then((r) => r.json()).then((x) => { setL(Array.isArray(x) ? x : []); setEd({}); }).catch(() => setL([]));
   useEffect(() => { carregar(); }, []);
   const dados = (c) => ed[c.id] || { itens: c.itens.map((i) => ({ valorUnitario: valBR(i.valorUnitario), prazo: i.prazo || "", obs: i.obs || "", naoTem: !!i.naoTem })), condicao: c.condicao || "", prazoEntrega: c.prazoEntrega || "", obs: c.obs || "" };
-  const setD = (c, f) => setEd((e) => ({ ...e, [c.id]: f(dados(c)) }));
+  // v1102 — valor, data, condição etc. ficam salvos sozinhos (sem clicar em Salvar): grava ~1 s depois da última alteração
+  const tmSalvar = useRef({});
+  const [autoSt, setAutoSt] = useState({});   // cotId → "salvando" | "salvo" | "erro"
+  const autoSalvar = (id, nv) => {
+    clearTimeout(tmSalvar.current[id]);
+    tmSalvar.current[id] = setTimeout(async () => {
+      setAutoSt((s) => ({ ...s, [id]: "salvando" }));
+      try {
+        const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "responder", id, ...nv }) });
+        const x = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(x.error || "Erro.");
+        const n = x.cotacao || {};
+        setL((ll) => (ll || []).map((c) => (c.id !== id ? c : { ...c, status: n.status ?? c.status, condicao: n.condicao, prazoEntrega: n.prazoEntrega, obs: n.obs,
+          itens: c.itens.map((i, k) => { const y = (n.itens || [])[k] || {}; return { ...i, valorUnitario: y.valorUnitario ?? null, prazo: y.prazo ?? null, obs: y.obs ?? null, naoTem: !!y.naoTem }; }) })));
+        setAutoSt((s) => ({ ...s, [id]: "salvo" }));
+      } catch { setAutoSt((s) => ({ ...s, [id]: "erro" })); }
+    }, 900);
+  };
+  const setD = (c, f) => { const nv = f(dados(c)); setEd((e) => ({ ...e, [c.id]: nv })); autoSalvar(c.id, nv); };
   const [prazoU, setPrazoU] = useState(null);   // v1075 — cotação com o campo do prazo único aberto
   const post = async (body, ok) => { const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const x = await r.json().catch(() => ({})); if (!r.ok) { alerta(x.error || "Erro."); return null; } if (ok) await alerta(ok(x)); carregar(); return x; };
   // menor preço de cada artigo entre as cotações (para comparar fornecedores)
@@ -2301,7 +2317,8 @@ export function Cotacoes({ user, fases, ir }) {
                   }} title="Uma cotação só por fornecedor" className="text-sm px-3 py-1.5 rounded-md font-semibold flex items-center gap-1.5" style={{ border: `1px solid ${C.navy}`, color: C.navy, background: C.panel }}><Merge size={14} /> Juntar {irm.map((y) => y.numero).join(", ")}</button>;
                 })()}
                 <div className="flex-1" />
-                <button onClick={() => post({ acao: "responder", id: c.id, ...d })} className="text-sm px-4 py-1.5 rounded-md font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: C.panel }}>Salvar resposta</button>
+                {/* v1102 — salva sozinho; o botão sumiu */}
+                <span className="text-xs" style={{ color: autoSt[c.id] === "erro" ? C.red : C.sub }}>{autoSt[c.id] === "salvando" ? "salvando…" : autoSt[c.id] === "salvo" ? "✓ salvo" : autoSt[c.id] === "erro" ? "não salvou: altere de novo ou recarregue" : ""}</span>
                 {!comOc && <button onClick={async () => {   // v479 — OC a partir da cotação respondida
                   if (!d.itens.some((x) => !x.naoTem && lerNum(x.valorUnitario) > 0)) return alerta(d.itens.every((x) => x.naoTem) ? "O fornecedor não tem nenhum item: não há OC a gerar." : "Registre a resposta do fornecedor (valor unitário) antes de gerar a OC.");
                   const x = await post({ acao: "responder", id: c.id, ...d }); if (!x) return;
