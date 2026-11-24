@@ -959,13 +959,9 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       {/* ---------- Dados do pedido ---------- */}
       <Card titulo="Dados do pedido">
         <div className="grid grid-cols-4 gap-3">
-          <Campo label={nortCanal ? "Canal da venda (pedido NORT × Meridian)" : "Tipo de pedido"}>
-            {nortCanal ? (   /* v1083 */
-              <div className="flex rounded overflow-hidden text-sm" style={{ border: `1px solid ${C.line}` }}>
-                {[["NORT", "Venda NORT"], ["LOJA", "Loja física"]].map(([v, t]) => (
-                  <button key={v} type="button" onClick={() => setNortCanal(v)} className="flex-1 px-2 py-1.5" style={{ background: nortCanal === v ? C.navy : C.panel2, color: nortCanal === v ? "#fff" : C.sub, fontWeight: nortCanal === v ? 600 : 400 }}>{t}</button>
-                ))}
-              </div>
+          <Campo label={nortCanal ? "Tipo de pedido" : "Tipo de pedido"}>
+            {nortCanal ? (   /* v1083 · v1091 — pedido NORT é sempre NORT (a loja física lança pela frente de caixa) */
+              <div className="px-2 py-1.5 rounded text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}>{nortCanal === "LOJA" ? "Loja física (frente de caixa)" : "Pedido NORT"}</div>
             ) : <div className="flex rounded overflow-hidden text-sm" style={{ border: `1px solid ${C.line}` }}>
               {[["VENDA", "Venda normal"], ["INTERNO", "Interno"], ["SERVICO", "Serviço"]].filter(([v]) => !somenteServico || v === "SERVICO").map(([v, t]) => { const atual = f.servico ? "SERVICO" : f.interno ? "INTERNO" : "VENDA"; return (
                 <button key={t} type="button" disabled={efetivado && (v === "SERVICO") !== f.servico} title={efetivado && (v === "SERVICO") !== f.servico ? "Pedido já efetivado: não muda entre produto e serviço" : ""}
@@ -976,6 +972,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           <Campo label="Nº do pedido"><div className="px-2 py-1.5 rounded text-sm font-semibold" style={{ ...inp, color: f.numero ? C.text : C.sub }}>{f.numero || (proximo ? `${proximo} (automático)` : "automático")}</div></Campo>
           <In label="Data de emissão" type="date" upper={false} value={f.emissao} onChange={(e) => set("emissao", e.target.value || hojeISO())} />
           <CampoVendedor uid={uid} value={f.vendedor} onChange={(v) => set("vendedor", v)} />
+          {!nortCanal && <>   {/* v1091 — pedido NORT: o cliente é sempre a NORT (automático); só os dados do cliente final, no card abaixo */}
           <Campo label="Cliente · nome ou CNPJ" cls="col-span-2">
             <Auto value={f.clienteNome} onChange={(v) => set("clienteNome", v)} buscar={buscarCliente} onPick={pickCliente} placeholder="Digite o nome ou o CNPJ…"
               render={(c) => <span><b>{c.razaoSocial || c.nomeFantasia}</b> <span style={{ color: C.sub }}>· {fmtCnpj(c.cnpj)}{c.municipio ? " · " + c.municipio : ""}</span></span>} />
@@ -987,7 +984,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
           <In label="Inscr. estadual" value={f.clienteIe} onChange={(e) => set("clienteIe", e.target.value)} />
           <In label="Endereço" cls="col-span-3" value={f.clienteEndereco} onChange={(e) => set("clienteEndereco", e.target.value)} />
           <In label="Contato" value={f.clienteContato} onChange={(e) => set("clienteContato", e.target.value)} />
-          <In label="OC do cliente" value={f.oc} onChange={(e) => set("oc", e.target.value)} />
+          </>}
+          {!nortCanal && <In label="OC do cliente" value={f.oc} onChange={(e) => set("oc", e.target.value)} />}
           <Campo label="Prazo de entrega" cls="col-span-2">
             {/* v869 — data de entrega única (padrão) ou uma data por item */}
             <label className="flex items-center gap-1.5 text-xs mb-1 cursor-pointer" style={{ color: f.entregaPorItem ? C.sub : C.accent }} title="Desmarque para informar uma data de entrega em cada item">

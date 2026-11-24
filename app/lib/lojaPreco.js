@@ -127,3 +127,27 @@ export function textoPersonalizacao(it) {
   return `${it.tecnica} · ${it.estampas.map((e) => `${(POS[e.local]?.nome || e.local).toUpperCase()} ${e.tamanho.toUpperCase()}${e.obs ? ` (${e.obs.toUpperCase()})` : ""}`).join(" | ")}`;
 }
 export const brl = (c) => (Number(c || 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+// v1091 — cores da calculadora (nome → hex) e fotos/peça para o visual da frente de caixa
+export const CORES_HEX = { "BRANCO": "#FFFFFF", "PRETO": "#111111", "AZUL MARINHO": "#16213A", "MARINHO": "#16213A", "AZUL ROYAL": "#2747B3", "ROYAL": "#2747B3", "AZUL NOITE": "#0E1828",
+  "AZUL MOTORISTA": "#24395C", "AZUL ARDOSIA ESCURO": "#33475B", "CINZA": "#8A8C8E", "CINZA GRAFITE": "#3D4043", "GRAFITE": "#3D4043", "CINZA MESCLA": "#A9ABAE", "MESCLA": "#A9ABAE",
+  "CINZA MESCLA GELO": "#D4D6D9", "CINZA CLARO": "#C3C5C8", "CINZA ESCURO": "#505356", "MARFIM": "#F2EBD9", "OFF-WHITE": "#F4F1E8", "OFF WHITE": "#F4F1E8", "AREIA": "#CDB894",
+  "VERDE BANDEIRA": "#00843D", "VERDE PETROLEO": "#0F4C4E", "VERDE FOLHA": "#3B7D2C", "VERDE ATLANTICO": "#1E7A6A", "VERDE MUSGO": "#4B5320", "BORDO": "#6B1A2B", "VINHO": "#6B1A2B",
+  "VERMELHO": "#C8102E", "ROSA": "#F2A9BA", "MARROM": "#5C3A21", "AMARELO": "#F2C200", "LARANJA": "#F26A21", "ROXO": "#5B2A86", "TURQUESA": "#30B5B0", "SALMON": "#F59B83", "SALMAO": "#F59B83" };
+const semAc = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
+export const hexDaCor = (cor) => { const n = semAc(cor); if (CORES_HEX[n]) return CORES_HEX[n]; const k = Object.keys(CORES_HEX).filter((x) => n.endsWith(x) || n.startsWith(x)).sort((a, b) => b.length - a.length)[0]; return k ? CORES_HEX[k] : "#B0B7C3"; };
+// cor = o que sobra do modelo depois do nome comum do produto (modelos do mesmo grupo); sozinho: a maior cor conhecida no fim
+export function coresDosModelos(modelos) {
+  const ws = modelos.map((m) => semAc(m).split(" "));
+  let k = 0;
+  if (ws.length > 1) { const min = Math.min(...ws.map((w) => w.length)); while (k < min - 1 && ws.every((w) => w[k] === ws[0][k])) k++; }
+  return modelos.map((m, i) => {
+    if (ws.length > 1 && k > 0) return modelos[i].split(/\s+/).slice(k).join(" ");
+    const n = semAc(m); const c = Object.keys(CORES_HEX).filter((x) => n.endsWith(` ${x}`)).sort((a, b) => b.length - a.length)[0];
+    return c ? m.split(/\s+/).slice(-c.split(" ").length).join(" ") : m.split(/\s+/).slice(-1).join(" ");
+  });
+}
+const PASTA = { "pv-gola-vies": "malha-pv", "pv-gola-ribana": "malha-pv", "algodao-30-1": "algodao-30-1", "dry-fit-elastano": "dry-fit", viscose: "viscose", "algodao-egipcio": "algodao-egipcio",
+  modal: "modal", "polo-piquet": "polo-piquet", "polo-poliamida": "polo-piquet", "dryfit-sublimacao-total": "dry-fit", "calca-brim-leve": "calca-brim", "calca-brim-pesado": "calca-brim", "calca-social": "calca-brim" };
+export const fotosDoGrupo = (k) => (PASTA[k] ? [1, 2, 3].map((n) => `/loja/stories/${PASTA[k]}/${n}.webp`) : []);
+export const pecaDoGrupo = (k, manga) => (/calca/.test(k) ? null : /polo/.test(k) ? "polo" : manga === "LONGA" ? "manga-longa" : "camiseta");

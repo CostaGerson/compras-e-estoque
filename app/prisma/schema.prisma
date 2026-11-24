@@ -2932,6 +2932,7 @@ model LojaVenda {
   pedidoNumero  String?
   producaoErro  String?                       // falha ao lançar na produção (botão "Tentar de novo")
   estoqueBaixado Boolean  @default(false)
+  estoqueMovs   Json?                         // v1091 — baixas feitas: [{ nome, deposito: LOJA|SEDE, quantidade }] (estorno no cancelamento)
   vendedorNome  String?
   obs           String?
   motivoCancel  String?
@@ -3033,4 +3034,14 @@ model FornecedorCredito {
 
   @@index([fornecedorId])
   @@index([ocId])
+}
+
+// v1091 — matriz de custos do cliente do portal (NORT): pessoal + custos fixos, no modelo da Matriz da Meridian; gera as contas do mês no financeiro do portal
+model PortalMatriz {
+  id            Int      @id @default(autoincrement())
+  clienteId     Int      @unique
+  dados         Json                        // { parametros, pessoal: [...], vidaVegetativa: [...], sistemas: [...], administracao: [...], logistica: [...], dividas: [...] }
+  atualizadoPor String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

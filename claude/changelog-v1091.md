@@ -1,0 +1,8 @@
+# v1091 (24/11/2026) — ajustes do doc "alt": Pedido NORT, frente de caixa no visual da calculadora, matriz de custos da NORT
+
+- **Pedido NORT**: sem a opção "Loja física" (a loja lança pela frente de caixa) e sem os campos de cliente (cliente, CNPJ, IE, endereço, contato, OC): o cliente é sempre a NORT, automático; só o card do cliente final.
+- **Frente de caixa**
+  - Estoque: a loja vende do depósito **LOJA + Reserva Fábrica (SEDE)**, como a calculadora (no ERP o LOJA estava zerado e as 224 peças estão na SEDE). Baixa primeiro do LOJA, o resto da SEDE; o cancelamento estorna no mesmo depósito (`LojaVenda.estoqueMovs`).
+  - FPP: liga sozinha pelo nome mesmo escrito diferente ("CAMISETA MALHA PV GOLA VIÉS PRETO" × "CAMISETA PV GOLA VIES PRETO"; VERDE BB = VERDE BANDEIRA; AZUL ROYAL = ROYAL), negociação LOJA primeiro. Era o motivo dos itens bloqueados (6 de 60 com FPP).
+  - Visual da calculadora: **um card por produto** com a foto real (stories da calculadora em `public/loja/stories`) e as bolinhas das cores; ao abrir, a peça pintada na cor escolhida (máscara + sombra da calculadora, frente/costas), fotos, **cores com estoque** e o resto da configuração. Cor sem FPP fica visível com aviso e não entra no carrinho.
+- **Matriz de custos da NORT** (Portal NORT › Financeiro › Matriz de custos; `PortalMatriz`): pessoal com o mesmo cálculo da Matriz da Meridian (líquido, encargos, benefícios, provisões) e custos fixos (vida vegetativa, sistemas, administração, logística, dívidas). Nasce com o **Ayrllon** (depto NORT da Matriz da Meridian). "Gerar contas do mês" lança as contas a pagar no financeiro da NORT (salário dia 5, encargos/benefícios dia 20, custos fixos no dia de cada um), sem duplicar.

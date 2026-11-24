@@ -12,6 +12,7 @@ export async function GET(req) {
   if (!p) return negadoPortal();
   const q = new URL(req.url).searchParams;
   try {
+    if (q.get("matriz")) { const { obterMatriz, SECOES } = await import("@/lib/portalMatriz"); return resp({ ...(await obterMatriz(p.cliente)), secoes: SECOES }); }   // v1091
     if (q.get("analise")) return resp(await analiseMensal(p.cliente, { ano: q.get("ano"), regime: q.get("regime") }));
     if (q.get("contas")) return resp({ contas: await listarContas(p.cliente.id), grupos: GRUPOS });
     if (q.get("pedidos")) return resp({ pedidos: await pedidosParaReceber(p.cliente) });
@@ -27,6 +28,8 @@ export async function POST(req) {
   try {
     if (b.acao === "salvar") return resp(await salvarTitulo(p.cliente, b.titulo || {}, p.u));
     if (["baixar", "estornar", "excluir"].includes(b.acao)) return resp(await acaoTitulo(p.cliente, { id: b.id, acao: b.acao.toUpperCase(), data: b.data, valor: b.valor }, p.u));
+    if (b.acao === "matriz") { const { salvarMatriz } = await import("@/lib/portalMatriz"); return resp(await salvarMatriz(p.cliente, b.dados || {}, p.u)); }   // v1091
+    if (b.acao === "matrizContas") { const { gerarContasMes } = await import("@/lib/portalMatriz"); return resp(await gerarContasMes(p.cliente, b.mes, p.u)); }
     if (b.acao === "conta") return resp(await salvarConta(p.cliente.id, b.conta || {}));
     return Response.json({ error: "Ação inválida." }, { status: 400 });
   } catch (e) { console.log("portal/fin:", e.message); return Response.json({ error: e.message }, { status: 500 }); }

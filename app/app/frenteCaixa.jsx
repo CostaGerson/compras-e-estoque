@@ -7,7 +7,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Plus, X, Search, ShoppingCart, Trash2, Pencil, Loader2, ArrowLeft, Settings, CheckCircle2, Package, MessageCircle, RefreshCw, Lock, Store } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";
 import { useMobile } from "./useMobile";
-import { POSICOES, limparItem, calcularItem, totaisPedido, textoPersonalizacao, qtdDe, grupoDe } from "@/lib/lojaPreco";
+import { POSICOES, limparItem, calcularItem, totaisPedido, textoPersonalizacao, qtdDe, grupoDe, pecaDoGrupo } from "@/lib/lojaPreco";
 
 const C = { bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41",
   accent: "#FF6B1A", accentSoft: "#FFF0E6", green: "#12A150", greenSoft: "#E7F6EE", red: "#D92D20", redSoft: "#FDECEA", blue: "#2E7CD6", blueSoft: "#EAF2FC", yellow: "#C08401", yellowSoft: "#FFF6DD" };
@@ -101,12 +101,18 @@ function Caixa({ api, cat, carrinho, setCarrinho, onNovo, onFechou }) {
           {grupos.map((g) => <button key={g.k} onClick={() => setGrupo(g.k)} className="text-xs px-3 py-1.5 rounded-full font-semibold" style={grupo === g.k ? { background: C.navy, color: "#fff" } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>{g.nome}</button>)}
         </div>
         {!cat.produtos.length && <div className="p-6 rounded-xl text-center text-sm" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>Catálogo da loja vazio. {cat.gerencial ? "Monte em Catálogo e preços › Importar do estoque NORT." : "Peça para a gestão montar o catálogo."}</div>}
-        <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))" }}>
-          {lista.map((p) => (
-            <button key={p.id} onClick={() => setItemEd({ prod: p })} disabled={!p.fppId} title={p.fppId ? "" : "Sem FPP ligada: peça para a gestão ligar no catálogo"} className="text-left rounded-xl p-3 transition-shadow hover:shadow-md" style={{ background: C.panel, border: `1px solid ${C.line}`, opacity: p.fppId ? 1 : 0.55 }}>
-              <div className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.accent }}>{p.grupoNome}</div>
-              <div className="text-sm font-bold mt-0.5" style={{ color: C.navy }}>{p.modelo}</div>
-              <div className="flex items-center justify-between mt-2 text-xs"><span style={{ color: C.text }}>a partir de <b>{brl(p.base)}</b></span><span style={{ color: p.estoqueTotal > 0 ? C.green : C.sub }}>{p.estoqueTotal > 0 ? `${p.estoqueTotal} em estoque` : "sem estoque"}</span></div>
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>   {/* v1091 — um card por produto (as cores ficam dentro), com a foto, como na calculadora */}
+          {cartoes.map((c) => (
+            <button key={c.g.k} onClick={() => setItemEd({ grupo: c.g.k })} className="text-left rounded-3xl overflow-hidden transition-all hover:-translate-y-1 hover:shadow-lg" style={{ background: "linear-gradient(180deg,#FFFFFF 0%,#F7FAFE 100%)", border: `1px solid ${C.line}`, boxShadow: "0 2px 6px rgba(16,24,40,.06)" }}>
+              <div className="relative" style={{ height: 170, background: "radial-gradient(120% 120% at 50% 18%, #FFFFFF 0%, #E3EBF6 100%)" }}>
+                {c.foto ? <img src={c.foto} alt="" className="absolute inset-0 w-full h-full" style={{ objectFit: "cover", objectPosition: "center 30%" }} /> : <Package size={40} className="absolute inset-0 m-auto" style={{ color: C.sub }} />}
+                {c.estoque > 0 && <span className="absolute top-2.5 right-2.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase" style={{ background: C.green, color: "#fff" }}>{c.estoque} em estoque</span>}
+              </div>
+              <div className="px-4 py-3">
+                <div className="text-sm font-bold leading-tight" style={{ color: C.navy }}>{c.g.nome}</div>
+                <div className="flex items-center gap-1 mt-1.5">{c.prods.slice(0, 9).map((p) => <span key={p.id} title={p.cor} className="inline-block rounded-full" style={{ width: 13, height: 13, background: p.hex, border: "1px solid rgba(0,0,0,.15)" }} />)}{c.prods.length > 9 && <span className="text-[10px]" style={{ color: C.sub }}>+{c.prods.length - 9}</span>}</div>
+                <div className="text-xs mt-1.5" style={{ color: C.text }}>a partir de <b style={{ color: C.accent }}>{brl(c.g.base)}</b> · {c.prods.length} cor(es)</div>
+              </div>
             </button>
           ))}
         </div>
@@ -125,7 +131,7 @@ function Caixa({ api, cat, carrinho, setCarrinho, onNovo, onFechou }) {
                   <div className="text-xs mt-0.5" style={{ color: C.sub }}>{l.qtd} × {brl(l.unit)}{l.unit !== l.unitTabela ? <span style={{ color: C.green }}> (faixa {["1-5", "6-10", "11+", "20+"][l.faixa]})</span> : null}{l.producao ? " · produção" : ""}</div></div>
                 <div className="text-sm font-bold" style={{ color: C.navy }}>{brl(l.total)}</div>
               </div>
-              <div className="flex gap-3 mt-1"><button onClick={() => setItemEd({ prod: porId[it.produtoId], item: it, idx: i })} className="text-xs flex items-center gap-1" style={{ color: C.blue }}><Pencil size={12} /> editar</button>
+              <div className="flex gap-3 mt-1"><button onClick={() => setItemEd({ grupo: it.grupo, item: it, idx: i })} className="text-xs flex items-center gap-1" style={{ color: C.blue }}><Pencil size={12} /> editar</button>
                 <button onClick={() => setCarrinho((c) => ({ ...c, itens: c.itens.filter((_, j) => j !== i) }))} className="text-xs flex items-center gap-1" style={{ color: C.red }}><Trash2 size={12} /> tirar</button></div>
             </div>); })}
         </div>
@@ -147,7 +153,7 @@ function Caixa({ api, cat, carrinho, setCarrinho, onNovo, onFechou }) {
           <Btn cls="col-span-2" disabled={!itens.length} onClick={() => setFechar(true)}><CheckCircle2 size={15} /> Cliente fechou? Receber pagamento</Btn>
         </div>
       </div>
-      {itemEd && <ItemModal tab={tab} prod={itemEd.prod} inicial={itemEd.item} onClose={() => setItemEd(null)}
+      {itemEd && <ItemModal tab={tab} prods={cat.produtos.filter((p) => p.grupo === (itemEd.grupo || itemEd.item?.grupo))} prodInicial={itemEd.item ? porId[itemEd.item.produtoId] : null} inicial={itemEd.item} onClose={() => setItemEd(null)}
         onOk={(it) => { setCarrinho((c) => ({ ...c, itens: itemEd.idx != null ? c.itens.map((x, j) => (j === itemEd.idx ? it : x)) : [...c.itens, it] })); setItemEd(null); }} />}
       {desc && <DescontoModal tab={tab} carrinho={carrinho} onClose={() => setDesc(false)} onOk={(d, a) => { setCarrinho((c) => ({ ...c, desconto: d, acrescimo: a })); setDesc(false); }} />}
       {fechar && <FecharModal api={api} tab={tab} carrinho={carrinho} setCarrinho={setCarrinho} tot={tot} onClose={() => setFechar(false)} onOk={(n) => { setFechar(false); onFechou(n); }} />}
@@ -155,11 +161,29 @@ function Caixa({ api, cat, carrinho, setCarrinho, onNovo, onFechou }) {
   );
 }
 
-function ItemModal({ tab, prod, inicial, onClose, onOk }) {
+// v1091 — peça na cor escolhida (máscara + sombra da calculadora)
+function Palco({ peca, vista, hex, foto }) {
+  const base = `/loja/pecas/${peca}/${vista}`;
+  return (
+    <div className="relative rounded-2xl overflow-hidden" style={{ aspectRatio: "1 / 1", background: "radial-gradient(120% 120% at 50% 18%, #FFFFFF 0%, #E3EBF6 100%)" }}>
+      {foto ? <img src={foto} alt="" className="absolute inset-0 w-full h-full" style={{ objectFit: "cover" }} />
+        : peca ? <div className="absolute inset-0" style={{ isolation: "isolate" }}>
+          <div className="absolute inset-0" style={{ background: hex, WebkitMaskImage: `url(${base}-mascara.png)`, maskImage: `url(${base}-mascara.png)`, WebkitMaskSize: "100% 100%", maskSize: "100% 100%", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat", transition: "background 400ms ease" }} />
+          <img src={`${base}-sombra.png`} alt="" className="absolute inset-0 w-full h-full" style={{ objectFit: "fill", mixBlendMode: "hard-light" }} />
+        </div> : <Package size={48} className="absolute inset-0 m-auto" style={{ color: C.sub }} />}
+    </div>
+  );
+}
+function ItemModal({ tab, prods, prodInicial, inicial, onClose, onOk }) {
+  const [prod, setProd] = useState(() => prodInicial || prods.find((p) => p.fppId && p.estoqueTotal > 0) || prods.find((p) => p.fppId) || prods[0]);
+  const [vista, setVista] = useState("frente");
+  const [foto, setFoto] = useState(null);
   const g = grupoDe(tab, prod.grupo);
-  const tams = [...new Set([...(g.tipo === "CALCA" || g.tipo === "LISA" && /cal/.test(g.k) ? TAMS_CALCA : TAMS_CAMISA), ...Object.keys(prod.estoque || {})])].sort(ordTam);
+  const tams = [...new Set([...(g.tipo === "CALCA" || g.tipo === "LISA" && /cal/.test(g.k) ? TAMS_CALCA : TAMS_CAMISA), ...prods.flatMap((p) => Object.keys(p.estoque || {}))])].sort(ordTam);
   const [it, setIt] = useState(() => inicial ? { ...inicial } : { produtoId: prod.id, grupo: prod.grupo, modelo: prod.modelo, fppId: prod.fppId, fppNumero: prod.fppNumero, grade: {}, manga: "CURTA", tecnica: null, estampas: [], outraCor: false, corNome: "", encomenda: false, malha: "LISA", bolso: false, obs: "" });
   const set = (p) => setIt((x) => ({ ...x, ...p }));
+  const escolherCor = (p) => { setProd(p); setFoto(null); setIt((x) => ({ ...x, produtoId: p.id, modelo: p.modelo, fppId: p.fppId, fppNumero: p.fppNumero })); };
+  const peca = pecaDoGrupo(prod.grupo, it.manga);
   const limpo = limparItem(tab, { ...it, tecnica: it.tecnica });
   const enc = it.encomenda || it.outraCor || it.manga === "LONGA" || g.tipo === "SUBLIMACAO";
   const l = qtdDe(limpo.grade) ? calcularItem(tab, limpo) : null;
@@ -168,10 +192,31 @@ function ItemModal({ tab, prod, inicial, onClose, onOk }) {
   const excede = !enc && Object.entries(it.grade || {}).some(([t, q]) => (Number(q) || 0) > Math.max(0, Number(prod.estoque?.[t]) || 0));
   const trocarTecnica = (t) => { const ok = (it.estampas || []).filter((e) => (POSICOES.find((p) => p.k === e.local)?.[t] || []).includes(e.tamanho)); if (t && ok.length < (it.estampas || []).length) alerta("Algumas estampas não existem nessa técnica e saíram."); set({ tecnica: t, estampas: t ? ok : [] }); };
   return (
-    <Janela titulo={prod.modelo} onClose={onClose} largura={720}
+    <Janela titulo={g.nome} onClose={onClose} largura={920}
       rodape={<>{l && <div className="mr-auto text-sm" style={{ color: C.text }}><b style={{ color: C.navy }}>{brl(l.unit)}</b>/peça · {l.qtd} peça(s) · <b style={{ color: C.navy }}>{brl(l.total)}</b></div>}
-        <Btn contorno onClick={onClose}>Cancelar</Btn><Btn disabled={!l || excede || (it.tecnica && !(it.estampas || []).length)} onClick={() => onOk(limpo)}><Plus size={14} /> {inicial ? "Atualizar" : "Adicionar ao carrinho"}</Btn></>}>
-      <div className="text-xs mb-3" style={{ color: C.sub }}>{g.nome} · base {brl(g.base)}{prod.fppNumero ? ` · FPP ${String(prod.fppNumero).padStart(5, "0")}` : ""}</div>
+        <Btn contorno onClick={onClose}>Cancelar</Btn><Btn disabled={!l || excede || !prod.fppId || (it.tecnica && !(it.estampas || []).length)} onClick={() => onOk(limpo)}><Plus size={14} /> {inicial ? "Atualizar" : "Adicionar ao carrinho"}</Btn></>}>
+      <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "minmax(0, 300px) minmax(0, 1fr)" }}>
+        <div>
+          <Palco peca={peca} vista={vista} hex={it.outraCor ? "#B0B0B0" : prod.hex} foto={foto} />
+          <div className="flex items-center gap-1.5 mt-2">
+            {peca && [["frente", "Frente"], ["costas", "Costas"]].map(([k, t]) => <button key={k} onClick={() => { setVista(k); setFoto(null); }} className="text-xs px-2.5 py-1 rounded-full font-semibold" style={!foto && vista === k ? { background: C.navy, color: "#fff" } : { border: `1px solid ${C.line}`, color: C.sub }}>{t}</button>)}
+            {(prod.fotos || []).map((f, k) => <button key={f} onClick={() => setFoto(f)} className="rounded-lg overflow-hidden" style={{ width: 34, height: 34, border: `2px solid ${foto === f ? C.accent : C.line}` }}><img src={f} alt={`foto ${k + 1}`} className="w-full h-full" style={{ objectFit: "cover" }} /></button>)}
+          </div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-xs mb-2" style={{ color: C.sub }}>base {brl(g.base)}{prod.fppNumero ? ` · FPP ${String(prod.fppNumero).padStart(5, "0")}` : ""}</div>
+          <div className="text-xs font-semibold mb-1.5" style={{ color: C.sub }}>COR</div>
+          <div className="flex flex-wrap gap-1.5">
+            {prods.map((p) => { const on = p.id === prod.id; return (
+              <button key={p.id} onClick={() => escolherCor(p)} title={p.fppId ? `${p.cor} · ${p.estoqueTotal} em estoque` : `${p.cor} · sem FPP ligada (gestão liga em Catálogo e preços)`} className="flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-1 text-xs"
+                style={{ border: `2px solid ${on ? C.accent : C.line}`, background: on ? C.accentSoft : "#fff", opacity: p.fppId ? 1 : 0.5 }}>
+                <span className="inline-block rounded-full" style={{ width: 18, height: 18, background: p.hex, border: "1px solid rgba(0,0,0,.18)" }} />
+                <span style={{ color: C.text, fontWeight: on ? 700 : 500 }}>{p.cor || p.modelo}</span><span style={{ color: p.estoqueTotal > 0 ? C.green : C.sub }}>{p.estoqueTotal > 0 ? p.estoqueTotal : "0"}</span>
+              </button>); })}
+          </div>
+          {!prod.fppId && <div className="text-xs mt-2 px-2.5 py-1.5 rounded" style={{ background: C.yellowSoft, color: C.yellow }}>Esta cor ainda não tem FPP ligada: a gestão liga em Catálogo e preços (o custo cobrado da NORT vem dela).</div>}
+        </div>
+      </div>
       <div className="flex flex-wrap gap-2 mb-3">
         {g.tipo !== "SUBLIMACAO" && <label className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ border: `1px solid ${C.line}` }}><input type="checkbox" checked={it.encomenda} onChange={(e) => set({ encomenda: e.target.checked })} /> Encomenda (não sai do estoque)</label>}
         {g.tipo !== "SUBLIMACAO" && <label className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ border: `1px solid ${C.line}` }}><input type="checkbox" checked={it.outraCor} onChange={(e) => set({ outraCor: e.target.checked })} /> Outra cor (+{tab.outraCorPct}%)</label>}

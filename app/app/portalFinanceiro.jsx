@@ -2,7 +2,7 @@
 // v1081 — Financeiro do portal do cliente (Loja Way): contas a pagar, contas a receber, análise mensal e plano de contas.
 // Cópia simplificada do financeiro da Meridian. As contas a pagar à Meridian chegam sozinhas (espelho dos pedidos).
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, CheckCircle2, Undo2, Search, Loader2, Lock, ArrowDownCircle, ArrowUpCircle, BarChart3, ListTree } from "lucide-react";
+import { Plus, X, ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, CheckCircle2, Undo2, Search, Loader2, Lock, ArrowDownCircle, ArrowUpCircle, BarChart3, ListTree, Users, Save } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";
 
 const C = { bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41",
@@ -47,7 +47,7 @@ export default function PortalFinanceiro({ api, mobile, interno }) {
   const [contas, setContas] = useState(null);
   const carregarContas = () => api("/api/portal/fin?contas=1").then((j) => setContas(j.contas)).catch((e) => alerta(e.message));
   useEffect(() => { carregarContas(); }, []);
-  const SUBS = [["PAGAR", "Contas a pagar", ArrowUpCircle], ["RECEBER", "Contas a receber", ArrowDownCircle], ["ANALISE", "Análise mensal", BarChart3], ["PLANO", "Plano de contas", ListTree]];
+  const SUBS = [["PAGAR", "Contas a pagar", ArrowUpCircle], ["RECEBER", "Contas a receber", ArrowDownCircle], ["ANALISE", "Análise mensal", BarChart3], ["MATRIZ", "Matriz de custos", Users], ["PLANO", "Plano de contas", ListTree]];   // v1091 — matriz
   return (
     <div>
       <div className={`flex gap-1 mb-4 ${mobile ? "overflow-x-auto -mx-3 px-3" : ""}`} style={{ borderBottom: `1px solid ${C.line}` }}>
@@ -58,6 +58,7 @@ export default function PortalFinanceiro({ api, mobile, interno }) {
       </div>
       {(sub === "PAGAR" || sub === "RECEBER") && <Titulos key={sub} tipo={sub} api={api} mobile={mobile} contas={contas || []} />}
       {sub === "ANALISE" && <Analise api={api} mobile={mobile} />}
+      {sub === "MATRIZ" && <MatrizCustos api={api} mobile={mobile} />}
       {sub === "PLANO" && <Plano api={api} contas={contas} onMudou={carregarContas} />}
     </div>
   );
@@ -378,6 +379,80 @@ function Plano({ api, contas, onMudou }) {
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---------- v1091 — matriz de custos (modelo da Matriz da Meridian) ----------
+const REGIMES_M = [["CLT", "CLT"], ["DIRETOR", "Pró-labore"], ["ESTAGIO", "Estágio"]];
+const celM = "rounded px-2 py-1 text-xs outline-none w-full";
+function MatrizCustos({ api, mobile }) {
+  const [d, setD] = useState(null);
+  const [m, setM] = useState(null);
+  const [mudou, setMudou] = useState(false);
+  const [salv, setSalv] = useState(false);
+  const [mes, setMes] = useState(hojeISO().slice(0, 7));
+  const carregar = () => api("/api/portal/fin?matriz=1").then((x) => { setM(x); setD(x.dados); setMudou(false); }).catch((e) => alerta(e.message));
+  useEffect(() => { carregar(); }, []);
+  if (!d) return <div className="flex items-center gap-2 py-6" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Carregando…</div>;
+  const up = (k, i, patch) => { setD((x) => ({ ...x, [k]: x[k].map((r, j) => (j === i ? { ...r, ...patch } : r)) })); setMudou(true); };
+  const add = (k, r) => { setD((x) => ({ ...x, [k]: [...(x[k] || []), r] })); setMudou(true); };
+  const tirar = (k, i) => { setD((x) => ({ ...x, [k]: x[k].filter((_, j) => j !== i) })); setMudou(true); };
+  const salvar = async () => { setSalv(true); try { const x = await api("/api/portal/fin", { method: "POST", body: JSON.stringify({ acao: "matriz", dados: d }) }); setM(x); setD(x.dados); setMudou(false); } catch (e) { alerta(e.message); } setSalv(false); };
+  const gerar = async () => {
+    if (mudou) return alerta("Salve a matriz antes de gerar as contas.");
+    if (!(await confirmar(`Gerar as contas a pagar de ${mes.slice(5)}/${mes.slice(0, 4)} pela matriz (salários dia 5, encargos e benefícios dia 20, custos fixos no dia de cada um)? O que já foi gerado não duplica.`))) return;
+    try { const r = await api("/api/portal/fin", { method: "POST", body: JSON.stringify({ acao: "matrizContas", mes }) }); alerta(`${r.criadas} conta(s) criada(s), ${r.atualizadas} atualizada(s), ${r.mantidas} já existiam. Total do mês: ${money(r.total)}.`); } catch (e) { alerta(e.message); }
+  };
+  const calc = m?.calc || { pessoas: [], secoes: {}, pessoal: 0, total: 0 };
+  const cp = (id) => calc.pessoas.find((x) => x.id === id);
+  const inS = { ...inpS };
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="rounded-xl px-4 py-2" style={{ background: C.panel, border: `1px solid ${C.line}` }}><div className="text-[11px] uppercase font-semibold" style={{ color: C.sub }}>Custo mensal</div><div className="text-lg font-bold" style={{ color: C.navy }}>{money(calc.total)}</div></div>
+        <div className="text-xs" style={{ color: C.sub }}>Pessoal {money(calc.pessoal)}{(m?.secoes || []).map((s) => calc.secoes[s.k] ? ` · ${s.nome} ${money(calc.secoes[s.k])}` : "").join("")}</div>
+        <div className="flex-1" />
+        <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="rounded-lg px-2 py-1.5 text-sm" style={inpS} />
+        <Btn contorno onClick={gerar}>Gerar contas do mês</Btn>
+        <Btn onClick={salvar} disabled={!mudou || salv}>{salv ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Salvar</Btn>
+      </div>
+      <div className="rounded-xl mb-4 overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <div className="px-4 py-2 text-xs font-bold uppercase tracking-wide flex items-center" style={{ background: C.panel2, color: C.navy }}>Pessoal<button onClick={() => add("pessoal", { nome: "", cargo: "", regime: "CLT", salario: "", bonus: 0, vt: 0, vr: 0, ps: 0, descontaVt: true, ativo: true })} className="ml-auto text-xs normal-case flex items-center gap-1" style={{ color: C.accent }}><Plus size={12} /> pessoa</button></div>
+        <table className="w-full text-xs" style={{ minWidth: 900 }}>
+          <thead><tr style={{ color: C.sub }} className="text-left"><th className="px-2 py-1.5">Nome</th><th className="px-2">Cargo</th><th className="px-2">Regime</th><th className="px-2">Salário</th><th className="px-2">Bônus</th><th className="px-2">VT</th><th className="px-2">VR</th><th className="px-2">Plano</th><th className="px-2">Desc. VT</th><th className="px-2 text-right">Líquido</th><th className="px-2 text-right">Encargos + benef.</th><th className="px-2 text-right">Provisões</th><th className="px-2 text-right">Custo total</th><th /></tr></thead>
+          <tbody>{(d.pessoal || []).map((p, i) => { const c = cp(p.id); return (
+            <tr key={p.id || i} style={{ borderTop: `1px solid ${C.line}`, opacity: p.ativo === false ? 0.5 : 1 }}>
+              <td className="px-2 py-1"><input value={p.nome} onChange={(e) => up("pessoal", i, { nome: e.target.value })} className={celM} style={inS} /></td>
+              <td className="px-2"><input value={p.cargo || ""} onChange={(e) => up("pessoal", i, { cargo: e.target.value })} className={celM} style={inS} /></td>
+              <td className="px-2"><select value={p.regime || "CLT"} onChange={(e) => up("pessoal", i, { regime: e.target.value })} className={celM} style={inS}>{REGIMES_M.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></td>
+              {["salario", "bonus", "vt", "vr", "ps"].map((k) => <td key={k} className="px-2"><input value={p[k] ?? ""} onChange={(e) => up("pessoal", i, { [k]: e.target.value })} inputMode="decimal" className={celM} style={{ ...inS, width: 72 }} /></td>)}
+              <td className="px-2 text-center"><input type="checkbox" checked={!!p.descontaVt} onChange={(e) => up("pessoal", i, { descontaVt: e.target.checked })} /></td>
+              <td className="px-2 text-right">{c ? money(c.liquido) : "—"}</td><td className="px-2 text-right">{c ? money(c.encargos + c.beneficios) : "—"}</td><td className="px-2 text-right">{c ? money(c.provisoes) : "—"}</td>
+              <td className="px-2 text-right font-bold" style={{ color: C.navy }}>{c ? money(c.total) : "—"}</td>
+              <td className="px-2 whitespace-nowrap"><button onClick={() => up("pessoal", i, { ativo: p.ativo === false })} className="text-[11px] mr-2" style={{ color: C.sub }}>{p.ativo === false ? "ativar" : "inativar"}</button><button onClick={() => tirar("pessoal", i)}><Trash2 size={13} style={{ color: C.red }} /></button></td>
+            </tr>); })}</tbody>
+        </table>
+        {!(d.pessoal || []).length && <div className="px-4 py-3 text-xs" style={{ color: C.sub }}>Ninguém na folha ainda.</div>}
+      </div>
+      <div className={`grid gap-3 ${mobile ? "" : "grid-cols-2"}`}>
+        {(m?.secoes || []).map((s) => (
+          <div key={s.k} className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            <div className="px-4 py-2 text-xs font-bold uppercase tracking-wide flex items-center" style={{ background: C.panel2, color: C.navy }}>{s.nome} <span className="ml-2 normal-case font-semibold" style={{ color: C.sub }}>{money(calc.secoes[s.k] || 0)}</span>
+              <button onClick={() => add(s.k, { natureza: "", valor: "", dia: 10 })} className="ml-auto text-xs normal-case flex items-center gap-1" style={{ color: C.accent }}><Plus size={12} /> item</button></div>
+            {(d[s.k] || []).map((x, i) => (
+              <div key={x.id || i} className="flex items-center gap-2 px-3 py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
+                <input value={x.natureza} onChange={(e) => up(s.k, i, { natureza: e.target.value })} placeholder="Natureza (ex.: aluguel)" className={celM} style={inS} />
+                <input value={x.valor ?? ""} onChange={(e) => up(s.k, i, { valor: e.target.value })} placeholder="R$" inputMode="decimal" className={celM} style={{ ...inS, width: 90 }} />
+                <input value={x.dia ?? ""} onChange={(e) => up(s.k, i, { dia: e.target.value })} title="Dia do vencimento" placeholder="dia" inputMode="numeric" className={celM} style={{ ...inS, width: 48 }} />
+                <button onClick={() => tirar(s.k, i)}><Trash2 size={13} style={{ color: C.red }} /></button>
+              </div>
+            ))}
+            {!(d[s.k] || []).length && <div className="px-4 py-2 text-xs" style={{ color: C.sub }}>Nenhum item.</div>}
+          </div>
+        ))}
+      </div>
+      <div className="text-[11px] mt-2" style={{ color: C.sub }}>Encargos e provisões calculados como na Matriz da Meridian (INSS {String((d.parametros?.inssPatronal ?? 0.2) * 100).replace(".", ",")}% patronal, FGTS {String((d.parametros?.fgts ?? 0.08) * 100).replace(".", ",")}%, 13º, férias, aviso e multa do FGTS). Salve para recalcular. {m?.atualizadoPor ? `Última alteração: ${m.atualizadoPor}.` : ""}</div>
     </div>
   );
 }

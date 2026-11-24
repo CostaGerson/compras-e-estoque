@@ -8,7 +8,7 @@
 //   Integrações nunca travam a loja: se o lançamento na produção falhar, a venda fecha e fica o "Tentar de novo".
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { PADRAO, POSICOES, grupoDe, grupoPorNome, limparItem, totaisPedido, vaiProducao, textoPersonalizacao, qtdDe } from "@/lib/lojaPreco";
+import { PADRAO, POSICOES, grupoDe, grupoPorNome, limparItem, totaisPedido, vaiProducao, textoPersonalizacao, qtdDe, coresDosModelos, hexDaCor, fotosDoGrupo } from "@/lib/lojaPreco";
 import { modeloNort, registrarMovimentos } from "@/lib/nortInteg";
 import { somaDias } from "@/lib/pedidoLanc";
 
@@ -59,24 +59,49 @@ async function senhaOk(s) {
 
 // ---------- catálogo ----------
 const tamDe = (nome, modelo) => String(nome).slice(modelo.length).trim() || "U";
+// v1091 — a loja vende do depósito LOJA e da Reserva Fábrica (SEDE), como a calculadora
 async function saldosPorModelo(modelos) {
   if (!modelos.length) return {};
-  const l = await prisma.nortItem.findMany({ where: { ativo: true, OR: modelos.map((m) => ({ nome: { startsWith: m } })) }, select: { id: true, nome: true, saldoLoja: true } });
+  const l = await prisma.nortItem.findMany({ where: { ativo: true, OR: modelos.map((m) => ({ nome: { startsWith: m } })) }, select: { id: true, nome: true, saldoLoja: true, saldoSede: true } });
   const out = {};
-  for (const x of l) { const m = modeloNort(x.nome); if (!modelos.includes(m)) continue; (out[m] ||= {})[tamDe(x.nome, m)] = { saldo: Number(x.saldoLoja) || 0, nome: x.nome }; }
+  for (const x of l) { const m = modeloNort(x.nome); if (!modelos.includes(m)) continue; const loja = Math.max(0, Number(x.saldoLoja) || 0), sede = Math.max(0, Number(x.saldoSede) || 0);
+    (out[m] ||= {})[tamDe(x.nome, m)] = { saldo: loja + sede, loja, sede, nome: x.nome }; }
   return out;
+}
+// v1091 — liga a FPP pelo nome quando o estoque e a FPP escrevem diferente ("CAMISETA MALHA PV GOLA VIÉS PRETO" × "CAMISETA PV GOLA VIES PRETO")
+const PALAVRAS_FORA = new Set(["MALHA", "DE", "DA", "DO", "COM", "C/", "E", "MC", "M/C"]);
+const tokens = (s) => new Set(String(s || "").normalize("NFD").replace(/\bVERDE BB\b/gi, "VERDE BANDEIRA").replace(/\bROSA BB\b/gi, "ROSA BEBE").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9.\/ -]/g, " ").split(/[\s-]+/).filter((w) => w && !PALAVRAS_FORA.has(w)));
+function fppPorNome(modelo, fpps) {
+  const tm = tokens(modelo);
+  const ok = fpps.filter((f) => { const tf = tokens(f.nomeComercial); if (!tf.size) return false; const falta = [...tm].filter((w) => !tf.has(w)), sobra = [...tf].filter((w) => !tm.has(w));
+    return sobra.length === 0 && (falta.length === 0 || (falta.length === 1 && falta[0] === "AZUL")); });
+  const loja = ok.filter((f) => /LOJA/i.test(f.negociacao || ""));
+  const l = loja.length ? loja : ok;
+  return l.length === 1 ? l[0] : l.find((f) => tokens(f.nomeComercial).size === tm.size) || null;
+}
+async function ligarFppsPorNome(ps) {
+  const sem = ps.filter((p) => !p.fppId);
+  if (!sem.length) return 0;
+  const fpps = await prisma.fpp.findMany({ where: { nomeComercial: { not: null } }, select: { id: true, numero: true, nomeComercial: true, negociacao: true }, orderBy: { id: "desc" } });
+  let n = 0;
+  for (const p of sem) { const f = fppPorNome(p.modelo, fpps); if (f) { await prisma.lojaProduto.update({ where: { id: p.id }, data: { fppId: f.id, fppNumero: f.numero } }); Object.assign(p, { fppId: f.id, fppNumero: f.numero }); n++; } }
+  return n;
 }
 export async function catalogo({ todos = false } = {}) {
   const tab = await tabelas();
   const ps = await prisma.lojaProduto.findMany({ where: todos ? {} : { ativo: true }, orderBy: { modelo: "asc" } });
+  await ligarFppsPorNome(ps).catch((e) => console.log("loja/fpp:", e.message));   // v1091
   const sal = await saldosPorModelo(ps.map((p) => p.modelo));
+  const corDe = {};   // v1091 — cor de cada modelo (o que sobra do nome comum do produto)
+  for (const g of [...new Set(ps.map((p) => p.grupo))]) { const l = ps.filter((p) => p.grupo === g); coresDosModelos(l.map((p) => p.modelo)).forEach((c, i) => { corDe[l[i].id] = c; }); }
   const fpps = await prisma.fpp.findMany({ where: { id: { in: ps.map((p) => p.fppId).filter(Boolean) } }, select: { id: true, numero: true, custoProducao: true, nomeComercial: true } });
   const F = Object.fromEntries(fpps.map((f) => [f.id, f]));
   return ps.map((p) => {
     const g = grupoDe(tab, p.grupo), s = sal[p.modelo] || {};
     return { id: p.id, modelo: p.modelo, grupo: p.grupo, grupoNome: g?.nome || p.grupo, tipo: g?.tipo || null, base: g?.base || 0, longa: !!g?.longa, tecnicas: g?.tecnicas || [], bolso: !!g?.bolso,
       fppId: p.fppId, fppNumero: p.fppNumero, custo: F[p.fppId]?.custoProducao != null ? r2(F[p.fppId].custoProducao) : null, ativo: p.ativo,
-      estoque: Object.fromEntries(Object.entries(s).map(([t, x]) => [t, x.saldo])), estoqueTotal: Object.values(s).reduce((a, x) => a + Math.max(0, x.saldo), 0) };
+      estoque: Object.fromEntries(Object.entries(s).map(([t, x]) => [t, x.saldo])), estoqueTotal: Object.values(s).reduce((a, x) => a + Math.max(0, x.saldo), 0),
+      estoqueLoja: Object.values(s).reduce((a, x) => a + x.loja, 0), cor: corDe[p.id] || "", hex: hexDaCor(corDe[p.id] || ""), fotos: fotosDoGrupo(p.grupo) };
   });
 }
 // cria o catálogo a partir dos modelos do estoque da NORT (grupo pelo nome; FPP pelo nome comercial igual ao modelo)
@@ -241,7 +266,9 @@ async function baixarEstoqueEAcerto(v, tab, u) {
   doEstoque.forEach((it, k) => Object.entries(it.grade).forEach(([tam, q]) => {
     const x = sal[it.modelo]?.[tam];
     if (!x) { avisos.push(`${it.modelo} ${tam}: sem item no estoque da NORT (não baixou)`); return; }
-    movs.push({ id: `LOJAV-${v.numero}-${k}-${tam}`, nome: x.nome, deposito: "LOJA", tipo: "SAIDA", quantidade: q, ref: `VENDA LOJA ${v.numero}` });
+    const daLoja = Math.min(q, x.loja), daSede = q - daLoja;   // v1091 — LOJA primeiro, o resto da Reserva Fábrica
+    if (daLoja > 0) movs.push({ id: `LOJAV-${v.numero}-${k}-${tam}`, nome: x.nome, deposito: "LOJA", tipo: "SAIDA", quantidade: daLoja, ref: `VENDA LOJA ${v.numero}` });
+    if (daSede > 0) movs.push({ id: `LOJAV-${v.numero}-${k}-${tam}-S`, nome: x.nome, deposito: "SEDE", tipo: "SAIDA", quantidade: daSede, ref: `VENDA LOJA ${v.numero}` });
   }));
   const rm = movs.length ? await registrarMovimentos(movs) : { erros: [] };
   avisos.push(...(rm.erros || []));
@@ -257,7 +284,7 @@ async function baixarEstoqueEAcerto(v, tab, u) {
       competencia: hoje.slice(0, 7), previsao: false, rateio: [], forma: "PEDIDO", observacao: `Acerto NORT da venda ${v.numero} da loja física: custo da peça lisa pela FPP.\n${linhas.join("\n")}`.slice(0, 4000) };
     if (!ja) await prisma.finTitulo.create({ data: { ...d, chaveImport: chave, criadoPorNome: nomeU(u) } });
   }
-  await prisma.lojaVenda.update({ where: { id: v.id }, data: { estoqueBaixado: true } });
+  await prisma.lojaVenda.update({ where: { id: v.id }, data: { estoqueBaixado: true, estoqueMovs: movs.map((m) => ({ id: m.id, nome: m.nome, deposito: m.deposito, quantidade: m.quantidade })) } });
   return { ok: true, avisos };
 }
 // contas a receber no Portal NORT: um título pago por pagamento e o saldo em aberto (vencimento = previsão)
@@ -358,10 +385,8 @@ export async function mudarStatus(numero, acao, { motivo } = {}, u) {
     // estoque baixado volta (peça lisa)
     if (v.estoqueBaixado) {
       const tab = await tabelas();
-      const its = (v.itens || []).filter((it) => !ehEncomenda(tab, it));
-      const sal = await saldosPorModelo([...new Set(its.map((i) => i.modelo))]);
-      const movs = [];
-      its.forEach((it, k) => Object.entries(it.grade).forEach(([tam, q]) => { const x = sal[it.modelo]?.[tam]; if (x) movs.push({ id: `LOJAV-${v.numero}-${k}-${tam}-EST`, nome: x.nome, deposito: "LOJA", tipo: "ENTRADA", quantidade: q, ref: `CANCELAMENTO VENDA LOJA ${v.numero}` }); }));
+      // v1091 — estorna no mesmo depósito de onde saiu
+      const movs = (Array.isArray(v.estoqueMovs) ? v.estoqueMovs : []).map((m) => ({ id: `${m.id}-EST`, nome: m.nome, deposito: m.deposito, tipo: "ENTRADA", quantidade: m.quantidade, ref: `CANCELAMENTO VENDA LOJA ${v.numero}` }));
       if (movs.length) await registrarMovimentos(movs);
       await prisma.finTitulo.updateMany({ where: { chaveImport: `NORTPED|LOJA-V${v.numero}`, status: "ABERTO" }, data: { status: "CANCELADO", atualizadoPorNome: nomeU(u) } });
     }
