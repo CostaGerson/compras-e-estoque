@@ -50,11 +50,14 @@ export async function salvarComercial(id, k, com) {
   if (c.status === "OC") return { error: "Cotação já virou OC." };
   const its = Array.isArray(c.itens) ? [...c.itens] : [];
   if (!its[k]) return { error: "Item não encontrado." };
-  if (!com) { const { comercial, ...r } = its[k]; its[k] = r; }
+  // v1101 — o valor já respondido acompanha a unidade: R$ 15,12/m vira R$ 1.512,00 por rolo de 100 m (e volta ao tirar o rolo)
+  const fAnt = fatorComercial(its[k]);
+  const conv = (f) => (its[k].valorUnitario == null || fAnt === f ? {} : { valorUnitario: Math.round((Number(its[k].valorUnitario) / fAnt) * f * 1e6) / 1e6 });
+  if (!com) { const { comercial, ...r } = its[k]; its[k] = { ...r, ...conv(1) }; }
   else {
     const tipo = String(com.tipo || "").trim().toUpperCase().slice(0, 20), fator = num(com.fator), qtd = num(com.qtd), unidade = String(com.unidade || its[k].unidade || "").trim().toUpperCase().slice(0, 6);
     if (!tipo || !(fator > 0) || !(qtd > 0)) return { error: "Informe a embalagem (rolo, peça…), quanto tem em cada uma e quantas comprar." };
-    its[k] = { ...its[k], comercial: { tipo, fator, unidade, qtd } };
+    its[k] = { ...its[k], ...conv(fator), comercial: { tipo, fator, unidade, qtd } };
   }
   return { ok: true, cotacao: out(await prisma.cotacao.update({ where: { id: c.id }, data: { itens: its } })) };
 }

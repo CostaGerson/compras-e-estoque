@@ -2016,14 +2016,16 @@ function ChipEntrega({ e }) {
   );
 }
 function GerarOcCotacao({ cs, user, onClose, onOk }) {
+  const [porM, setPorM] = useState({});   // v1101 — "ci|k": o valor negociado digitado é pela unidade inicial (m/kg), não pelo rolo
+  const vEmb = (i, ci, k) => { const n = lerNum(f.itens[ci][k]?.valorNegociado) || 0; return porM[`${ci}|${k}`] ? n * fatorC(i) : n; };
   const [f, setF] = useState({ itens: cs.map((c) => c.itens.map((i) => ({ valorNegociado: numBR(i.valorNegociado ?? i.valorUnitario) }))), prazoEntrega: cs.map((c) => c.prazoEntrega).filter(Boolean).sort().pop() || "", forma: "", dias: "", condicao: cs.find((c) => c.condicao)?.condicao || "" });
   const [oc, setOc] = useState(false);
-  const tot = cs.reduce((s1, c, ci) => s1 + c.itens.reduce((s0, i, k) => s0 + (i.naoTem ? 0 : lerNum(f.itens[ci][k]?.valorNegociado) || 0) * qPreco(i), 0), 0);   // v1059 · v1070
+  const tot = cs.reduce((s1, c, ci) => s1 + c.itens.reduce((s0, i, k) => s0 + (i.naoTem ? 0 : vEmb(i, ci, k)) * qPreco(i), 0), 0);   // v1059 · v1070 · v1101
   async function gerar() {
     if (!f.forma) return alerta("Escolha a forma de recebimento.");
     const jo = await perguntarJuntarOc([cs[0].fornecedorId]);   // v1072
     setOc(true);
-    const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "gerarOc", juntarOc: jo[Number(cs[0].fornecedorId)] || null, cotacoes: cs.map((c, ci) => ({ id: c.id, itens: f.itens[ci] })), prazoEntrega: f.prazoEntrega, forma: f.forma, diasAposFaturamento: f.dias, condicao: f.condicao, quem: nomeUser(user) }) });
+    const r = await fetch("/api/compras/cotacoes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "gerarOc", juntarOc: jo[Number(cs[0].fornecedorId)] || null, cotacoes: cs.map((c, ci) => ({ id: c.id, itens: c.itens.map((i, k) => (porM[`${ci}|${k}`] ? { valorNegociado: valBR(Math.round(vEmb(i, ci, k) * 1e6) / 1e6) } : f.itens[ci][k])) })), prazoEntrega: f.prazoEntrega, forma: f.forma, diasAposFaturamento: f.dias, condicao: f.condicao, quem: nomeUser(user) }) });
     const x = await r.json().catch(() => ({}));
     setOc(false);
     if (!r.ok) return alerta(x.error || "Erro ao gerar a OC.");
@@ -2039,7 +2041,7 @@ function GerarOcCotacao({ cs, user, onClose, onOk }) {
   const inp = "px-2 py-1 rounded text-sm outline-none";
   return (
     <Modal titulo={`Gerar OC · ${cs[0].fornecedorNome} · ${cs.map((c) => c.numero).join(" + ")}`} onClose={onClose} largo>
-      <div className="flex px-1 py-1 text-xs font-semibold gap-2" style={{ color: C.sub }}><div className="flex-1">Artigo</div><div className="w-24 text-right">Qtd</div><div className="w-24 text-right">Cotado</div><div className="w-28 text-right">Negociado</div></div>
+      <div className="flex px-1 py-1 text-xs font-semibold gap-2" style={{ color: C.sub }}><div className="flex-1">Artigo</div><div className="w-24 text-right">Qtd</div><div className="w-24 text-right">Cotado</div><div className="w-28 text-right">Negociado</div><div className="w-24 text-right">Total</div></div>
       {cs.map((c, ci) => (
         <React.Fragment key={c.id}>
           {cs.length > 1 && <div className="text-[11px] font-bold px-1 pt-2" style={{ color: C.accent }}>{c.numero}{c.pics ? ` · ${c.pics}` : ""}</div>}
@@ -2047,8 +2049,11 @@ function GerarOcCotacao({ cs, user, onClose, onOk }) {
             <div key={k} className="flex px-1 py-1.5 gap-2 items-center text-sm" style={{ borderTop: `1px solid ${C.line}` }}>
               <div className="flex-1 min-w-0 truncate">{i.nome} <span className="text-xs" style={{ color: C.sub }}>{i.det}</span></div>
               <div className="w-24 text-right">{i.comercial ? <><div className="font-semibold" style={{ color: C.accent }}>{txtComercial(i.comercial)}</div><div className="text-[11px]" style={{ color: C.sub }}>= {qtdU(qBase(i), i.comercial.unidade)}</div></> : qtdU(i.quantidade, i.unidade)}</div>
-              <div className="w-24 text-right" style={{ color: C.sub }}>{brl(i.valorUnitario)}</div>
-              <div className="w-28 text-right"><input value={f.itens[ci][k]?.valorNegociado || ""} onChange={(e) => setF((x) => ({ ...x, itens: x.itens.map((arr, cj) => (cj !== ci ? arr : arr.map((y, j) => (j === k ? { valorNegociado: e.target.value } : y)))) }))} className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} /></div>
+              <div className="w-24 text-right" style={{ color: C.sub }}>{brlU(i.valorUnitario)}{i.comercial && <><div className="text-[10px]">{porEmb(i)}</div><div className="text-[10px]">= {brlU((Number(i.valorUnitario) || 0) / fatorC(i))}/{String(i.comercial.unidade || "").toLowerCase()}</div></>}</div>
+              <div className="w-28 text-right"><input value={f.itens[ci][k]?.valorNegociado || ""} onChange={(e) => setF((x) => ({ ...x, itens: x.itens.map((arr, cj) => (cj !== ci ? arr : arr.map((y, j) => (j === k ? { valorNegociado: e.target.value } : y)))) }))} className={`${inp} w-24 text-right`} style={{ border: `1px solid ${C.line}` }} />
+                {i.comercial && <div className="flex justify-end gap-1 mt-0.5 text-[10px]" title="O valor digitado é por rolo ou pela unidade inicial (m/kg)?">{[[false, porEmb(i)], [true, `por ${String(i.comercial.unidade || "").toLowerCase()}`]].map(([m, t]) => { const on = !!porM[`${ci}|${k}`] === m; return <button key={t} type="button" onClick={() => setPorM((o) => ({ ...o, [`${ci}|${k}`]: m }))} className="px-1.5 rounded font-semibold" style={on ? { background: C.accent, color: "#fff" } : { color: C.accent, border: `1px solid ${C.accent}` }}>{t}</button>; })}</div>}
+                {i.comercial && porM[`${ci}|${k}`] && <div className="text-[10px]" style={{ color: C.sub }}>= {brlU(vEmb(i, ci, k))} {porEmb(i)}</div>}</div>
+              <div className="w-24 text-right font-semibold" style={{ color: C.navy }}>{brl(vEmb(i, ci, k) * qPreco(i))}</div>
             </div>
           ))}
         </React.Fragment>
