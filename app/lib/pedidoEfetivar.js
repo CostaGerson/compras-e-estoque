@@ -77,7 +77,8 @@ export async function salvarPp(id, b, quem) {
     const { clienteNortRow, limparVendaFinal } = await import("@/lib/portalFin");
     const cn = await clienteNortRow();
     Object.assign(data, {
-      clienteNome: cn?.razaoSocial || cn?.nomeFantasia || "NORT SPORTS LTDA", clienteCnpj: cn?.cnpj || null, clienteIe: cn?.inscricaoEstadual || null,
+      // v1110 — título do pedido NORT (e da loja): "NORT - NOME DO CLIENTE FINAL"; o CNPJ continua o da NORT
+      clienteNome: (() => { const nf = String(b.nort.clienteFinal?.nome || "").trim().toUpperCase(); return nf ? `NORT - ${nf}`.slice(0, 120) : (cn?.razaoSocial || cn?.nomeFantasia || "NORT SPORTS LTDA"); })(), clienteCnpj: cn?.cnpj || null, clienteIe: cn?.inscricaoEstadual || null,
       canalVenda: canalNort, vendaFinal: limparVendaFinal(b.nort.vendaFinal) || undefined,
       clienteFinal: b.nort.clienteFinal && typeof b.nort.clienteFinal === "object" ? b.nort.clienteFinal : undefined,
       vendedor: data.vendedor || (canalNort === "LOJA" ? "LOJA FÍSICA NORT" : "NORT"),
