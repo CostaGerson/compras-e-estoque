@@ -2,10 +2,12 @@
 // v699 — link público de dados unitários: cada pessoa escolhe o tamanho e preenche os dados da(s) sua(s) peça(s).
 // Sem login (vale o link). Pensado para o celular.
 import React, { useEffect, useState } from "react";
+import { itemDoTitulo } from "@/lib/itemSemCor";   // v1108
 
 const C = { bg: "#F5F6F8", panel: "#FFFFFF", line: "#E4E7EC", text: "#1F2733", sub: "#667085", navy: "#001E41", accent: "#FF6B1A", green: "#12A150", red: "#D92D20", roxo: "#3D6799" };
 const inp = { background: "#F1F3F5", color: C.text, border: `1px solid ${C.line}` };
 const localTxt = (l) => String(l || "").toLowerCase().replace(/^frente /, "frente · ").replace(/^costas /, "costas · ");
+
 
 function Tela({ children }) {
   return (
@@ -18,6 +20,7 @@ function Tela({ children }) {
 
 export default function PreencherDados({ params }) {
   const token = params.token;
+  const [tabela, setTabela] = useState(false);   // v1108 — tabela de medidas
   const [d, setD] = useState(null);
   const [erro, setErro] = useState("");
   const [nome, setNome] = useState("");
@@ -50,11 +53,13 @@ export default function PreencherDados({ params }) {
 
   return (
     <Tela>
+      {tabela && <div onClick={() => setTabela(false)} className="fixed inset-0 z-50 flex items-center justify-center p-3" style={{ background: "rgba(0,0,0,.75)" }}>
+        <div className="relative max-w-xl w-full"><img src="/tabela-medidas-masculino.jpg" alt="Tabela de medidas" style={{ width: "100%", borderRadius: 10 }} />
+          <button type="button" onClick={() => setTabela(false)} className="absolute -top-2 -right-2 rounded-full w-9 h-9 font-bold" style={{ background: "#fff", color: C.navy }}>✕</button></div></div>}
       <div className="rounded-xl p-4 mb-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-        <div className="text-xs font-semibold" style={{ color: C.sub }}>{d.clienteNome || "Pedido"}</div>
-        <div className="text-lg font-bold" style={{ color: C.navy }}>{d.titulo}</div>
-        <div className="text-base font-semibold mt-2" style={{ color: C.text }}>Escolha os detalhes da sua camisa</div>
-        <div className="text-sm mt-1" style={{ color: C.sub }}>Escolha o tamanho e escreva a inscrição que vai na sua peça. Quer mais de uma? Adicione outra peça antes de enviar.</div>
+        {/* v1108 — sem o nome do cliente: saudação com a peça */}
+        <div className="text-lg font-bold leading-snug" style={{ color: C.navy }}>Olá! Você está aqui para inserir os detalhes da sua <span style={{ color: C.accent }}>{itemDoTitulo(d.titulo)}</span> personalizada!</div>
+        <div className="text-sm mt-2" style={{ color: C.sub }}>Escolha o tamanho e escreva a inscrição que vai na sua peça. Quer mais de uma? Adicione outra peça antes de enviar.</div>
         {d.limite && <div className="text-xs mt-2 font-semibold" style={{ color: d.aberto ? C.accent : C.red }}>{d.aberto ? "Preencha até" : "Encerrado em"} {new Date(d.limite).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>}
       </div>
       {!d.aberto ? (
@@ -78,7 +83,8 @@ export default function PreencherDados({ params }) {
                 <div className="font-bold text-sm" style={{ color: C.navy }}>Peça {i + 1}</div>
                 {pecas.length > 1 && <button onClick={() => setPecas((l) => l.filter((_, j) => j !== i))} className="ml-auto text-xs" style={{ color: C.red }}>remover</button>}
               </div>
-              <div className="text-xs mb-1" style={{ color: C.sub }}>Tamanho</div>
+              <div className="flex items-center mb-1"><div className="text-xs" style={{ color: C.sub }}>Tamanho</div>
+                <button type="button" onClick={() => setTabela(true)} className="ml-auto text-xs font-semibold px-2.5 py-1 rounded-md" style={{ color: C.roxo, border: `1px solid ${C.roxo}` }}>📏 Ver tabela de medidas</button></div>
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {(d.tamanhos || []).map((t) => (
                   <button key={t} onClick={() => up(i, { tam: t })} className="px-3 py-2 rounded-lg text-sm font-bold" style={{ minWidth: 48, background: p.tam === t ? C.accent : "#F1F3F5", color: p.tam === t ? "#fff" : C.text, border: `1px solid ${p.tam === t ? C.accent : C.line}` }}>{t}</button>
