@@ -156,13 +156,13 @@ export default function Comercial({ user, master, fppInicial, componentes = {} }
       {solLanc && <SolicitarLancamento user={user} onClose={() => setSolLanc(false)} />}
       <div className="grid gap-3 mb-5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))" }}>   {/* v1090 — todos os cards numa linha (quebra só no celular) */}
         {[
+          ["solic", Send, "Solicitação lançamento MERIDIAN", "Manda o pedido para o PCP lançar", () => setSolLanc(true)],   // v844 — card laranja
+          // v1083 — pedido NORT × Meridian (até 70 peças, custo da FPP) com a venda ao cliente final no Portal NORT
+          ["nort", Store, "Lançamento pedido NORT", "Venda da NORT (até 70 peças): a Meridian cobra o custo da FPP", () => window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "editarPedido", novo: true, nort: { canal: "NORT" } } }))],
+          ["caixa", ShoppingCart, "Frente de caixa", "Loja física: orçamento e venda ao vivo, preço tabelado e estoque da loja", () => setView("caixa")],   // v1084
           ["fpp", Calculator, "Orçamentação (FPP)", "Fichas de precificação, negociações e propostas", () => setView("fpp")],
           ["acomp", Layers, "Acompanhamento", "Seus pedidos e a situação de cada peça no PCP", () => setView("acomp")],
           ["crm", Briefcase, "CRM", "Abre o CRM Meridian em uma nova aba", () => window.open(CRM_URL, "_blank", "noopener")],
-          ["solic", Send, "Solicitação lançamento MERIDIAN", "Manda o pedido para o PCP lançar", () => setSolLanc(true)],   // v844 — card laranja
-          ["caixa", ShoppingCart, "Frente de caixa", "Loja física: orçamento e venda ao vivo, preço tabelado e estoque da loja", () => setView("caixa")],   // v1084
-          // v1083 — pedido NORT × Meridian (até 70 peças, custo da FPP) com a venda ao cliente final no Portal NORT
-          ["nort", Store, "Pedido NORT", "Venda da NORT (até 70 peças): a Meridian cobra o custo da FPP", () => window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "editarPedido", novo: true, nort: { canal: "NORT" } } }))],
         ].map(([k, Ico, t, sub, go]) => (
           <button key={k} onClick={go} className="text-left rounded-2xl p-4 transition-shadow hover:shadow-lg min-w-0" style={k === "solic" ? { background: C.accent, border: `1px solid ${C.accent}`, color: "#fff" } : { background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
             <div className="flex items-center gap-2"><Ico size={22} className="shrink-0" style={{ color: k === "solic" ? "#fff" : C.accent }} /><span className="text-base font-bold leading-tight flex-1">{t}</span>{k === "crm" && <ExternalLink size={14} className="shrink-0" style={{ color: C.sub }} />}</div>
