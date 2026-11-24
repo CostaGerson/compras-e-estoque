@@ -1178,8 +1178,8 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                 {/* v699 — dado unitário: lista peça a peça (colada, digitada ou pelo link do cliente) */}
                 {it.dadosUnitarios && Array.isArray(it.dadosUnitarios.campos) && <DadosUnitarios semChave travado={!podeLancar} du={it.dadosUnitarios || null} onChange={(v) => upItem(i, { dadosUnitarios: v })} grade={it.grade} onGrade={(grade) => upItem(i, { grade })}
                   tamanhos={tamanhos} uid={uid} titulo={[f.clienteNome, it.descricao].filter(Boolean).join(" · ") || "PEDIDO"} clienteNome={f.clienteNome}
-                  ppId={null} itemIdx={i} onLinkCriado={(du) => gravarLink(i, du)}
-                  semLinkTxt={efetivado ? "Pedido já enviado para a produção: não recebe detalhes pelo link." : "O link de preenchimento é do portal do cliente. Aqui, cole ou digite a lista."}
+                  ppId={efetivado ? null : ppId} itemIdx={i} onLinkCriado={(du) => gravarLink(i, du)}   /* v1103 — link de preenchimento também nos pedidos Meridian e NORT */
+                  semLinkTxt={efetivado ? "Pedido já enviado para a produção: não recebe detalhes pelo link." : "Salve o rascunho do pedido para gerar o link de preenchimento (ou cole / digite a lista aqui)."}
                   onReplicarItens={itens.length > 1 ? () => setItens((arr) => arr.map((x, j) => (j === i ? x : { ...x, dadosUnitarios: { ...(x.dadosUnitarios || {}), campos: it.dadosUnitarios.campos.map((c) => ({ ...c })), linhas: x.dadosUnitarios?.linhas || [] } }))) : null} />}
                 <div className="mb-3" />
                 <div className="text-xs mb-1" style={{ color: C.sub }}>Parâmetros de produção — {it.tipoPecaNome}</div>
