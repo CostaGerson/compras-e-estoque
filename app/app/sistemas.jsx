@@ -10,7 +10,7 @@ const SIS = [
   { chave: "CRM", nome: "CRM Meridian", dono: "Pedro", desc: "Clientes, oportunidades e propostas comerciais", url: "https://crm.meridianpro.com.br", x: 83, y: 24, cor: "#38E1D1" },
   { chave: "NORT", nome: "Dashboard NORT Sports", dono: "Gerson", desc: "Loja NORT: vendas, peças prontas e encomendas", url: "https://dashboard.nortsports.com.br", x: 22, y: 82, cor: "#EE6500" },
   // v1076 — portal da Loja Way aberto dentro do ERP (acesso interno: despacho e etiqueta de envio)
-  { chave: "PORTAL", nome: "Portal Loja Way", dono: "Meridian", desc: "Pedidos da Way: datas de despacho, rastreio e etiqueta de envio", interno: true, x: 78, y: 82, cor: "#A78BFA" },
+  { chave: "PORTAL", nome: "Portal Loja Way", dono: "Meridian", desc: "Pedidos e financeiro da Way: despacho, etiqueta, contas a pagar e a receber e análise mensal", interno: true, x: 78, y: 82, cor: "#A78BFA" },
 ];
 const ERP = { x: 50, y: 47 };
 const quando = (s) => {

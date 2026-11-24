@@ -4,8 +4,9 @@
 //        valor vendido por item, CMV (valor da FPP × peças), MC e despacho pelo lead time; envio pergunta
 //        "data limite para receber os dados" ou "direto para a produção"; lista "Pedidos" no estilo do painel de produção.
 import React, { useEffect, useMemo, useState } from "react";
-import { LogOut, ChevronsLeft, ChevronsRight, Plus, X, Paperclip, Send, Package, ClipboardList, Image as Img, FileText, RotateCcw, Save, Pencil, Search, CalendarClock, Factory, Trash2, Copy, Printer } from "lucide-react";
+import { LogOut, ChevronsLeft, ChevronsRight, Plus, X, Paperclip, Send, Package, ClipboardList, Image as Img, FileText, RotateCcw, Save, Pencil, Search, CalendarClock, Factory, Trash2, Copy, Printer, Wallet } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";
+import PortalFinanceiro from "./portalFinanceiro";   // v1081 — financeiro da loja
 const perguntarVol = async () => { const v = await perguntar("Quantos volumes (caixas)? Sai uma etiqueta por volume.", "1"); if (v == null) return null; const n = Math.round(Number(String(v).replace(",", "."))); return n > 0 ? Math.min(n, 50) : 1; };
 import { useMobile } from "./useMobile";
 import { GradeEditor } from "./pedidoEditor";
@@ -191,9 +192,9 @@ export default function PortalCliente({ user, onSair, tamanhos, interno = null }
   const catalogo = (d?.itens || []).filter((p) => !n || [p.nome, p.nomeNf, p.codigo].join(" ").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(n));
   const val = calcValores(itens);
 
-  const ABAS = [["NOVO", ppId ? "Editar pedido" : "Novo pedido", Package], ["PEDIDOS", `Pedidos${d ? ` (${d.pedidos.length})` : ""}`, ClipboardList]];
+  const ABAS = [["NOVO", ppId ? "Editar pedido" : "Novo pedido", Package], ["PEDIDOS", `Pedidos${d ? ` (${d.pedidos.length})` : ""}`, ClipboardList], ["FINANCEIRO", "Financeiro", Wallet]];
   const nomeUser = [user.nome, user.sobrenome].filter(Boolean).join(" ");
-  const tituloAba = aba === "NOVO" ? (ppId ? `Editar pedido ${ppNum}` : "Novo pedido") : "Pedidos";
+  const tituloAba = aba === "NOVO" ? (ppId ? `Editar pedido ${ppNum}` : "Novo pedido") : aba === "FINANCEIRO" ? "Financeiro" : "Pedidos";
   return (
     <div className="flex text-sm" style={{ background: C.bg, color: C.text, height: "100vh", overflow: "hidden", fontFamily: "Montserrat, system-ui, sans-serif" }}>
       {!mobile && (
@@ -238,7 +239,7 @@ export default function PortalCliente({ user, onSair, tamanhos, interno = null }
             </div>
             <div className="flex" style={{ background: C.panel, borderBottom: `1px solid ${C.line}` }}>
               {ABAS.map(([k, t, I]) => (
-                <button key={k} onClick={() => setAba(k)} className="flex-1 flex items-center justify-center gap-1.5 py-3 font-semibold"
+                <button key={k} onClick={() => setAba(k)} className="flex-1 flex items-center justify-center gap-1 py-3 font-semibold text-[13px] whitespace-nowrap"
                   style={{ color: aba === k ? C.accent : C.sub, borderBottom: aba === k ? `3px solid ${C.accent}` : "3px solid transparent" }}><I size={16} /> {t}</button>
               ))}
             </div>
@@ -383,6 +384,7 @@ export default function PortalCliente({ user, onSair, tamanhos, interno = null }
           </>
         )}
 
+        {d && aba === "FINANCEIRO" && <PortalFinanceiro api={api} mobile={mobile} interno={!!interno} />}   {/* v1081 */}
         {d && aba === "PEDIDOS" && <ListaPedidos pedidos={d.pedidos} mobile={mobile} onAbrir={setDetalhe} onExcluir={excluirPedido} interno={!!interno} onDespacho={mudarDespacho} />}
         </div>
         </div>

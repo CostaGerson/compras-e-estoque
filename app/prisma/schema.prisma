@@ -2852,3 +2852,48 @@ model EnderecoParticular {
 
   @@index([usuarioId])
 }
+
+// v1081 — Financeiro do portal do cliente (Loja Way): contas a pagar, a receber e análise mensal, separados da Meridian.
+// As contas a pagar à Meridian não ficam aqui: vêm das contas a receber da Meridian dos pedidos do cliente (espelho).
+model PortalFinConta {
+  id        Int      @id @default(autoincrement())
+  clienteId Int
+  codigo    String                       // 1.01, 3.02…
+  nome      String
+  grupo     String                       // RECEITA | DEDUCAO | CMV | DESPESA | IMPOSTO | FINANCEIRO | INVESTIMENTO
+  sistema   Boolean  @default(false)     // conta do sistema (não exclui)
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clienteId, codigo])
+  @@index([clienteId])
+}
+
+model PortalFinTitulo {
+  id               Int       @id @default(autoincrement())
+  clienteId        Int
+  tipo             String                   // PAGAR | RECEBER
+  descricao        String
+  parceiro         String?                  // fornecedor (pagar) ou cliente (receber)
+  numeroDoc        String?                  // NF, boleto…
+  parcela          Int?
+  parcelas         Int?
+  grupoParcelas    String?                  // liga as parcelas lançadas juntas
+  valor            Decimal   @db.Decimal(14, 2)
+  vencimento       DateTime  @db.Date
+  status           String    @default("ABERTO") // ABERTO | PAGO | CANCELADO
+  dataPagamento    DateTime? @db.Date
+  valorPago        Decimal?  @db.Decimal(14, 2)
+  contaId          Int?
+  formaPagamento   String?                  // PIX | BOLETO | CARTAO | DINHEIRO | TED | DEBITO_AUTOMATICO
+  ppId             Int?                     // pedido do portal ligado (conta a receber da venda)
+  observacao       String?
+  criadoPorNome    String?
+  atualizadoPorNome String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([clienteId, tipo, vencimento])
+  @@index([clienteId, dataPagamento])
+}
