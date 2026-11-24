@@ -2116,6 +2116,7 @@ export function Cotacoes({ user, fases, ir }) {
   const [ed, setEd] = useState({});   // { cotId: { itens: [...], condicao, prazoEntrega, obs } }
   const [card, setCard] = useState(null);
   const [edCom, setEdCom] = useState(null);   // v1059 — "cotId|k" com a unidade comercial em edição
+  const [porBase, setPorBase] = useState({});   // v1100 — "cotId|k" → { txt }: valor digitado na unidade inicial (m, kg…), guardado por embalagem
   const [gerOc, setGerOc] = useState(null);   // v479
   const [forns, setForns] = useState(_fornPic || []);   // v491 — para ligar a cotação ao cadastro
   useEffect(() => { if (!_fornPic) fetch("/api/fornecedores").then((r) => r.json()).then((x) => { _fornPic = Array.isArray(x) ? x : []; setForns(_fornPic); }).catch(() => {}); }, []);
@@ -2230,9 +2231,18 @@ export function Cotacoes({ user, fases, ir }) {
                         {i.comercial ? <><div className="text-[11px]" style={{ color: C.sub }} title="Demanda real">{qtdU(i.quantidade, i.unidade)}</div><div className="font-semibold" style={{ color: C.accent }} title="Quantidade comercial (vai para a OC)">{txtComercial(i.comercial)}</div></> : qtdU(i.quantidade, i.unidade)}
                         {!comOc && <button type="button" onClick={() => setEdCom(`${c.id}|${k}`)} className="text-[10px] underline decoration-dotted" style={{ color: C.accent }}>{i.comercial ? "editar unidade" : "unidade comercial"}</button>}
                       </div>
-                      <div className="w-28 text-right relative">{di.naoTem ? <span className="text-xs font-semibold" style={{ color: C.red }}>não tem</span> : <input value={di.valorUnitario} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: e.target.value } : y)) }))}
-                        onBlur={(e) => { const n = lerNum(e.target.value); if (n != null) setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: valBR(n) } : y)) })); }}
-                        placeholder="0,00" className={`${inp} w-full text-right`} style={{ border: `1px solid ${eMelhor ? C.green : C.line}`, background: eMelhor ? C.greenSoft : "#fff" }} />}{!di.naoTem && porEmb(i) && <div className="absolute right-0 top-full text-[10px] whitespace-nowrap" style={{ color: C.accent }}>{porEmb(i)}</div>}</div>
+                      <div className="w-28 text-right relative">{di.naoTem ? <span className="text-xs font-semibold" style={{ color: C.red }}>não tem</span> : (() => { const kb = `${c.id}|${k}`, pb = porEmb(i) ? porBase[kb] : null, fat = fatorC(i);   // v1100 — valor por embalagem (rolo) ou pela unidade inicial (m)
+                        const gravar = (txt, fim) => { const n = lerNum(txt); setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, valorUnitario: pb ? (n == null ? "" : valBR(Math.round(n * fat * 1e6) / 1e6)) : (fim && n != null ? valBR(n) : txt) } : y)) })); };
+                        return <input value={pb ? pb.txt : di.valorUnitario} onChange={(e) => { if (pb) setPorBase((o) => ({ ...o, [kb]: { txt: e.target.value } })); gravar(e.target.value, false); }}
+                          onBlur={(e) => { if (pb) { const n = lerNum(e.target.value); if (n != null) setPorBase((o) => ({ ...o, [kb]: { txt: valBR(n) } })); } gravar(e.target.value, true); }}
+                          title={pb ? `Valor por ${String(i.comercial.unidade || i.unidade || "").toLowerCase()}: vai para a OC como ${brl((lerNum(pb.txt) || 0) * fat)} ${porEmb(i)}` : ""}
+                          placeholder="0,00" className={`${inp} w-full text-right`} style={{ border: `1px solid ${eMelhor ? C.green : C.line}`, background: eMelhor ? C.greenSoft : "#fff" }} />; })()}
+                        {!di.naoTem && porEmb(i) && (() => { const kb = `${c.id}|${k}`, pb = porBase[kb], un = String(i.comercial.unidade || i.unidade || "").toLowerCase(), fat = fatorC(i);
+                          const ir = (base) => setPorBase((o) => { const n = { ...o }; if (base) { const v = lerNum(di.valorUnitario); n[kb] = { txt: v == null ? "" : valBR(Math.round((v / fat) * 1e6) / 1e6) }; } else delete n[kb]; return n; });
+                          return <div className="absolute right-0 top-full flex gap-1 text-[10px] whitespace-nowrap mt-0.5">
+                            <button type="button" onClick={() => ir(false)} className="px-1.5 rounded font-semibold" style={!pb ? { background: C.accent, color: "#fff" } : { color: C.accent, border: `1px solid ${C.accent}` }}>{porEmb(i)}</button>
+                            <button type="button" onClick={() => ir(true)} className="px-1.5 rounded font-semibold" style={pb ? { background: C.accent, color: "#fff" } : { color: C.accent, border: `1px solid ${C.accent}` }}>por {un}</button>
+                          </div>; })()}</div>
                       <div className="w-36">{di.naoTem ? "" : <input type="date" value={di.prazo} onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, prazo: e.target.value } : y)) }))} className={`${inp} w-full`} style={{ border: `1px solid ${C.line}`, background: "#fff" }} />}</div>
                       <div className="w-16 text-center">{/* v484 */}<input type="checkbox" checked={!!di.naoTem} title="O fornecedor não tem este item" onChange={(e) => setD(c, (x) => ({ ...x, itens: x.itens.map((y, j) => (j === k ? { ...y, naoTem: e.target.checked, ...(e.target.checked ? { valorUnitario: "", prazo: "" } : {}) } : y)) }))} /></div>
                       <div className="w-28 text-right font-semibold" style={{ color: v && !di.naoTem ? C.navy : C.sub }}>{v && !di.naoTem ? brl(v * qPreco(i)) : "—"}</div>
