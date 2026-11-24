@@ -30,6 +30,19 @@ export async function GET(req) {
     if (!a) return new Response("Não encontrado.", { status: 404 });
     return new Response(Buffer.from(a.conteudo, "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `${q.get("baixar") ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(a.nome)}` } });
   }
+  // v1080 — #102: Ver OC (dados atuais da OC da coleta) e Ver OS (PDF do PCP, sem preços)
+  if (q.get("ocDemanda")) {
+    const { ocDaDemanda } = await import("@/lib/rotaDocs");
+    const x = await ocDaDemanda(q.get("ocDemanda"));
+    return Response.json(x, { status: x.error ? x.status || 400 : 200 });
+  }
+  if (q.get("osDemanda")) {
+    const { osPdfDaDemanda } = await import("@/lib/rotaDocs");
+    const x = await osPdfDaDemanda(q.get("osDemanda"));
+    if (x.error) return new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:Arial,sans-serif;padding:32px;color:#0c2342"><h2 style="margin:0 0 8px">Não deu para abrir a OS</h2><p>${x.error.replace(/</g, "&lt;")}</p></body>`,
+      { status: x.status || 502, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+    return new Response(x.pdf, { headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="OS-${x.os}.pdf"`, "Cache-Control": "no-store" } });
+  }
   if (q.get("minhas")) return Response.json({ ...(await minhasRotas(u.pessoaId)), pessoaId: u.pessoaId, nome: u.nome });   // v452 — app do motorista
   // v778 — #67/#68: km atual, checklist de manutenção e abastecimentos do veículo
   if (q.get("ultimoKm")) { const { ultimoKm } = await import("@/lib/rotas"); return Response.json({ km: await ultimoKm(q.get("ultimoKm")) }); }

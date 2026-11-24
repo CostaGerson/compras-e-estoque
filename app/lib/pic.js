@@ -198,8 +198,8 @@ export async function soltarOcsCanceladas() {
   for (const o of l) await devolverItensDaOc(o, "sistema (v1046)", "OC cancelada antes da v1046: itens devolvidos para cotação").catch((e) => console.log("[v1046]", o.numero, e.message));
   return l.map((o) => o.numero);
 }
-export async function listarOcs() {
-  const l = await prisma.ordemCompra.findMany({ orderBy: { id: "desc" }, take: 100, include: { fornecedor: true, itens: { include: { artigo: { select: { nome: true, cor: true, codigo: true, unidade: true } }, picItem: { select: { picId: true, info: true } } } } } });
+export async function listarOcs({ ids } = {}) {   // v1080 — ids: só estas OCs (rota da OC › Ver OC)
+  const l = await prisma.ordemCompra.findMany({ ...(ids ? { where: { id: { in: ids.map(Number) } } } : { take: 100 }), orderBy: { id: "desc" }, include: { fornecedor: true, itens: { include: { artigo: { select: { nome: true, cor: true, codigo: true, unidade: true } }, picItem: { select: { picId: true, info: true } } } } } });
   const piPorOc = {};
   for (const o of l) piPorOc[o.id] = [...new Set(o.itens.map((i) => i.picItem?.picId).filter(Boolean))];
   const picIds = [...new Set([...l.map((o) => o.picId), ...Object.values(piPorOc).flat()].filter(Boolean))];

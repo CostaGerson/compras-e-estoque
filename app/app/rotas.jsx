@@ -4,6 +4,7 @@ import { BuscaLista, THEAD } from "./listaPadrao";   // v994
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, X, Loader2, MapPin, Truck, Bike, Car, Settings, Route as IcoRota, Send, CheckCircle2, Circle, ArrowUp, ArrowDown, AlertTriangle, Flag, Package, ShoppingBag, ArrowLeftRight, Link2, Play, ExternalLink, Undo2, Home, Copy, MessageCircle, Hourglass, Paperclip, Trash2, Phone } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
+import DocsDemanda, { temDocs } from "./rotaDocs";   // v1080 — #102: Ver OC / Ver OS
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
@@ -758,6 +759,8 @@ export function DemandaForm({ user, inicial, motoristas, onClose, onOk }) {
           <L t="Observação" span><textarea value={f.obs || ""} onChange={(e) => set("obs", e.target.value)} rows={2} className={inp} style={inpS} /></L>
           {erro && <div className="col-span-2 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
         </fieldset>
+        {!novo && !user?.token && temDocs(inicial) && <div className="flex flex-wrap items-center gap-2 px-5 pt-3">   {/* v1080 — #102 */}
+          <DocsDemanda user={user} d={inicial} /></div>}
         {!user?.token && <AnexosDemanda user={user} id={inicial.id} iniciais={inicial.anexos || []} novos={novosArq} setNovos={setNovosArq} />}   {/* v788 — #70 */}
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
           {inicial.status === "CONCLUIDA" && <button onClick={reativar} className="text-xs flex items-center gap-1 font-semibold" style={{ color: C.accent }}><Undo2 size={13} /> Reativar demanda</button>}
@@ -1114,6 +1117,7 @@ function BlocoCard({ b, demandas, pode, meu, user, onMudou, onEditar }) {
               ? <button onClick={() => acao({ acao: "parada", id: x.id, desfazer: x.status === "CONCLUIDA" })} style={{ color: x.status === "CONCLUIDA" ? C.green : C.sub }}>{x.status === "CONCLUIDA" ? <CheckCircle2 size={15} /> : <Circle size={15} />}</button>
               : <span className="font-bold w-4 text-center" style={{ color: C.sub }}>{x.ordem}</span>}
             <span className="truncate" style={{ color: C.text, textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{OBJ[x.objetivo]?.[0]} · {nomeTarefa(x)}</span>
+            <DocsDemanda user={user} d={x} estilo="mini" />   {/* v1080 — #102 */}
             <span className="ml-auto whitespace-nowrap" style={{ color: C.sub }}>{x.horario}</span>
           </div>
         ))}
@@ -1271,6 +1275,7 @@ function MinhaRota({ bloco, demandas, user, onMudou }) {
               <div className="text-sm font-semibold" style={{ textDecoration: x.status === "CONCLUIDA" ? "line-through" : "none" }}>{OBJ[x.objetivo]?.[0]} · {nomeTarefa(x)}{x.urgente ? " · URGENTE" : ""}</div>
               <div className="text-xs opacity-80 truncate">{x.endereco}</div>
               <div className="text-xs opacity-80">{sc(x.horario)}{x.telefone ? ` · ${[x.contato, x.telefone].filter(Boolean).join(" · ")}` : ""}{x.obs ? ` · ${x.obs}` : ""}</div>
+              {temDocs(x) && <div className="flex flex-wrap gap-1.5 mt-1"><DocsDemanda user={user} d={x} estilo={x.id === prox?.id ? "mini" : "escuro"} /></div>}   {/* v1080 — #102 */}
             </div>
             <button onClick={() => acao({ acao: "parada", id: x.id, desfazer: x.status === "CONCLUIDA" })} className="px-3 py-1.5 rounded-md text-xs font-semibold shrink-0" style={{ background: x.status === "CONCLUIDA" ? "transparent" : C.green, color: "#fff", border: x.status === "CONCLUIDA" ? "1px solid rgba(255,255,255,.4)" : "none" }}>
               {x.status === "CONCLUIDA" ? "Desfazer" : "Concluir"}

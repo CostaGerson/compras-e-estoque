@@ -5,6 +5,7 @@
 import React, { useEffect, useState } from "react";
 import { Loader2, Phone, LogOut, RefreshCw, Undo2, Clock, MapPin } from "lucide-react";
 import AvisosPush from "./avisosPush";   // v466
+import DocsDemanda, { temDocs } from "./rotaDocs";   // v1080 — #102: Ver OC / Ver OS
 
 const C = { navy: "#001E41", accent: "#FF6B1A", green: "#12A150", greenSoft: "#E7F6EE", bg: "#F2F4F7", panel: "#FFFFFF", line: "#E4E7EC", text: "#1F2733", sub: "#667085", red: "#D92D20", waze: "#33CCFF", yellow: "#C08401", yellowSoft: "#FFF6DD" };
 const OBJ = { COLETA: ["📦", "Coleta"], ENTREGA: ["🚚", "Entrega"], COLETA_ENTREGA: ["🔄", "Coleta e entrega"], COMPRA: ["🛒", "Compra"], RETORNO: ["🏭", "Retorno à fábrica"] };   // v521
@@ -224,7 +225,8 @@ export default function MotoristaApp({ user, onSair }) {
                     <div className="mt-2 flex items-center gap-2 text-base" style={{ color: C.sub }}><Clock size={18} /> {atual.horario}{atual.tempoLocal != null ? ` · ~${atual.tempoLocal} min no local` : ""}</div>
                     {atual.telefone && <a href={`tel:${tel(atual.telefone)}`} className="mt-2 flex items-center gap-2 text-base font-bold" style={{ color: C.green }}><Phone size={18} /> {atual.contato ? `${sc(atual.contato)} · ` : ""}{atual.telefone}</a>}
                     {atual.obs && <div className="mt-2 rounded-xl px-3 py-2 text-base" style={{ background: C.yellowSoft, color: C.yellow }}>📝 {atual.obs}</div>}
-                    {(atual.anexos || []).length > 0 && <div className="mt-2 flex flex-col gap-2">{atual.anexos.map((a) => (/^image\//.test(a.mime || "")
+                    {temDocs(atual) && <div className="mt-2 flex flex-col gap-2"><DocsDemanda user={user} d={atual} estilo="grande" /></div>}   {/* v1080 — #102 */}
+                    {(atual.anexos || []).length > 0 && <div className="mt-2 flex flex-col gap-2">{atual.anexos.filter((a) => !(atual.ocId && /^image\//.test(a.mime || "") && /^OC/i.test(a.nome))).map((a) => (/^image\//.test(a.mime || "")
                       // v1060 — imagem (ex.: a OC da coleta/compra): botão grande que abre em tela cheia
                       ? <button key={a.id} type="button" onClick={() => setVerImg({ src: `/api/rotas?u=${user.id}&anexo=${a.id}`, nome: a.nome })} className="w-full rounded-xl px-4 py-3 text-lg font-extrabold flex items-center justify-center gap-2" style={{ background: C.navy, color: "#fff", minHeight: 52 }}>🧾 {/^OC/i.test(a.nome) ? `Ver ${a.nome.replace(/\.png$/i, "").replace(/^OC/i, "OC ")}` : `Ver ${a.nome}`}</button>
                       : <a key={a.id} href={`/api/rotas?u=${user.id}&anexo=${a.id}`} target="_blank" rel="noreferrer" className="text-base font-semibold truncate" style={{ color: C.blue }}>📎 {a.nome}</a>))}</div>}   {/* v788 — #70 */}
@@ -295,6 +297,7 @@ export default function MotoristaApp({ user, onSair }) {
                       <div className="text-base font-bold truncate" style={{ color: C.text, textDecoration: feita ? "line-through" : "none" }}>{(OBJ[p.objetivo] || ["📍"])[0]} {curto(p.destinoNome)}</div>
                       <div className="text-sm truncate" style={{ color: C.sub }}>{p.tarefa ? sc(p.tarefa) : p.horario}</div>
                     </div>
+                    {i !== idx && temDocs(p) && <div className="flex flex-col gap-1"><DocsDemanda user={user} d={p} estilo="normal" /></div>}   {/* v1080 — #102 */}
                     {ultimaFeita && !rota.voltaIniciadaEm && <button onClick={() => acao({ acao: "parada", id: p.id, desfazer: true })} className="flex items-center gap-1 text-sm font-semibold px-2 py-1" style={{ color: C.sub }}><Undo2 size={15} /> desfazer</button>}
                   </div>
                 );
