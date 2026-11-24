@@ -106,10 +106,7 @@ function Caixa({ api, cat, carrinho, setCarrinho, onNovo, onFechou }) {
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <div className="flex items-center gap-1.5 rounded-lg px-3 py-2 flex-1 min-w-[200px]" style={inpS}><Search size={15} style={{ color: C.sub }} /><input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar produto ou cor…" className="bg-transparent outline-none text-sm flex-1" /></div>
         </div>
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          <button onClick={() => setGrupo("")} className="text-xs px-3 py-1.5 rounded-full font-semibold" style={!grupo ? { background: C.navy, color: "#fff" } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Todos</button>
-          {grupos.map((g) => <button key={g.k} onClick={() => setGrupo(g.k)} className="text-xs px-3 py-1.5 rounded-full font-semibold" style={grupo === g.k ? { background: C.navy, color: "#fff" } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>{g.nome}</button>)}
-        </div>
+        {/* v1097 — sem o filtro por produto (pedido do Igor) */}
         {!cat.produtos.length && <div className="p-6 rounded-xl text-center text-sm" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.sub }}>Catálogo da loja vazio. {cat.gerencial ? "Monte em Catálogo e preços › Importar do estoque NORT." : "Peça para a gestão montar o catálogo."}</div>}
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>   {/* v1091 — um card por produto (as cores ficam dentro), com a foto, como na calculadora */}
           {cartoes.map((c) => (
@@ -211,7 +208,6 @@ function ItemModal({ tab, prods, prodInicial, inicial, onClose, onOk }) {
           <Palco peca={peca} vista={vista} hex={it.outraCor ? "#B0B0B0" : prod.hex} foto={foto} />
           <div className="flex items-center gap-1.5 mt-2">
             {peca && [["frente", "Frente"], ["costas", "Costas"]].map(([k, t]) => <button key={k} onClick={() => { setVista(k); setFoto(null); }} className="text-xs px-2.5 py-1 rounded-full font-semibold" style={!foto && vista === k ? { background: C.navy, color: "#fff" } : { border: `1px solid ${C.line}`, color: C.sub }}>{t}</button>)}
-            {(prod.fotos || []).map((f, k) => <button key={f} onClick={() => setFoto(f)} className="rounded-lg overflow-hidden" style={{ width: 34, height: 34, border: `2px solid ${foto === f ? C.accent : C.line}` }}><img src={f} alt={`foto ${k + 1}`} className="w-full h-full" style={{ objectFit: "cover" }} /></button>)}
           </div>
         </div>
         <div className="min-w-0">
@@ -222,9 +218,10 @@ function ItemModal({ tab, prods, prodInicial, inicial, onClose, onOk }) {
               <button key={p.id} onClick={() => escolherCor(p)} title={p.fppId ? `${p.cor} · ${p.estoqueTotal} em estoque` : `${p.cor} · sem FPP ligada (gestão liga em Catálogo e preços)`} className="flex items-center gap-1.5 rounded-full pl-1 pr-2.5 py-1 text-xs"
                 style={{ border: `2px solid ${on ? C.accent : C.line}`, background: on ? C.accentSoft : "#fff", opacity: p.fppId ? 1 : 0.5 }}>
                 <span className="inline-block rounded-full" style={{ width: 18, height: 18, background: p.hex, border: "1px solid rgba(0,0,0,.18)" }} />
-                <span style={{ color: C.text, fontWeight: on ? 700 : 500 }}>{p.cor || p.modelo}</span><span style={{ color: p.estoqueTotal > 0 ? C.green : C.sub }}>{p.estoqueTotal > 0 ? p.estoqueTotal : "0"}</span>
+                <span style={{ color: C.text, fontWeight: on ? 700 : 500 }}>{p.cor || p.modelo}</span>{p.fppId && <CorFpp p={p} />}<span style={{ color: p.estoqueTotal > 0 ? C.green : C.sub }}>{p.estoqueTotal > 0 ? p.estoqueTotal : "0"}</span>
               </button>); })}
           </div>
+          {prod.fppId && prod.corConfere === false && <div className="text-xs mt-2 px-2.5 py-1.5 rounded" style={{ background: C.redSoft, color: C.red }}>A FPP {String(prod.fppNumero).padStart(5, "0")} ({prod.fppNome}) é da cor <b>{prod.fppCor || "não informada"}</b>, diferente de {prod.cor}: confira e, se preciso, troque a FPP em Catálogo e preços.</div>}
           {!prod.fppId && <div className="text-xs mt-2 px-2.5 py-1.5 rounded" style={{ background: C.yellowSoft, color: C.yellow }}>Esta cor ainda não tem FPP ligada: a gestão liga em Catálogo e preços (o custo cobrado da NORT vem dela).</div>}
         </div>
       </div>
@@ -456,7 +453,7 @@ function Config({ api, cat, onMudou }) {
               <tr key={p.id} style={{ borderTop: `1px solid ${C.line}`, opacity: p.ativo ? 1 : 0.5 }}>
                 <td className="px-3 py-2 font-semibold">{p.modelo}</td>
                 <td className="px-3 py-2"><select value={p.grupo} onChange={(e) => salvar({ id: p.id, grupo: e.target.value })} className="rounded px-2 py-1 text-xs outline-none" style={inpS}>{cat.tabelas.grupos.map((g) => <option key={g.k} value={g.k}>{g.nome}</option>)}</select></td>
-                <td className="px-3 py-2"><button onClick={() => setFppDe(p)} className="text-xs font-semibold" style={{ color: p.fppId ? C.blue : C.red }}>{p.fppNumero ? String(p.fppNumero).padStart(5, "0") : "ligar FPP"}</button></td>
+                <td className="px-3 py-2"><button onClick={() => setFppDe(p)} className="text-xs font-semibold" style={{ color: p.fppId ? C.blue : C.red }}>{p.fppNumero ? String(p.fppNumero).padStart(5, "0") : "ligar FPP"}</button>{p.fppId && <div className="text-[11px] mt-0.5" title={p.fppNome || ""}>cor da FPP: <CorFpp p={p} sem /></div>}</td>
                 <td className="px-3 py-2 text-right">{p.custo != null ? brl(Math.round(p.custo * 100)) : "—"}</td>
                 <td className="px-3 py-2 text-right">{p.estoqueTotal}</td>
                 <td className="px-3 py-2 text-right"><button onClick={() => salvar({ id: p.id, ativo: !p.ativo })} className="text-xs px-2 py-0.5 rounded" style={{ border: `1px solid ${C.line}`, color: C.sub }}>{p.ativo ? "Desativar" : "Ativar"}</button></td>
@@ -520,4 +517,12 @@ function TabelaPrecos({ api, tab, onClose, onOk }) {
       </div>
     </Janela>
   );
+}
+
+// v1097 — cor que a FPP traz, ao lado da cor da peça (vermelho quando não bate)
+function CorFpp({ p, sem }) {
+  const t = p.fppCor || (p.fppNome ? "sem cor na FPP" : "");
+  if (!t) return null;
+  const ruim = p.corConfere === false;
+  return <span title={`FPP ${String(p.fppNumero || "").padStart(5, "0")} · ${p.fppNome || ""}${ruim ? " · cor diferente da peça" : ""}`} className={sem ? "font-semibold" : "text-[10px] font-semibold px-1.5 rounded"} style={sem ? { color: ruim ? C.red : C.green } : { background: ruim ? C.redSoft : C.greenSoft, color: ruim ? C.red : C.green }}>{sem ? "" : "FPP: "}{t}{ruim ? " ⚠" : ""}</span>;
 }

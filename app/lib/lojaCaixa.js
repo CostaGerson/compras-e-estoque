@@ -94,15 +94,25 @@ export async function catalogo({ todos = false } = {}) {
   const sal = await saldosPorModelo(ps.map((p) => p.modelo));
   const corDe = {};   // v1091 — cor de cada modelo (o que sobra do nome comum do produto)
   for (const g of [...new Set(ps.map((p) => p.grupo))]) { const l = ps.filter((p) => p.grupo === g); coresDosModelos(l.map((p) => p.modelo)).forEach((c, i) => { corDe[l[i].id] = c; }); }
-  const fpps = await prisma.fpp.findMany({ where: { id: { in: ps.map((p) => p.fppId).filter(Boolean) } }, select: { id: true, numero: true, custoProducao: true, nomeComercial: true } });
+  const fpps = await prisma.fpp.findMany({ where: { id: { in: ps.map((p) => p.fppId).filter(Boolean) } }, select: { id: true, numero: true, custoProducao: true, nomeComercial: true, entradas: true } });
   const F = Object.fromEntries(fpps.map((f) => [f.id, f]));
   return ps.map((p) => {
     const g = grupoDe(tab, p.grupo), s = sal[p.modelo] || {};
     return { id: p.id, modelo: p.modelo, grupo: p.grupo, grupoNome: g?.nome || p.grupo, tipo: g?.tipo || null, base: g?.base || 0, longa: !!g?.longa, tecnicas: g?.tecnicas || [], bolso: !!g?.bolso,
       fppId: p.fppId, fppNumero: p.fppNumero, custo: F[p.fppId]?.custoProducao != null ? r2(F[p.fppId].custoProducao) : null, ativo: p.ativo,
       estoque: Object.fromEntries(Object.entries(s).map(([t, x]) => [t, x.saldo])), estoqueTotal: Object.values(s).reduce((a, x) => a + Math.max(0, x.saldo), 0),
-      estoqueLoja: Object.values(s).reduce((a, x) => a + x.loja, 0), cor: corDe[p.id] || "", hex: hexDaCor(corDe[p.id] || ""), fotos: fotosDoGrupo(p.grupo) };
+      estoqueLoja: Object.values(s).reduce((a, x) => a + x.loja, 0), cor: corDe[p.id] || "", hex: hexDaCor(corDe[p.id] || ""), fotos: fotosDoGrupo(p.grupo), ...corDaFpp(corDe[p.id] || "", F[p.fppId]) };
   });
+}
+// v1097 — a cor que a FPP traz (malha do artigo principal), para conferir com a cor da peça no catálogo
+const semAc = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+function corDaFpp(cor, f) {
+  if (!f) return { fppCor: null, fppNome: null, corConfere: null };
+  const e = f.entradas || {}, fppCor = String(e.artigoDet?.cor || "").trim() || null;
+  const ws = semAc(cor).replace(/\bBB\b/g, "").split(/\s+/).filter((w) => w.length > 1);
+  const alvo = semAc(`${fppCor || ""} ${f.nomeComercial || ""}`).replace(/OFF[- ]?WHITE/g, "OFFWHITE");
+  const confere = !ws.length ? null : ws.every((w) => alvo.includes(w.replace(/OFF[- ]?WHITE/, "OFFWHITE")) || (w === "OFF-WHITE" && alvo.includes("OFFWHITE")));
+  return { fppCor, fppNome: f.nomeComercial || null, corConfere: confere };
 }
 // cria o catálogo a partir dos modelos do estoque da NORT (grupo pelo nome; FPP pelo nome comercial igual ao modelo)
 export async function importarDoEstoque() {
