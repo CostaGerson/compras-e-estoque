@@ -122,7 +122,7 @@ export function agendarLeituraNort() {
     if (rodando) return; rodando = true;
     try {
       const cfg = await configLeitura(); if (!cfg.url || !cfg.token) return;
-      await lerPedidos();
+      if (cfg.lerPedidos === true) await lerPedidos();   // v1084 — pedidos da loja e da NORT passam a ser lançados no ERP: leitura da calculadora desligada (o estoque segue)
       await lerEstoque();
     } catch (e) { console.error("[leitura NORT]", e.message); }
     finally { rodando = false; }

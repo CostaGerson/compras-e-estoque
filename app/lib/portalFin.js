@@ -68,7 +68,7 @@ export async function salvarConta(clienteId, b) {
 // ---------- espelho: contas a receber da Meridian = contas a pagar do cliente ----------
 function descMeridian(t, portalDe) {
   const np = String(t.chaveImport || "").match(/^NORTPED\|(.+)$/);   // v1083
-  if (np) return `PEDIDO ${np[1]} · CUSTO DAS PEÇAS (FPP)`;
+  if (np) return /^LOJA-V/.test(np[1]) ? `LOJA FÍSICA · VENDA ${np[1].slice(6)} · CUSTO DAS PEÇAS DO ESTOQUE (FPP)` : `PEDIDO ${np[1]} · CUSTO DAS PEÇAS (FPP)`;
   const m = String(t.chaveImport || "").match(/^PED\|([^|]+)\|([^|]+)(?:\|(\d+))?/);
   if (!m) return String(t.titulo || "Meridian").toUpperCase();
   const [, numero, tipo, n] = m;

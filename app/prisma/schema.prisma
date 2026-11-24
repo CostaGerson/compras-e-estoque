@@ -2900,3 +2900,47 @@ model PortalFinTitulo {
   @@index([clienteId, tipo, vencimento])
   @@index([clienteId, dataPagamento])
 }
+
+// v1084 — Frente de caixa da loja física (NORT): catálogo (modelo = produto + cor, ligado a uma FPP) e vendas/orçamentos
+model LojaProduto {
+  id        Int      @id @default(autoincrement())
+  modelo    String   @unique              // nome sem o tamanho, igual ao estoque da NORT (ex.: CAMISETA PV GOLA VIES PRETO)
+  grupo     String                        // grupo de preço da calculadora (pv-gola-vies, polo-piquet…)
+  fppId     Int?
+  fppNumero Int?
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LojaVenda {
+  id            Int       @id @default(autoincrement())
+  numero        Int       @unique
+  status        String    @default("ORCAMENTO") // ORCAMENTO | EM_PRODUCAO | PRONTA | ENTREGUE | CANCELADA
+  cliente       Json?                         // { nome, telefone, documento } · balcão = { nome: "CLIENTE BALCÃO" }
+  balcao        Boolean   @default(false)
+  itens         Json      @default("[]")
+  desconto      Json?                         // { tipo: PCT|VALOR, valor, liberadoPor }
+  acrescimo     Json?                         // { tipo, valor, obs }
+  totais        Json?                         // calculados no servidor (centavos)
+  total         Int       @default(0)         // centavos
+  pagamentos    Json      @default("[]")      // [{ valor (centavos), forma, em, por, tipo: ENTRADA|SALDO, abaixoMinimo, liberadoPor }]
+  previsao      DateTime? @db.Date
+  ppId          Int?                          // pedido de produção (itens personalizados/encomenda), canal LOJA
+  pedidoNumero  String?
+  producaoErro  String?                       // falha ao lançar na produção (botão "Tentar de novo")
+  estoqueBaixado Boolean  @default(false)
+  vendedorNome  String?
+  obs           String?
+  motivoCancel  String?
+  fechadaEm     DateTime?
+  prontaEm      DateTime?
+  entregueEm    DateTime?
+  canceladaEm   DateTime?
+  historico     Json      @default("[]")      // [{ em, por, txt }]
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+}

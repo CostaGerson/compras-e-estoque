@@ -4,8 +4,9 @@ import Acompanhamento from "./acompanhamento";   // v381
 import { elasticoCalc, faixaCalc, botaoUnit, faixaPedeCor, FAIXA_CORES, semAv, fmtNum, obsBotao, PECAS_ESPECIAIS, ehPecaAberta, ehRevenda } from "@/lib/fppAv";   // v410 · v512
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
-  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2, Paperclip, Upload, Star, Store,
+  Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2, Paperclip, Upload, Star, Store, ShoppingCart,
 } from "lucide-react";
+import FrenteCaixa from "./frenteCaixa";   // v1084
 import { alerta, confirmar } from "./dialogo";   // v424 — popups do sistema
 import { ItemPadraoModal } from "./itensPadrao";
 import SolicitarLancamento from "./solicitarLancamento";   // v812   // v701 — tornar a FPP um item padrão do cliente
@@ -121,6 +122,20 @@ export default function Comercial({ user, master, fppInicial, componentes = {} }
     );
   }
 
+  if (view === "caixa") {   // v1084 — frente de caixa da loja física
+    return (
+      <div>
+        <div className="flex items-center gap-1 text-sm mb-4 flex-wrap">
+          <button onClick={() => setView(null)} className="flex items-center gap-1 mr-2 px-2 py-1 rounded" style={{ color: C.accent }}><ArrowLeft size={15} /> Voltar</button>
+          <button onClick={() => setView(null)} style={{ color: C.sub }}>Comercial</button>
+          <ChevronRight size={13} style={{ color: C.sub }} />
+          <span className="font-semibold" style={{ color: C.text }}>Frente de caixa · loja física</span>
+        </div>
+        <FrenteCaixa user={user} />
+      </div>
+    );
+  }
+
   if (view === "fpp") {
     return (
       <div>
@@ -145,6 +160,7 @@ export default function Comercial({ user, master, fppInicial, componentes = {} }
           ["acomp", Layers, "Acompanhamento", "Seus pedidos e a situação de cada peça no PCP", () => setView("acomp")],
           ["crm", Briefcase, "CRM", "Abre o CRM Meridian em uma nova aba", () => window.open(CRM_URL, "_blank", "noopener")],
           ["solic", Send, "Solicitar lançamento", "Manda o pedido para o PCP lançar", () => setSolLanc(true)],   // v844 — card laranja
+          ["caixa", ShoppingCart, "Frente de caixa", "Loja física: orçamento e venda ao vivo, preço tabelado e estoque da loja", () => setView("caixa")],   // v1084
           // v1083 — pedido NORT × Meridian (até 70 peças, custo da FPP) com a venda ao cliente final no Portal NORT
           ["nort", Store, "Pedido NORT", "Venda da NORT (até 70 peças): a Meridian cobra o custo da FPP", () => window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "editarPedido", novo: true, nort: { canal: "NORT" } } }))],
         ].map(([k, Ico, t, sub, go]) => (
