@@ -322,6 +322,8 @@ export async function efetivarPedido(id, quem) {
   await prisma.pp.update({ where: { id: pp.id }, data: { status: pp.status === "FATURADO" ? "FATURADO" : "LANCADO", efetivadoEm: new Date(), efetivadoPorNome: quem, valorTotal: total } });
   // v792d — avisa o PCP na hora: ele relê este pedido (grade, detalhes, anexos) sem esperar a leitura periódica
   setTimeout(() => { getPcp(`/api/ext/erp-aviso?pedido=${encodeURIComponent(numero)}`).catch(() => {}); }, 2000);
+  // v1085 — DTF/sublimação → demanda para o sistema de produção da NORT (Gerson)
+  setTimeout(() => { import("@/lib/personalizacaoExt").then((m) => m.sincronizarPedido(pp.id)).catch((e) => console.log("perso/efetivar:", e.message)); }, 1500);
   // v906 — pedido da loja NORT (interno): o custo da FPP vai para o acerto NORT (guia NORT), sem contas a receber da Meridian
   if (String(pp.extRef || "").startsWith("NORT|")) {
     try { await (await import("@/lib/nortInteg")).acertoDoPedidoNort(pp, numero, despacho, quem); } catch (e) { console.log("acerto NORT:", e.message); avisos.push(`Acerto NORT não lançado: ${e.message}`); }

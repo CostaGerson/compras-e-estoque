@@ -8,7 +8,7 @@
 //   Integrações nunca travam a loja: se o lançamento na produção falhar, a venda fecha e fica o "Tentar de novo".
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { PADRAO, grupoDe, grupoPorNome, limparItem, totaisPedido, vaiProducao, textoPersonalizacao, qtdDe } from "@/lib/lojaPreco";
+import { PADRAO, POSICOES, grupoDe, grupoPorNome, limparItem, totaisPedido, vaiProducao, textoPersonalizacao, qtdDe } from "@/lib/lojaPreco";
 import { modeloNort, registrarMovimentos } from "@/lib/nortInteg";
 import { somaDias } from "@/lib/pedidoLanc";
 
@@ -189,6 +189,17 @@ export async function salvarOrcamento(b, u) {
 
 // encomenda: não sai do estoque da loja (produz a peça); o resto usa a peça do estoque LOJA (lisa ou para personalizar)
 const ehEncomenda = (tab, it) => !!(it.encomenda || it.outraCor || it.manga === "LONGA" || grupoDe(tab, it.grupo)?.tipo === "SUBLIMACAO");
+// estampas da frente de caixa → aplicações do item do pedido (método, local, largura × altura em cm)
+function aplicacoesDe(tab, it) {
+  const out = [];
+  if (grupoDe(tab, it.grupo)?.tipo === "SUBLIMACAO") out.push({ metodo: "SUBLIMACAO", local: "TOTAL", obs: it.malha === "TEXTURIZADA" ? "MALHA TEXTURIZADA" : null });
+  if (it.bolso) out.push({ metodo: "BORDADO", local: "BOLSO" });
+  for (const e of it.estampas || []) {
+    const [l, a] = String(e.tamanho).split("x").map(Number);
+    out.push({ metodo: it.tecnica, local: (POSICOES.find((p) => p.k === e.local)?.nome || e.local).toUpperCase(), largura: l || null, altura: a || null, obs: e.obs || null });
+  }
+  return out.length ? out : undefined;
+}
 const tipoPeca = (grupo) => (/polo/.test(grupo) ? "POLO" : /calca/.test(grupo) ? "CALÇA" : "CAMISETA");
 // pedido de produção (canal LOJA) com os itens que precisam ser feitos
 async function lancarProducao(v, tab, u) {
@@ -200,6 +211,7 @@ async function lancarProducao(v, tab, u) {
     valorUnitario: "", grade: Object.entries(it.grade).map(([tam, qtd]) => ({ tam, qtd: String(qtd) })),
     parametros: { ...(textoPersonalizacao(it) ? { "PERSONALIZAÇÃO": textoPersonalizacao(it) } : {}), ...(ehEncomenda(tab, it) ? { ENCOMENDA: "SIM" } : { "PEÇA DO ESTOQUE DA LOJA": "SIM (SÓ PERSONALIZAR)" }), ...(it.malha === "TEXTURIZADA" ? { MALHA: "TEXTURIZADA" } : {}), ...(it.obs ? { "OBS LOJA": it.obs.toUpperCase() } : {}) },
     fppId: it.fppId, fppNumero: it.fppNumero, dispensaDesign: !it.tecnica,
+    aplicacoes: aplicacoesDe(tab, it),   // v1085 — DTF/sublimação vira demanda para o sistema da NORT
   }));
   const quem = nomeU(u) || "FRENTE DE CAIXA";
   const { salvarPp, efetivarPedido } = await import("@/lib/pedidoEfetivar");

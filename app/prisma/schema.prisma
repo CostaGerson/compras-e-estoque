@@ -2944,3 +2944,32 @@ model LojaVenda {
 
   @@index([status])
 }
+
+// v1085 — demandas de DTF e sublimação para o sistema de produção do Gerson (NORT): uma por item de pedido e método.
+//   O ERP gera ao efetivar (qualquer canal); o sistema do Gerson lê (GET /api/ext/personalizacao) e devolve o status
+//   (POST /api/ext/personalizacao/status). O PCP do Maycon vê o status no item (GET /api/ext/compras → personalizacao).
+model PersonalizacaoDemanda {
+  id           Int       @id @default(autoincrement())
+  chave        String    @unique                 // "<pedido>|<seq>|<metodo>"
+  pedidoNumero String
+  ppId         Int
+  ppItemId     Int?
+  itemSeq      Int                               // posição do item no pedido (1, 2…)
+  metodo       String                            // DTF | SUBLIMACAO
+  canal        String?                           // MERIDIAN | NORT | LOJA | PORTAL
+  dados        Json                              // retrato do item (descrição, grade, aplicações, cliente…) — refeito quando o pedido muda
+  assinatura   String?                           // hash do retrato: muda → versao + 1
+  versao       Int       @default(1)
+  status       String    @default("NOVA")        // NOVA | RECEBIDA | EM_PRODUCAO | PRONTA | ENTREGUE | PROBLEMA | CANCELADA
+  statusEm     DateTime?
+  statusObs    String?
+  statusPor    String?
+  refExterna   String?                           // id da demanda no sistema do Gerson
+  historico    Json      @default("[]")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([pedidoNumero])
+  @@index([status])
+  @@index([updatedAt])
+}

@@ -857,9 +857,12 @@ export async function liberadosParaPcp({ desde, pedido } = {}, db = prisma) {
     const fpps = await db.fpp.findMany({ where: { numero: { in: nums } }, select: { numero: true, entradas: true } }).catch(() => []);
     for (const f of fpps) { const t = String((f.entradas && f.entradas.faccao) ?? "").trim(); const v = Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t); if (v > 0) facFpp[f.numero] = Math.round(v * 100) / 100; }
   }
+  // v1085 — DTF/sublimação feitos no sistema da NORT (Gerson): status de cada item (o PCP segue lendo que o item está nessa etapa)
+  let perso = {};
+  try { perso = await (await import("@/lib/personalizacaoExt")).statusParaPcp(Object.keys(out)); } catch (e) { console.log("perso/pcp:", e.message); }
   // v775 — #59: cada item traz o endereço dos arquivos (layout e detalhes de personalização) — GET /api/ext/arquivos, mesmo X-Api-Key
   return Object.values(out).map((p) => ({ ...p, liberadosItens: p.itens.length, pedidoCompleto: p.itens.length >= p.totalItens,
-    itens: p.itens.map(({ _n, ...i }) => ({ ...i, faccaoFpp: facFpp[Number(i.fppNumero)] || null, ...(_n ? { item: _n, arquivos: `/api/ext/arquivos?pedido=${encodeURIComponent(p.pedido)}&item=${_n}` } : {}) })) }));
+    itens: p.itens.map(({ _n, ...i }) => ({ ...i, faccaoFpp: facFpp[Number(i.fppNumero)] || null, ...(_n && perso[`${p.pedido}|${_n}`] ? { personalizacao: perso[`${p.pedido}|${_n}`] } : {}), ...(_n ? { item: _n, arquivos: `/api/ext/arquivos?pedido=${encodeURIComponent(p.pedido)}&item=${_n}` } : {}) })) }));
 }
 
 // ---------- v685 — excluir demanda de compra em qualquer etapa e gerar de novo as demandas de um pedido ----------
