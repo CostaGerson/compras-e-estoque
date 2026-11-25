@@ -144,6 +144,8 @@ export async function POST(req, { params }) {
   if (u.servicoPcp && (b.acao === "faturar" || !(await ppDeServico(params.id)))) return negadoServico();   // v1006 — o PCP efetiva o serviço; faturar é no ERP
   try {
     if (b.acao === "efetivar") {
+      // v1122 — pedido com desconto: aprovação do financeiro antes de seguir
+      { const { portaoDesconto } = await import("@/lib/descontoAprov"); const g = await portaoDesconto(Number(params.id), u, criticas); if (g) return Response.json(g); }
       const r = await efetivarPedido(Number(params.id), nomeQuem(u));
       // v654 — item sem layout: tarefa de criação de layout para o arte finalista (o pedido segue normal)
       const kmAss = r?.ok ? (await prisma.pp.findUnique({ where: { id: Number(params.id) }, select: { kmAssumidoEm: true } }))?.kmAssumidoEm : null;   // v730 — pedido do KM assumido: não pede layout

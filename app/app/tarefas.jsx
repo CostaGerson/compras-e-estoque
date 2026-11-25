@@ -820,6 +820,7 @@ export function TarefaDetalhe({ user, id, usuarios, projetos = [], onClose, onMu
         {t.aprovacao && !t.layout && <AprovacaoPainel t={t} user={user} onMudou={() => { carregar(); onMudou?.(); }} />}
         {t.colaboracao?.origemId && <ColaboracaoPainel t={t} user={user} anexar={anexar} tirarArq={tirarArq} onMudou={() => { carregar(); onMudou?.(); }} />}
         {t.colaboracoes?.length > 0 && <ColaboracoesOrigem t={t} user={user} />}
+        {t.descontoPp?.ppId && <DescontoPainel t={t} user={user} onMudou={() => { carregar(); onMudou?.(); }} />}
         {t.decisao && <DecisaoPainel t={t} user={user} acao={acao} />}
         {t.reuniao && <ReuniaoPainel t={t} user={user} acao={acao} />}
         <div className="flex items-center gap-3 mb-3 p-3 rounded-lg" style={{ border: `1px solid ${rodando ? C.yellow : C.line}`, background: rodando ? C.yellowSoft : C.panel }}>
@@ -2091,6 +2092,55 @@ export function Agenda({ user, pedidoModo, onModo }) {
       {abrir && <TarefaDetalhe user={user} id={abrir} usuarios={d?.usuarios || []} projetos={projetos} onClose={() => setAbrir(null)} onMudou={carregar} editarDireto />}
       {menuCard && <MenuCard {...menuCard} onClose={() => setMenuCard(null)} onAbrir={() => setAbrir(menuCard.t.id)} onConcluir={() => alternarConcluida(menuCard.t)} onExcluir={() => excluirTarefa(menuCard.t)} />}
       {projForm && <ProjetoForm user={user} inicial={projForm} projetos={projetos} usuarios={d?.usuarios || []} onClose={() => setProjForm(null)} onOk={() => { setProjForm(null); carregar(); }} />}
+    </div>
+  );
+}
+
+/* v1122 — aprovação do desconto de um pedido pelo financeiro */
+function DescontoPainel({ t, user, onMudou }) {
+  const id = t.descontoPp.ppId;
+  const [d, setD] = useState(null);
+  const [motivo, setMotivo] = useState("");
+  const [ocup, setOcup] = useState(false);
+  const brl = (v) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const ler = () => fetch(`/api/pp/${id}/desconto?u=${user.id}`).then((r) => r.json()).then(setD).catch(() => setD({ error: "Falha ao carregar." }));
+  useEffect(() => { ler(); }, [id, t.status]);
+  const decidir = async (aprovar) => {
+    if (!aprovar && motivo.trim().length < 3) return alerta("Escreva o motivo da reprovação (vai para o topo do pedido).");
+    if (aprovar && !(await confirmar(`Aprovar o desconto do pedido ${d?.numero || ""}? Ele segue para layout, compras e produção.`))) return;
+    setOcup(true);
+    try {
+      const r = await fetch(`/api/pp/${id}/desconto`, { method: "POST", headers: { "Content-Type": "application/json", "x-usuario-id": String(user.id) }, body: JSON.stringify({ acao: aprovar ? "aprovar" : "reprovar", motivo }) }).then((x) => x.json());
+      if (r.error) throw new Error(r.error);
+      const ef = r.efetivacao;
+      if (aprovar && ef && !ef.ok) alerta(`Desconto aprovado, mas o pedido não foi gerado: ${(ef.erros || []).join(" · ") || "erro"}. Ele ficou em rascunho para o vendedor corrigir.`);
+      else alerta(aprovar ? "Desconto aprovado: o pedido seguiu para a produção." : "Desconto reprovado: o pedido voltou para rascunho com o motivo no topo.");
+      onMudou?.(); ler();
+    } catch (e) { alerta(e.message); }
+    setOcup(false);
+  };
+  if (!d) return <div className="mb-3 text-sm" style={{ color: C.sub }}>Carregando o pedido…</div>;
+  if (d.error) return <div className="mb-3 text-sm" style={{ color: C.red }}>{d.error}</div>;
+  const A = d.aprov || {}, pend = A.status === "PENDENTE";
+  return (
+    <div className="mb-3 rounded-xl p-3 text-sm" style={{ border: "2px solid #FF6B1A", background: "#FFF6EF" }}>
+      <div className="flex items-center gap-2 flex-wrap"><b style={{ color: "#C2410C" }}>Desconto do pedido {d.numero}</b>
+        <span className="text-xs" style={{ color: C.sub }}>{d.cliente} · vendedor {d.vendedor || "—"}</span>
+        <button onClick={() => window.dispatchEvent(new CustomEvent("ce:ir", { detail: { v: "pedido", numero: d.numero } }))} className="ml-auto text-xs underline" style={{ color: C.blue }}>abrir pedido</button></div>
+      <div className="grid gap-2 mt-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
+        {[["Itens", brl(d.valorItens)], ["Desconto", `− ${brl(d.descTotal)}`], ["Total do pedido", brl(d.total)], ["Desconto %", d.valorItens ? `${((d.descTotal / (d.valorItens + (d.descItens || []).reduce((s, x) => s + x.total, 0))) * 100).toFixed(1).replace(".", ",")}%` : "—"]].map(([k, v]) => <div key={k} className="rounded-lg px-3 py-2" style={{ background: "#fff", border: `1px solid ${C.line}` }}><div className="text-[11px]" style={{ color: C.sub }}>{k}</div><div className="font-bold" style={{ color: k === "Desconto" ? C.red : C.text }}>{v}</div></div>)}
+      </div>
+      {(d.descItens || []).length > 0 && <div className="mt-2 text-xs" style={{ color: C.text }}>{d.descItens.map((x, i) => <div key={i}>• {x.descricao}: {brl(x.de)} → {brl(x.por)} por peça (− {brl(x.total)})</div>)}</div>}
+      {d.descPedido > 0 && <div className="mt-1 text-xs">• Desconto no total: − {brl(d.descPedido)}{d.descPedidoCfg?.tipo === "PCT" ? ` (${String(d.descPedidoCfg.valor).replace(".", ",")}%)` : ""}</div>}
+      <div className="mt-2 p-2 rounded-lg whitespace-pre-wrap" style={{ background: "#fff", border: `1px solid ${C.line}` }}><b>Justificativa:</b> {d.obs || "—"}</div>
+      {d.condicao && <div className="text-xs mt-1" style={{ color: C.sub }}>Condição: {d.condicao}</div>}
+      {pend ? <div className="mt-3">
+        <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="Motivo (obrigatório para reprovar)" className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ background: "#fff", border: `1px solid ${C.line}` }} />
+        <div className="flex gap-2 mt-2 justify-end">
+          <button disabled={ocup} onClick={() => decidir(false)} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ border: `1px solid ${C.red}`, color: C.red, background: "#fff" }}>Reprovar</button>
+          <button disabled={ocup} onClick={() => decidir(true)} className="px-4 py-2 rounded-md text-sm font-semibold" style={{ background: C.green, color: "#fff" }}>{ocup ? "…" : "Aprovar desconto"}</button>
+        </div></div>
+        : <div className="mt-2 text-xs font-semibold" style={{ color: A.status === "APROVADO" ? C.green : C.red }}>{A.status === "APROVADO" ? `Aprovado por ${A.por || ""}` : A.status === "REPROVADO" ? `Reprovado por ${A.por || ""}: ${A.motivo || ""}` : "Sem aprovação pendente."}</div>}
     </div>
   );
 }

@@ -21,7 +21,7 @@ import {
 
 const C = {
   bg: "#F5F6F8", panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC",
-  text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
+  text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6", redSoft: "#FDECEA",
   green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", yellow: "#C08401", red: "#C33",
 };
 const inp = { background: C.panel2, color: C.text, border: `1px solid ${C.line}` };
@@ -391,6 +391,7 @@ const vazioF = () => ({
   frete: { contratado: false, valor: "" },   // v746 — frete da entrega única
   comissao: { vendedorId: null, tipo: "PCT", valor: "" },   // v747 — venda comissionada
   desconto: { tipo: "PCT", valor: "" },   // v750 — desconto no total do pedido
+  descontoObs: "",   // v1122 — justificativa do desconto (obrigatória)
   pagamento: { entrada: null, parcelas: [] }, status: "EM_LANCAMENTO", efetivadoEm: null,
   arquivoPcPdf: "", arquivoLancPdf: "", arquivoPedidoPdf: "", arquivoOpPdf: "",
 });
@@ -411,6 +412,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const [f, setF] = useState(() => (somenteServico ? { ...vazioF(), servico: true } : nort ? { ...vazioF(), interno: true, prazoTipo: "CORRIDOS" } : vazioF()));
   const [itens, setItens] = useState(() => [somenteServico ? novoServico() : novoItem()]);
   const [anexos, setAnexos] = useState([]);
+  const [descAprov, setDescAprov] = useState(null);   // v1122 — aprovação do desconto pelo financeiro
   const [envArq, setEnvArq] = useState("");   // v865 — progresso do envio de arquivo grande
   const [carregado, setCarregado] = useState(!ppId0);
   const [recDet, setRecDet] = useState(false);
@@ -444,6 +446,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         clienteCnpj: fmtCnpj(d.clienteCnpj), servico: d.tipoPedido === "SERVIÇO",
       });
       setRecDet(!!d.recebendoDetalhes);
+      setDescAprov(d.descontoAprov || null);   // v1122
       setClienteFinal(d.clienteFinal || (d.canalVenda ? vazioClienteFinal() : null));
       if (d.canalVenda) {   // v1083
         setNortCanal(d.canalVenda);
@@ -485,6 +488,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const totalItem = (it) => somaItem(it) * num(it.valorUnitario);
   const totalItens = itens.reduce((s, it) => s + totalItem(it), 0);
   const descV = valorDesconto(f.desconto, totalItens);   // v750 — desconto no total do pedido
+  const temDesc = descV > 0 || itens.some((it) => it.desconto && num(it.desconto.valor) > 0);   // v1122
   const freteV = f.servico ? 0 : freteTotal(f);   // v746 — frete contratado: soma no total do pedido, não entra nos itens
   const totalGeral = totalItens - descV + freteV;
   const totalPecas = itens.reduce((s, it) => s + somaItem(it), 0);
@@ -867,11 +871,17 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     const semEsp = itens.findIndex((it) => espSemDimensao(it.grade));   // v890
     if (semEsp >= 0) { alerta(`Item ${semEsp + 1}: informe as dimensões do tamanho especial (ESP).`); return; }
     if (!confEnt.ok && f.entregaModo !== "UNICA") { alerta("A soma das grades das entregas não bate com o pedido. Confira os locais de entrega."); return; }
+    if (!efetivado && temDesc && !String(f.descontoObs || "").trim()) { alerta("Pedido com desconto: preencha a justificativa do desconto (obrigatória)."); return; }   // v1122
     setSalvando(true);
     try {
       const id = await salvar();
       const d = await api(`/api/pp/${id}`, { method: "POST", body: JSON.stringify({ acao: "efetivar" }) }).then((r) => r.json());
       if (d.error) throw new Error(d.error);
+      if (d.aguardandoAprovacao) {   // v1122
+        setF((s) => ({ ...s, numero: d.numero || s.numero, status: "AGUARDANDO_APROVACAO" })); setDescAprov((a) => ({ ...(a || {}), status: "PENDENTE" }));
+        alerta("Pedido com desconto enviado para aprovação do financeiro. Ele segue para layout, compras e produção assim que o desconto for aprovado.");
+        setSalvando(false); return;
+      }
       if (d.ok) setF((s) => ({ ...s, numero: d.numero, efetivadoEm: new Date().toISOString(), status: s.status === "FATURADO" ? "FATURADO" : "LANCADO" }));
       setResultado(d);
       if (d.tarefaLayout) alerta("Há item sem layout: o pedido seguiu normal e foi criada a tarefa de criação de layout para o arte finalista.");   // v654
@@ -899,7 +909,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
 
   if (!carregado) return <div style={{ color: C.sub }}>Carregando…</div>;
 
-  const badge = faturado ? ["FATURADO", C.blue] : efetivado ? ["LANÇADO", C.green] : recDet ? ["RECEBENDO DETALHES", C.accent] : ["RASCUNHO", C.yellow];
+  const badge = faturado ? ["FATURADO", C.blue] : efetivado ? ["LANÇADO", C.green] : f.status === "AGUARDANDO_APROVACAO" ? ["AGUARDANDO APROVAÇÃO DO DESCONTO", C.accent] : recDet ? ["RECEBENDO DETALHES", C.accent] : ["RASCUNHO", C.yellow];
   // v707 — link criado: grava o pedido na hora (o link fica ligado ao item) e marca a fase
   const gravarLink = async (i, du) => {
     try {
@@ -937,6 +947,13 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         </div>
       </div>
 
+      {/* v1122 — aprovação do desconto pelo financeiro */}
+      {!efetivado && f.status === "AGUARDANDO_APROVACAO" && <div className="rounded-lg px-4 py-3 mb-4 text-sm" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}55` }}>
+        <b>Aguardando aprovação do desconto pelo financeiro.</b> O pedido segue para layout, compras e produção assim que for aprovado.</div>}
+      {!efetivado && f.status !== "AGUARDANDO_APROVACAO" && descAprov?.status === "REPROVADO" && <div className="rounded-lg px-4 py-3 mb-4 text-sm" style={{ background: C.redSoft, color: C.red, border: `1px solid ${C.red}55` }}>
+        <b>Desconto reprovado pelo financeiro</b>{descAprov.por ? ` (${descAprov.por}${descAprov.decididoEm ? `, ${new Date(descAprov.decididoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""})` : ""}.
+        <div className="mt-1" style={{ color: C.text }}><b>Motivo:</b> {descAprov.motivo}</div>
+        <div className="text-xs mt-1">Ajuste o desconto ou a justificativa e gere o pedido de novo: ele volta para aprovação.</div></div>}
       {!podeLancar && <div className="rounded-lg px-4 py-2 mb-4 text-xs" style={{ background: C.panel2, color: C.sub }}>Somente leitura{veVal ? "" : " · valores do pedido ocultos"}.</div>}
       <fieldset disabled={!podeLancar} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
 
@@ -1327,6 +1344,11 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
 
       {/* ---------- v747 — Venda comissionada ---------- */}
       {!f.interno && veVal && <DescontoCard f={f} set={set} totalItens={totalItens} descV={descV} podeLancar={podeLancar} />}
+      {!f.interno && temDesc && <Card titulo="Justificativa do desconto">   {/* v1122 — obrigatória; o financeiro aprova antes do pedido seguir */}
+        <textarea value={f.descontoObs || ""} onChange={(e) => set("descontoObs", e.target.value)} rows={2} placeholder="Obrigatória: por que este desconto? (vai para a aprovação do financeiro)"
+          className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ background: "#fff", border: `1px solid ${String(f.descontoObs || "").trim() ? C.line : C.red}`, color: C.text }} />
+        <div className="text-xs mt-1" style={{ color: C.sub }}>Pedido com desconto só segue para layout, compras e produção depois da aprovação do financeiro.</div>
+      </Card>}
       {!f.interno && veVal && <ComissaoCard f={f} set={set} uid={uid} totalItens={totalItens - descV} podeLancar={podeLancar} />}
 
       {/* ---------- Pagamento ---------- */}

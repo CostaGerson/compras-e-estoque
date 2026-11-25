@@ -67,6 +67,7 @@ export async function salvarPp(id, b, quem) {
     ...(b.desconto === undefined ? {} : { desconto: descPed || { tipo: "PCT", valor: 0 } }),   // v750 — quem não vê valores não manda: fica como está
     // v747 — venda comissionada (sem vendedor = sem comissão)
     ...(b.comissao === undefined ? {} : { comissao: !interno && b.comissao && Number(b.comissao.vendedorId) ? { vendedorId: Number(b.comissao.vendedorId), tipo: b.comissao.tipo === "VALOR" ? "VALOR" : "PCT", valor: r2(Math.max(0, num(b.comissao.valor))) } : { vendedorId: null } }),   // quem não vê valores não manda: fica como está
+    ...(b.descontoObs === undefined ? {} : { descontoObs: String(b.descontoObs || "").trim().slice(0, 2000) || null }),   // v1122
     pagamento: interno ? null : (b.pagamento || null),
     condicaoPagamento: interno ? "INTERNO" : textoCondicao(b.pagamento, total) || null,
     valorTotal: total,

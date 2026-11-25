@@ -402,6 +402,8 @@ model Pp {
   entregaPorItem    Boolean   @default(false)   // v869 — sem data única: cada item tem a sua data de entrega (PpItem.entregaData); o prazo do pedido = a última
   entregaModo       String?   // UNICA | FRACIONADA | TERCEIROS
   entregas          Json?     // [{ endereco, local, responsavel, contato, documento, grade: { [itemIdx]: { [tam]: qtd } } }]
+  descontoObs       String?   // v1122 — justificativa do desconto (obrigatória quando há desconto)
+  descontoAprov     Json?     // v1122 — { status: PENDENTE|APROVADO|REPROVADO, sig, tarefaId, solicitadoPor, em, por, motivo }
   desconto          Json?     // v750 — desconto no total do pedido: { tipo: PCT|VALOR, valor }
   comissao          Json?     // v747 — venda comissionada: { vendedorId, tipo: PCT|VALOR, valor }
   frete             Json?     // v746 — entrega única: { contratado, valor } (nas fracionadas fica em cada entrega: entregas[].frete)
@@ -2009,6 +2011,7 @@ model Tarefa {
   aprovacao        Json?                         // v757 — demanda para o arte finalista: { etapa: EXECUCAO|AGUARDANDO|APROVADO|APROVACAO, solicitanteId, solicitanteNome, rodada, desdeArquivoId, motivo?, origemId?, aprovacaoId? }
   colaboracao      Json?                         // v992 — origem: { pedido, colaboradores: [ids] } · tarefa do colaborador: { origemId, pedido, solicitanteId, solicitanteNome, resposta?, respondidoEm? }
   local            Json?                         // v1043 — #101: { endereco, lat, lng, origem, deslocMin, km, antecedenciaMin, aceito, saida }
+  descontoPp       Json?                         // v1122 — aprovação de desconto de pedido pelo financeiro: { ppId, numero }
   layout           Json?                         // v654 — { etapa: CRIACAO|APROVACAO, ppId, numero, cliente, vendedor, itens: [{ idx, descricao, codigo, arquivoId? }], origemId?, motivo? }
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
