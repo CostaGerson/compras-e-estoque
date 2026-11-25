@@ -110,7 +110,8 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
     setMarcados([]); carregar();
     if (erros.length) alerta(`Não excluídos:\n${erros.join("\n")}`);
   };
-  useEffect(() => { if (abrirPedido?.numero) setAberto(String(abrirPedido.numero)); }, [abrirPedido?.t]);   // v450 — vindo da tarefa FATURAR
+  // v1121 — só abre o pedido logo depois do clique que pediu (antes reabria toda vez que se voltava para Operação)
+  useEffect(() => { if (abrirPedido?.numero && Date.now() - (abrirPedido.t || 0) < 8000) setAberto(String(abrirPedido.numero)); }, [abrirPedido?.t]);   // v450 — vindo da tarefa FATURAR
   const carregar = () => fetch("/api/producao/gestao").then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setD(x); setErro(""); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); const t = setInterval(carregar, 60 * 1000); return () => clearInterval(t); }, []);
 
