@@ -1037,9 +1037,9 @@ function LayoutTarefa({ t, user, onMudou }) {
       {erro && <div className="text-xs" style={{ color: C.red }}>{erro}</div>}
       {!d && !erro && <Loader2 size={15} className="animate-spin" style={{ color: C.sub }} />}
       {/* v949 — arquivos subidos no pedido (personalização dos itens e anexos do pedido): todos aqui para baixar */}
-      {d && ((d.arquivosOp || []).length > 0 || (d.anexosPedido || []).length > 0) && (
+      {d && ((d.arquivosOp || []).length > 0 || (d.anexosPedido || []).length > 0 || (d.anexosFpp || []).length > 0) && (
         <div className="mb-2 p-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-          <div className="text-xs font-semibold mb-1 flex items-center gap-1" style={{ color: C.sub }}><Paperclip size={12} /> Arquivos do pedido ({(d.arquivosOp || []).length + (d.anexosPedido || []).length})</div>
+          <div className="text-xs font-semibold mb-1 flex items-center gap-1" style={{ color: C.sub }}><Paperclip size={12} /> Arquivos do pedido ({(d.arquivosOp || []).length + (d.anexosPedido || []).length + (d.anexosFpp || []).length})</div>
           <div className="flex flex-wrap gap-1.5">
             {(d.arquivosOp || []).map((a) => (
               <a key={`i${a.idx}-${a.k}`} href={`/api/tarefas/${t.id}/layout?u=${user.id}&item=${a.idx}&k=${a.k}`} target="_blank" rel="noreferrer" title={`Item ${a.item}`}
@@ -1051,6 +1051,12 @@ function LayoutTarefa({ t, user, onMudou }) {
               <a key={`p${a.id}`} href={`/api/tarefas/${t.id}/layout?u=${user.id}&anexo=${a.id}`} target="_blank" rel="noreferrer"
                 className="text-[11px] px-2 py-0.5 rounded flex items-center gap-1" style={{ background: C.panel2, color: C.text }}>
                 <span style={{ color: C.sub }}>pedido</span> · {a.nome}
+              </a>
+            ))}
+            {(d.anexosFpp || []).map((a) => (   /* v1117 — #105 */
+              <a key={`f${a.id}`} href={`/api/tarefas/${t.id}/layout?u=${user.id}&fppAnexo=${a.id}`} target="_blank" rel="noreferrer"
+                className="text-[11px] px-2 py-0.5 rounded flex items-center gap-1" style={{ background: C.panel2, color: C.text }}>
+                <span style={{ color: C.sub }}>FPP {String(a.fpp).padStart(5, "0")}{a.estampa ? " · estampa" : ""}</span> · {a.nome}
               </a>
             ))}
           </div>

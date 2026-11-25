@@ -17,6 +17,12 @@ export async function GET(req, { params }) {
   if (!t?.layout || !(await pode(t, u))) return Response.json({ error: "Sem acesso." }, { status: 403 });
   const sp = new URL(req.url).searchParams;
   // arquivos do pedido / do item para a OP (quem tem a tarefa, mesmo sem acesso ao lançamento)
+  if (sp.get("fppAnexo")) {   // v1117 — #105: arquivo da FPP de um item do pedido
+    const its = await prisma.ppItem.findMany({ where: { ppId: Number(t.layout.ppId) || 0 }, select: { fppId: true } });
+    const a = await prisma.fppAnexo.findFirst({ where: { id: Number(sp.get("fppAnexo")) || 0, fppId: { in: its.map((i) => i.fppId).filter(Boolean) } } });
+    if (!a) return new Response("Não encontrado.", { status: 404 });
+    return respostaAnexo(a.base64, { nome: a.nome, mime: a.mime });
+  }
   if (sp.get("anexo") || sp.get("item") != null && sp.get("k") != null) {
     const ppId = Number(t.layout.ppId) || 0;
     let nome = "arquivo", mime = null, b64 = null;

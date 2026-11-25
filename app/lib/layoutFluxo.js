@@ -69,7 +69,12 @@ export async function opDaTarefa(t) {
   if (!pp) return { erro: "Pedido não encontrado." };
   const arqs = await prisma.tarefaArquivo.findMany({ where: { tarefaId: t.id }, select: { id: true, nome: true, mime: true } });
   const A = Object.fromEntries(arqs.map((a) => [a.id, a]));
+  // v1117 — #105: arquivos das FPPs dos itens (logo do cliente, arquivos da estampa, referências) também para o arte finalista
+  const fppIds = [...new Set(pp.itens.map((it) => Number(it.fppId)).filter(Boolean))];
+  const fppArqs = fppIds.length ? await prisma.fppAnexo.findMany({ where: { fppId: { in: fppIds } }, orderBy: { id: "asc" }, select: { id: true, fppId: true, nome: true, mime: true, aplicacaoUid: true } }) : [];
+  const numFpp = Object.fromEntries(pp.itens.filter((it) => it.fppId).map((it) => [it.fppId, it.fppNumero]));
   return {
+    anexosFpp: fppArqs.map((a) => ({ id: a.id, nome: a.nome, mime: a.mime, fpp: numFpp[a.fppId] || a.fppId, estampa: !!a.aplicacaoUid })),
     pedido: { id: pp.id, numero: pp.numero, cliente: pp.clienteNome, vendedor: pp.vendedor, oc: pp.oc, emissao: pp.emissao, prazoDias: pp.prazoDias, prazoTipo: pp.prazoTipo, obs: pp.obs, tipoPedido: pp.tipoPedido },
     anexosPedido: pp.anexos,
     // v949 — todos os arquivos de personalização da OP (de todos os itens, não só dos que estão sem layout) para o arte finalista baixar
