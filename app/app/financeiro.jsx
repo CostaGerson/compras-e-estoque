@@ -338,6 +338,7 @@ function FinDashboard({ user, ir }) {
             </>}
             <BlocoPeriodo titulo={`Ano · ${anoAtual}`} p={d.periodo.ano} />
           </div>
+          <NotasFin user={user} />
 
         </>
       )}
@@ -4594,5 +4595,30 @@ function CruzarIAModal({ user, dados, onClose, onAplicado }) {
         </button>
       </div>
     </Modal>
+  );
+}
+
+// v1118 — caderno de notas do financeiro: salva sozinho ~1 s depois de parar de digitar
+function NotasFin({ user }) {
+  const [txt, setTxt] = useState(null);
+  const [st, setSt] = useState("");
+  const tm = useRef(null);
+  useEffect(() => { fetch(`/api/fin/notas?u=${user.id}`).then((r) => r.json()).then((x) => { setTxt(x.texto || ""); if (x.em) setSt(`salvo ${new Date(x.em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}${x.por ? ` · ${x.por}` : ""}`); }).catch(() => setTxt("")); }, [user.id]);
+  const mudar = (v) => {
+    setTxt(v); setSt("…"); clearTimeout(tm.current);
+    tm.current = setTimeout(async () => {
+      setSt("salvando…");
+      try { const r = await fetch("/api/fin/notas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, texto: v }) }); const x = await r.json(); if (!r.ok) throw new Error(x.error); setSt(`✓ salvo ${new Date(x.em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`); }
+      catch { setSt("não salvou: escreva de novo ou recarregue"); }
+    }, 1000);
+  };
+  return (
+    <div className="rounded-2xl p-4 mb-5" style={{ background: "#FFFDF3", border: `1px solid #EADFAE` }}>
+      <div className="flex items-center gap-2 mb-2"><span className="font-semibold" style={{ color: C.navy }}>Caderno de notas</span>
+        <span className="text-xs ml-auto" style={{ color: /não salvou/.test(st) ? C.red : C.sub }}>{st}</span></div>
+      {txt == null ? <div className="text-sm" style={{ color: C.sub }}>Carregando…</div>
+        : <textarea value={txt} onChange={(e) => mudar(e.target.value)} placeholder="Anotações do financeiro: lembretes, combinados com bancos e fornecedores, pendências… Salva sozinho."
+            className="w-full rounded-lg p-3 text-sm outline-none" style={{ minHeight: 220, resize: "vertical", background: "#fff", border: `1px solid #EADFAE`, color: C.text, lineHeight: 1.55 }} />}
+    </div>
   );
 }
