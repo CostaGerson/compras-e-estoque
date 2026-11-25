@@ -1160,7 +1160,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
               </>}
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex gap-4 ce-pilha">   {/* v1111 — no celular o layout fica em cima e a grade embaixo */}
               {/* v806 — layout em destaque */}
               <div className="shrink-0" style={{ width: 380 }}>
                 <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #001E4155" }}>

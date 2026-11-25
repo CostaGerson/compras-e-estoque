@@ -209,3 +209,13 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .ce-tab-cel { display: none; }
 @media (max-width: 1023px) { .ce-tab-md { display: none; } }
 @media (max-width: 767px) { .ce-tab-pc, .ce-tab-md { display: none; } .ce-tab-cel { display: block; } }
+/* v1111 — celular: todas as telas abrem e dá para mexer (pedido, operação…): toda linha flex com espaçamento quebra linha,
+   colunas laterais fixas (layout do pedido etc.) descem para baixo e nenhuma largura fixa passa da tela */
+@media (max-width: 767px) {
+  .ce-conteudo .flex:is(.gap-1, .gap-1\.5, .gap-2, .gap-2\.5, .gap-3, .gap-4, .gap-5, .gap-6):not(.flex-col):not(.flex-nowrap):not(.ce-linha):not(.overflow-x-auto),
+  .fixed.inset-0 .flex:is(.gap-2, .gap-3, .gap-4):not(.flex-col):not(.flex-nowrap):not(.ce-linha):not(.overflow-x-auto) { flex-wrap: wrap; row-gap: 6px; }
+  .ce-conteudo .ce-pilha, .fixed.inset-0 .ce-pilha { flex-direction: column; }
+  .ce-conteudo .ce-pilha > *, .fixed.inset-0 .ce-pilha > * { width: 100% !important; max-width: 100% !important; min-width: 0; }
+  .ce-conteudo [style*="width: 3"], .ce-conteudo [style*="width: 2"], .ce-conteudo [style*="min-width: 3"], .fixed.inset-0 [style*="width: 3"], .fixed.inset-0 [style*="width: 4"], .fixed.inset-0 [style*="width: 5"] { max-width: 100%; }
+  .ce-conteudo .flex > .flex-1 { min-width: 0; }
+}
