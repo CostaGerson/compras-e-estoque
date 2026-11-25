@@ -3426,15 +3426,29 @@ function TabelaFaixa({ aplic, tipos }) {
 const pecaDe = (item) => String(item || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 const podeGolaSob = (item) => /CAMISETA/.test(pecaDe(item));
 const podePunhoSob = (item) => /CAMISETA|POLO/.test(pecaDe(item));
+// v1126 — na mesma malha o rendimento vem em PEÇAS POR METRO (gola 35 · punho/manga 45, média Artebrilho/PV) e vira kg pela malha:
+//   kg/peça = 1 ÷ (peças/m × m/kg) · m/kg = rendimento da malha no + do artigo, ou 1000 ÷ (largura m × gramatura g/m²)
+const SOB_PCS_M = { GOLA: 35, PUNHO: 45 };
+function mPorKgMalha(det) {
+  const d = det || {}, r = num(d.rendimento);
+  if (r > 0) return r;
+  let l = num(d.largura); const g = num(d.gramatura);
+  if (l > 10) l = l / 100;   // largura em cm
+  return l > 0 && g > 0 ? 1000 / (l * g) : 0;
+}
 function sobreposto(f, isMalha, cget, malhaKg) {
-  const um = (on, modo, consumo, grupo) => {
+  const um = (on, modo, pcsM, grupo) => {
     if (!on || !isMalha) return null;
-    if (modo === "MALHA") { const c = num(consumo); return { modo, consumo: c, valor: c * (malhaKg || 0) }; }
+    if (modo === "MALHA") {
+      const pm = num(pcsM) || cget(grupo === "PUNHO" ? "SOB_PUNHO_PCS_M" : "SOB_GOLA_PCS_M") || SOB_PCS_M[grupo], mkg = mPorKgMalha(f.artigoDet);
+      const c = pm > 0 && mkg > 0 ? 1 / (pm * mkg) : 0;
+      return { modo, pcsM: pm, mPorKg: mkg, consumo: c, valor: c * (malhaKg || 0) };
+    }
     const fator = cget("RIBANA_FATOR_CUSTO") || 1.4, rend = cget(grupo === "PUNHO" ? "RIBANA_REND_PUNHO" : "RIBANA_REND_GOLA") || (grupo === "PUNHO" ? 125 : 96);
     return { modo: "RIBANA", rend, consumo: rend ? 1 / rend : 0, kg: (malhaKg || 0) * fator, valor: rend ? ((malhaKg || 0) * fator) / rend : 0 };
   };
-  const gola = podeGolaSob(f.item) ? um(f.golaSob, f.gola2 || "RIBANA", f.gola2Consumo, "GOLA") : null;
-  const punho = podePunhoSob(f.item) ? um(f.punhoSob, f.punho2 || "RIBANA", f.punho2Consumo, "PUNHO") : null;
+  const gola = podeGolaSob(f.item) ? um(f.golaSob, f.gola2 || "RIBANA", f.gola2PcsM, "GOLA") : null;
+  const punho = podePunhoSob(f.item) ? um(f.punhoSob, f.punho2 || "RIBANA", f.punho2PcsM, "PUNHO") : null;
   return { gola, punho, total: (gola?.valor || 0) + (punho?.valor || 0) };
 }
 function Sobrepostos({ f, set, setAvDet, sob }) {
@@ -3449,9 +3463,11 @@ function Sobrepostos({ f, set, setAvDet, sob }) {
             style={{ background: (f[kModo] || "RIBANA") === k ? "#fff" : "transparent", color: (f[kModo] || "RIBANA") === k ? C.accent : C.sub }}>{t}</button>)}
         </div>
         {(f[kModo] || "RIBANA") === "MALHA" ? <>
-          <div className="text-[11px]" style={{ color: C.sub }}>Consumo da malha principal (kg por peça)</div>
-          <input value={f[kCons] ?? ""} onChange={(e) => set(kCons, e.target.value)} inputMode="decimal" placeholder="a definir (ex.: 0,012)" className="w-full px-2 rounded text-sm" style={{ height: 30, border: `1px solid ${C.line}` }} />
-          <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>{x?.consumo ? <>× R$ {n2(f.mpValor)}/kg = <b style={{ color: C.navy }}>R$ {n2(x.valor)}/pç</b></> : "Sem consumo ainda: não entra no custo nem na compra."}</div>
+          <div className="text-[11px]" style={{ color: C.sub }}>Rendimento na malha principal (peças por metro)</div>
+          <input value={f[kCons] ?? ""} onChange={(e) => set(kCons, e.target.value)} inputMode="decimal" placeholder={`média ${x?.pcsM || ""} pç/m`} className="w-full px-2 rounded text-sm" style={{ height: 30, border: `1px solid ${C.line}` }} />
+          <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>{x?.consumo
+            ? <>{String(x.pcsM).replace(".", ",")} pç/m × {x.mPorKg.toFixed(2).replace(".", ",")} m/kg → {(x.consumo * 1000).toFixed(1).replace(".", ",")} g/pç × R$ {n2(f.mpValor)}/kg = <b style={{ color: C.navy }}>R$ {n2(x.valor)}/pç</b></>
+            : <span style={{ color: C.red }}>Preencha largura e gramatura (ou o rendimento m/kg) no + do artigo principal para converter metros em kg.</span>}</div>
         </> : <>
           {x && <div className="text-[11px]" style={{ color: C.sub }}>Ribana R$ {n2(x.kg)}/kg ÷ {String(x.rend).replace(".", ",")} pç/kg = <b style={{ color: C.navy }}>R$ {n2(x.valor)}/pç</b></div>}
           <CorRibana rotulo={rot.replace(/sobrepost[ao]/i, "").trim() === "Gola" ? "Cor da gola sobreposta" : "Cor do punho sobreposto"} artigoDet={f.artigoDet} det={f.aviamentosDet?.[kDet]} onDet={(d) => setAvDet(kDet, d)} />
@@ -3461,7 +3477,7 @@ function Sobrepostos({ f, set, setAvDet, sob }) {
   );
   if (!podeGolaSob(f.item) && !podePunhoSob(f.item)) return null;
   return <>
-    {podeGolaSob(f.item) && bloco("Gola sobreposta", f.golaSob, "golaSob", "gola2", "gola2Consumo", "GOLA2", sob.gola)}
-    {podePunhoSob(f.item) && bloco("Punho sobreposto", f.punhoSob, "punhoSob", "punho2", "punho2Consumo", "PUNHO2", sob.punho)}
+    {podeGolaSob(f.item) && bloco("Gola sobreposta", f.golaSob, "golaSob", "gola2", "gola2PcsM", "GOLA2", sob.gola)}
+    {podePunhoSob(f.item) && bloco("Punho sobreposto", f.punhoSob, "punhoSob", "punho2", "punho2PcsM", "PUNHO2", sob.punho)}
   </>;
 }

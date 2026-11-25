@@ -145,13 +145,18 @@ export function materiaisDaFpp(fpp, params = [], corSel = null, grade = null) {
   // v1125 — gola sobreposta (camiseta) e punho sobreposto (camiseta/polo): ribana (como a gola/punho de ribana) ou a própria malha (consumo kg/peça da ficha)
   if (tipo === "MALHA") {
     const peca = norm(fpp.item);
-    for (const [on, modo, cons, chave, grupo, pode] of [[e.golaSob, e.gola2, e.gola2Consumo, "GOLA2", "GOLA", /CAMISETA/.test(peca)], [e.punhoSob, e.punho2, e.punho2Consumo, "PUNHO2", "PUNHO", /CAMISETA|POLO/.test(peca)]]) {
+    // v1126 — mesma malha: peças por metro (gola 35 · punho 45) → kg pela malha (m/kg do artigo ou 1000 ÷ largura × gramatura)
+    const ad = e.artigoDet || {};
+    let lg = n0(ad.largura) || 0; if (lg > 10) lg /= 100;
+    const mkg = n0(ad.rendimento) || (lg > 0 && n0(ad.gramatura) > 0 ? 1000 / (lg * n0(ad.gramatura)) : 0);
+    for (const [on, modo, pcsM, chave, grupo, pode] of [[e.golaSob, e.gola2, e.gola2PcsM, "GOLA2", "GOLA", /CAMISETA/.test(peca)], [e.punhoSob, e.punho2, e.punho2PcsM, "PUNHO2", "PUNHO", /CAMISETA|POLO/.test(peca)]]) {
       if (!on || !pode) continue;
       const rot = grupo === "GOLA" ? "GOLA SOBREPOSTA" : "PUNHO SOBREPOSTO";
       if ((modo || "RIBANA") === "MALHA") {
-        const c = n0(cons) || 0;
+        const pm = n0(pcsM) || cget(grupo === "PUNHO" ? "SOB_PUNHO_PCS_M" : "SOB_GOLA_PCS_M") || (grupo === "PUNHO" ? 45 : 35);
+        const c = pm > 0 && mkg > 0 ? 1 / (pm * mkg) : 0;
         if (c > 0 && nomeP) out.push({ papel: chave, ref: { campo: "artigoDet" }, derivado: true, categoria: "MALHA", unidade: "KG", nome: nomeP.toUpperCase(),
-          det: detComCor(e.artigoDet || {}, corSel), consumoPorPeca: c, valorUnitario: n0(e.mpValor), base: `${String(c).replace(".", ",")} kg/peça · ${rot} NA MALHA` });
+          det: detComCor(e.artigoDet || {}, corSel), consumoPorPeca: c, valorUnitario: n0(e.mpValor), base: `${String(pm).replace(".", ",")} peças/m · ${rot} NA MALHA` });
         continue;
       }
       const c = ribanaCalc(cget, grupo, n0(e.mpValor) || 0);
