@@ -4,7 +4,7 @@
 // prazo de pagamento (entrada + parcelas por emissão / NF / entrega), obs da NF e anexos por arraste.
 import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Printer, Paperclip, FileText, X, Copy, Search, Wand2, RotateCcw } from "lucide-react";
-import { alerta, confirmar, perguntar } from "./dialogo";
+import { alerta, confirmar, perguntar, escolher } from "./dialogo";
 import DadosUnitarios from "./dadosUnitarios";
 import { vazioDU } from "@/lib/dadosUnitarios";   // v743
 import ClienteFinalForm, { ClienteFinalResumo } from "./clienteFinal";
@@ -769,24 +769,48 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const respPadrao = useRef({});   // "id|assinatura" → já respondido nesta tela (não pergunta de novo)
   const chaveParams = (p) => JSON.stringify(Object.entries(p || {}).filter(([k, v]) => k !== "TECIDO" && !paramFora(k) && v != null && String(typeof v === "object" ? JSON.stringify(v) : v).trim() !== "")
     .map(([k, v]) => [k.trim().toUpperCase(), typeof v === "object" ? JSON.stringify(v) : String(v).trim().toUpperCase()]).sort((a, b) => a[0].localeCompare(b[0])));
+  // v1119 — 3 opções: atualizar o item padrão · criar um item NOVO (código novo) com estes dados · só neste pedido
   const conferirPadroes = async () => {
-    for (const it of itens) {
+    const trocas = {};   // índice do item → { itemPadraoId, codigo } do item novo
+    for (const [ix, it] of itens.entries()) {
       if (!it.itemPadraoId) continue;
       const d = await fetch(`/api/itens-padrao/${it.itemPadraoId}`).then((r) => r.json()).catch(() => null);
       if (!d || d.error) continue;
       const nova = chaveParams(it.parametros), k = `${it.itemPadraoId}|${nova}`;
       if (nova === chaveParams(d.parametros) || respPadrao.current[k] != null) continue;
-      const sim = await confirmar(`Salvar edições nos parâmetros no item padrão "${d.nomeInterno || d.nomeNf}"?\n\nSim: o item padrão fica atualizado e os próximos pedidos já vêm com estes parâmetros.\nNão: as edições valem só para este pedido.`, { okTexto: "Sim, atualizar o item padrão", cancelar: "Não, só neste pedido" });
-      respPadrao.current[k] = sim;
-      if (!sim) continue;
+      const nome = d.nomeInterno || d.nomeNf;
+      const op = await escolher(`O item "${nome}" foi alterado neste pedido. O que fazer com as alterações?`, [
+        { valor: "PEDIDO", texto: "Manter só neste pedido", sub: "O item padrão continua como está." },
+        { valor: "ATUALIZAR", texto: `Atualizar o item padrão ${d.codigoPadrao || ""}`.trim(), sub: "Os próximos pedidos já vêm com estes parâmetros." },
+        { valor: "NOVO", texto: "Criar um item novo com estes dados", sub: "Gera um código novo e o item passa a aparecer nos itens do cliente; o original não muda." },
+      ], { titulo: "Item alterado" });
+      respPadrao.current[k] = op || "PEDIDO";
+      if (!op || op === "PEDIDO") continue;
       const parametros = { ...Object.fromEntries(Object.entries(it.parametros || {}).filter(([kk, v]) => kk !== "TECIDO" && !paramFora(kk) && v != null && String(v).trim() !== "")), ...(d.parametros?.TECIDO ? { TECIDO: d.parametros.TECIDO } : {}) };
-      const r = await fetch(`/api/itens-padrao/${it.itemPadraoId}`, { method: "PUT", headers: { "Content-Type": "application/json", "x-usuario-id": String(uid || "") }, body: JSON.stringify({ acao: "parametros", parametros }) }).then((x) => x.json()).catch(() => ({ error: "falha de conexão" }));
-      if (r.error) alerta(`Não consegui atualizar o item padrão: ${r.error}`);
+      const hdr = { "Content-Type": "application/json", "x-usuario-id": String(uid || "") };
+      if (op === "ATUALIZAR") {
+        const r = await fetch(`/api/itens-padrao/${it.itemPadraoId}`, { method: "PUT", headers: hdr, body: JSON.stringify({ acao: "parametros", parametros }) }).then((x) => x.json()).catch(() => ({ error: "falha de conexão" }));
+        if (r.error) alerta(`Não consegui atualizar o item padrão: ${r.error}`);
+        continue;
+      }
+      const nomeNovo = (await perguntar("Nome do item novo (interno e na NF):", it.descricao && it.descricao !== nome ? it.descricao : `${nome} - `))?.trim().toUpperCase();
+      if (!nomeNovo) { respPadrao.current[k] = "PEDIDO"; continue; }
+      const r = await fetch("/api/itens-padrao", { method: "POST", headers: hdr, body: JSON.stringify({ nomeInterno: nomeNovo, nomeNf: nomeNovo, clienteIds: d.clienteIds || [], fppId: it.fppId || d.fppId || null,
+        tipoPecaNome: d.tipoPecaNome || it.tipoPecaNome || "", codigo: "", parametros: { ...(d.parametros || {}), ...parametros }, precoAtual: it.valorUnitario ?? d.precoAtual, ncm: d.ncm || "", obs: `Criado a partir de ${d.codigoPadrao || nome} no pedido ${f.numero || ""}`.trim() }) })
+        .then((x) => x.json()).catch(() => ({ error: "falha de conexão" }));
+      if (r.error || !r.id) { alerta(`Não consegui criar o item novo: ${r.error || "erro"}`); continue; }
+      const nv = await fetch(`/api/itens-padrao/${r.id}`).then((x) => x.json()).catch(() => ({}));
+      trocas[ix] = { itemPadraoId: r.id, codigo: nv.codigoPadrao || it.codigo, descricao: nomeNovo };
+      alerta(`Item novo criado: ${nv.codigoPadrao || ""} ${nomeNovo}`.replace(/\s+/g, " ").trim());
     }
+    if (Object.keys(trocas).length) setItens((l) => l.map((x, i) => (trocas[i] ? { ...x, ...trocas[i] } : x)));
+    return trocas;
   };
   const salvar = async () => {
-    await conferirPadroes();
-    const r = await api(ppId ? `/api/pp/${ppId}` : "/api/pp", { method: ppId ? "PUT" : "POST", body: JSON.stringify(payload()) });
+    const trocas = await conferirPadroes();
+    const pl = payload();
+    if (trocas && Object.keys(trocas).length) pl.itens = pl.itens.map((x, i) => (trocas[i] ? { ...x, ...trocas[i] } : x));   // v1119 — item novo já vai no pedido
+    const r = await api(ppId ? `/api/pp/${ppId}` : "/api/pp", { method: ppId ? "PUT" : "POST", body: JSON.stringify(pl) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.error || (r.status === 502 || r.status === 503 ? "O sistema está reiniciando (atualização no ar). Espere 1 minuto e tente de novo — o que você lançou continua na tela." : r.status === 413 ? "O pedido ficou grande demais para enviar (HTTP 413)." : `Erro ao salvar (HTTP ${r.status}).`));   // v871
     if (!ppId) setPpId(d.id);
