@@ -142,6 +142,24 @@ export function materiaisDaFpp(fpp, params = [], corSel = null, grade = null) {
   // v911 — ribana (gola/punho ribana): compra em kg, na cor e no fornecedor da malha principal
   const cget = (k) => paramGet(params, tipo, "CONST", k, "valor", ov);
   const detPrinc = (() => { const d = detComCor(e.artigoDet || {}, corSel); return { ...(d.cor ? { cor: d.cor } : {}), ...(d.fornecedorId ? { fornecedorId: d.fornecedorId } : {}), ...(d.fornecedorNome ? { fornecedorNome: d.fornecedorNome } : {}) }; })();
+  // v1125 — gola sobreposta (camiseta) e punho sobreposto (camiseta/polo): ribana (como a gola/punho de ribana) ou a própria malha (consumo kg/peça da ficha)
+  if (tipo === "MALHA") {
+    const peca = norm(fpp.item);
+    for (const [on, modo, cons, chave, grupo, pode] of [[e.golaSob, e.gola2, e.gola2Consumo, "GOLA2", "GOLA", /CAMISETA/.test(peca)], [e.punhoSob, e.punho2, e.punho2Consumo, "PUNHO2", "PUNHO", /CAMISETA|POLO/.test(peca)]]) {
+      if (!on || !pode) continue;
+      const rot = grupo === "GOLA" ? "GOLA SOBREPOSTA" : "PUNHO SOBREPOSTO";
+      if ((modo || "RIBANA") === "MALHA") {
+        const c = n0(cons) || 0;
+        if (c > 0 && nomeP) out.push({ papel: chave, ref: { campo: "artigoDet" }, derivado: true, categoria: "MALHA", unidade: "KG", nome: nomeP.toUpperCase(),
+          det: detComCor(e.artigoDet || {}, corSel), consumoPorPeca: c, valorUnitario: n0(e.mpValor), base: `${String(c).replace(".", ",")} kg/peça · ${rot} NA MALHA` });
+        continue;
+      }
+      const c = ribanaCalc(cget, grupo, n0(e.mpValor) || 0);
+      const det = avDet[chave] || {}, proprio = temAlgumDetalhe(det);
+      if (c.consumo > 0) out.push({ papel: chave, ref: { campo: "aviamentosDet", chave }, derivado: !proprio, categoria: "MALHA", unidade: "KG", nome: "RIBANA",
+        det: proprio ? det : detPrinc, consumoPorPeca: c.consumo, valorUnitario: c.kg || null, base: `${String(c.rend).replace(".", ",")} peças/kg · ${rot}`, obs: det.obs || null });
+    }
+  }
   for (const a of AVIAMENTOS) {
     if (a.tipo && a.tipo !== tipo && !aberta) continue;
     const v = e[a.campo];

@@ -520,7 +520,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     const botaoUn = botaoUnit(getP, f.botaoTipo);
     const botao = botaoUn * num(f.botaoQtd);
     const extrasAv = somaAvExtras(f.extrasAviamentos);   // v411
-    const aviamentos = revenda ? 0 : golaOuElast + punho + faixa + botao + extrasAv;
+    const sobV = isMalha ? sobreposto(f, isMalha, cget, num(f.mpValor)).total : 0;   // v1125 — gola/punho sobrepostos
+    const aviamentos = revenda ? 0 : golaOuElast + punho + faixa + botao + extrasAv + sobV;
 
     // Produção
     const extrasProd = somaExtras(f.extrasProducao);
@@ -848,6 +849,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                   <>
                     <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.gola} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)}><Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>{r?.rib?.gola && <RibanaHint x={r.rib.gola} />}{tipo === "MALHA" && temCorAv(f.gola) && <CorRibana rotulo="Cor da gola" artigoDet={f.artigoDet} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)} />}</div>
                     <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.punho} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)}><Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>{r?.rib?.punho && <RibanaHint x={r.rib.punho} />}{tipo === "MALHA" && temCorAv(f.punho) && <CorRibana rotulo="Cor do punho" artigoDet={f.artigoDet} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)} />}</div>
+                    {tipo === "MALHA" && <Sobrepostos f={f} set={set} setAvDet={setAvDet} sob={sobreposto(f, tipo === "MALHA", cget, num(f.mpValor))} />}   {/* v1125 */}
                   </>
                 )}
                 {(tipo === "PLANO" || aberta) && (
@@ -3417,4 +3419,49 @@ function TabelaFaixa({ aplic, tipos }) {
       </table>
     </div>
   );
+}
+
+// ---------- v1125 — gola sobreposta (camiseta) e punho sobreposto (camiseta e polo) ----------
+//   cada um em RIBANA (consumo e custo da ribana: R$/kg da malha × fator ÷ rendimento) ou na MESMA MALHA (consumo kg/peça informado × R$/kg da malha)
+const pecaDe = (item) => String(item || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+const podeGolaSob = (item) => /CAMISETA/.test(pecaDe(item));
+const podePunhoSob = (item) => /CAMISETA|POLO/.test(pecaDe(item));
+function sobreposto(f, isMalha, cget, malhaKg) {
+  const um = (on, modo, consumo, grupo) => {
+    if (!on || !isMalha) return null;
+    if (modo === "MALHA") { const c = num(consumo); return { modo, consumo: c, valor: c * (malhaKg || 0) }; }
+    const fator = cget("RIBANA_FATOR_CUSTO") || 1.4, rend = cget(grupo === "PUNHO" ? "RIBANA_REND_PUNHO" : "RIBANA_REND_GOLA") || (grupo === "PUNHO" ? 125 : 96);
+    return { modo: "RIBANA", rend, consumo: rend ? 1 / rend : 0, kg: (malhaKg || 0) * fator, valor: rend ? ((malhaKg || 0) * fator) / rend : 0 };
+  };
+  const gola = podeGolaSob(f.item) ? um(f.golaSob, f.gola2 || "RIBANA", f.gola2Consumo, "GOLA") : null;
+  const punho = podePunhoSob(f.item) ? um(f.punhoSob, f.punho2 || "RIBANA", f.punho2Consumo, "PUNHO") : null;
+  return { gola, punho, total: (gola?.valor || 0) + (punho?.valor || 0) };
+}
+function Sobrepostos({ f, set, setAvDet, sob }) {
+  const n2 = (v) => (Number(v) || 0).toFixed(2).replace(".", ",");
+  const bloco = (rot, on, kOn, kModo, kCons, kDet, x) => (
+    <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+      <label className="flex items-center gap-1.5 text-xs font-semibold cursor-pointer" style={{ color: C.text }}>
+        <input type="checkbox" checked={!!on} onChange={(e) => set(kOn, e.target.checked)} /> {rot}</label>
+      {on && <div className="mt-1 p-2 rounded-lg" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+        <div className="inline-flex rounded-md p-0.5 mb-1" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+          {[["RIBANA", "Ribana"], ["MALHA", "Mesma malha"]].map(([k, t]) => <button key={k} type="button" onClick={() => set(kModo, k)} className="px-2.5 py-1 text-xs font-semibold rounded"
+            style={{ background: (f[kModo] || "RIBANA") === k ? "#fff" : "transparent", color: (f[kModo] || "RIBANA") === k ? C.accent : C.sub }}>{t}</button>)}
+        </div>
+        {(f[kModo] || "RIBANA") === "MALHA" ? <>
+          <div className="text-[11px]" style={{ color: C.sub }}>Consumo da malha principal (kg por peça)</div>
+          <input value={f[kCons] ?? ""} onChange={(e) => set(kCons, e.target.value)} inputMode="decimal" placeholder="a definir (ex.: 0,012)" className="w-full px-2 rounded text-sm" style={{ height: 30, border: `1px solid ${C.line}` }} />
+          <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>{x?.consumo ? <>× R$ {n2(f.mpValor)}/kg = <b style={{ color: C.navy }}>R$ {n2(x.valor)}/pç</b></> : "Sem consumo ainda: não entra no custo nem na compra."}</div>
+        </> : <>
+          {x && <div className="text-[11px]" style={{ color: C.sub }}>Ribana R$ {n2(x.kg)}/kg ÷ {String(x.rend).replace(".", ",")} pç/kg = <b style={{ color: C.navy }}>R$ {n2(x.valor)}/pç</b></div>}
+          <CorRibana rotulo={rot.replace(/sobrepost[ao]/i, "").trim() === "Gola" ? "Cor da gola sobreposta" : "Cor do punho sobreposto"} artigoDet={f.artigoDet} det={f.aviamentosDet?.[kDet]} onDet={(d) => setAvDet(kDet, d)} />
+        </>}
+      </div>}
+    </div>
+  );
+  if (!podeGolaSob(f.item) && !podePunhoSob(f.item)) return null;
+  return <>
+    {podeGolaSob(f.item) && bloco("Gola sobreposta", f.golaSob, "golaSob", "gola2", "gola2Consumo", "GOLA2", sob.gola)}
+    {podePunhoSob(f.item) && bloco("Punho sobreposto", f.punhoSob, "punhoSob", "punho2", "punho2Consumo", "PUNHO2", sob.punho)}
+  </>;
 }
