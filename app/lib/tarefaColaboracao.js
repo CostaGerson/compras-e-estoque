@@ -82,7 +82,8 @@ export async function dadosColaboracao(t) {
   const fs = await prisma.tarefa.findMany({ where: { colaboracao: { path: ["origemId"], equals: t.id } }, orderBy: { id: "asc" },
     include: { arquivos: { select: { id: true, nome: true, tamanho: true, createdAt: true } } } });
   return { colaboracoes: fs.filter((f) => f.status !== "CANCELADA").map((f) => ({ id: f.id, usuarioId: f.responsavelId, nome: f.responsavelNome, status: f.status,
-    resposta: f.colaboracao?.resposta || "", respondidoEm: f.colaboracao?.respondidoEm || null, arquivos: f.arquivos })) };
+    resposta: f.colaboracao?.resposta || "", respondidoEm: f.colaboracao?.respondidoEm || null, arquivos: f.arquivos,
+    subtarefas: Array.isArray(f.subtarefas) ? f.subtarefas : [] })) };   // v1116 — as subtarefas que o colaborador criou na tarefa dele
 }
 
 // excluir a origem cancela as colaborações ainda em aberto

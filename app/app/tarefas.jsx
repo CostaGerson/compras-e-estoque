@@ -915,6 +915,11 @@ function ColaboracoesOrigem({ t, user }) {
           <div className="flex items-center gap-2 text-xs flex-wrap"><b className="text-sm" style={{ color: C.text }}>{c.nome}</b>
             <span className="px-1.5 py-0.5 rounded font-semibold text-[11px]" style={c.respondidoEm ? { background: C.greenSoft, color: C.green } : { background: OURO.fundo, color: OURO.texto }}>{c.respondidoEm ? `respondeu em ${quando(c.respondidoEm)}` : "aguardando"}</span></div>
           {c.resposta && <div className="text-sm whitespace-pre-wrap mt-1">{c.resposta}</div>}
+          {c.subtarefas?.length > 0 && <div className="mt-1.5">   {/* v1116 — subtarefas criadas pelo colaborador */}
+            <div className="text-[11px] font-semibold flex items-center gap-1" style={{ color: C.sub }}><ListChecks size={12} /> Subtarefas ({c.subtarefas.filter((s) => s.feita).length}/{c.subtarefas.length})</div>
+            {c.subtarefas.map((s, i) => <div key={i} className="flex items-start gap-1.5 text-sm" style={{ color: s.feita ? C.sub : C.text, textDecoration: s.feita ? "line-through" : "none" }}><span>{s.feita ? "☑" : "☐"}</span><span className="whitespace-pre-wrap">{s.texto}</span></div>)}
+          </div>}
+          {!c.resposta && !c.subtarefas?.length && !c.arquivos.length && c.respondidoEm && <div className="text-xs mt-1 italic" style={{ color: C.sub }}>Respondeu sem texto, anexo ou subtarefa.</div>}
           {c.arquivos.length > 0 && <div className="flex flex-col gap-0.5 mt-1">{c.arquivos.map((a) => <a key={a.id} href={`/api/tarefas/${c.id}/arquivos?u=${user.id}&arquivo=${a.id}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs truncate" style={{ color: C.blue }}><FileText size={12} style={{ color: OURO.borda }} /> {a.nome}</a>)}</div>}
         </div>)}
       </div>
