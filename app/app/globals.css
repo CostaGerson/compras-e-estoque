@@ -219,5 +219,6 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   .ce-conteudo [style*="width: 3"], .ce-conteudo [style*="width: 2"], .ce-conteudo [style*="min-width: 3"], .fixed.inset-0 [style*="width: 3"], .fixed.inset-0 [style*="width: 4"], .fixed.inset-0 [style*="width: 5"] { max-width: 100%; }
   .ce-conteudo .flex > .flex-1 { min-width: 0; }
   .ce-conteudo [class*="max-w-["] { max-width: 100% !important; }
+  [style*="minmax(380px"], [style*="minmax(420px"], [style*="minmax(440px"], [style*="minmax(450px"], [style*="minmax(480px"], [style*="minmax(500px"], [style*="minmax(520px"], [style*="minmax(560px"], [style*="minmax(600px"] { grid-template-columns: minmax(0, 1fr) !important; }
   .ce-conteudo [style*="minmax(44px"] { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }   /* grade de tamanhos: 5 por linha */
 }
