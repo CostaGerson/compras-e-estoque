@@ -12,6 +12,8 @@ export function usuarioServicoPcp(id) {
   return { id: 0, nome: "PCP", sobrenome: SETORES_SERVICO[m[2]], ativo: true, setor: "PCP", isMaster: false, diretoria: false, permissoes: [], servicoPcp: m[2] };
 }
 export const tokenServicoOk = (t) => String(t || "") === TOKEN_SERVICO_PCP;
+// v1116 — o editor manda { servico: true } (não manda tipoPedido): aceita os dois jeitos
+export const corpoDeServico = (b) => !!b && !b.nort && (b.servico === true || ehServico(b.tipoPedido));
 export const ehServico = (tipo) => String(tipo || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === "SERVICO";
 // pedido existente: o usuário do PCP só mexe em pedido de serviço
 export async function ppDeServico(id) {

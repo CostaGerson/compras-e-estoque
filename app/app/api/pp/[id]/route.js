@@ -3,7 +3,7 @@ import { respostaAnexo, enxugarItensPp } from "@/lib/arquivos";
 import { prisma } from "@/lib/prisma";
 import { usuarioPP, negadoPP, ppParaUsuario, nomeQuem } from "@/lib/pp";
 import { salvarPp, efetivarPedido, faturarPedido, criticas } from "@/lib/pedidoEfetivar";   // v595
-import { ehServico, ppDeServico, negadoServico } from "@/lib/servicoPcp";   // v1006
+import { corpoDeServico, ppDeServico, negadoServico } from "@/lib/servicoPcp";   // v1006
 
 export async function GET(req, { params }) {
   const u = await usuarioPP(req, "ve");
@@ -128,7 +128,7 @@ export async function PUT(req, { params }) {
   if (!u) return negadoPP();
   try {
     const corpo = await req.json();
-    if (u.servicoPcp && (!ehServico(corpo?.tipoPedido) || !(await ppDeServico(params.id)))) return negadoServico();   // v1006
+    if (u.servicoPcp && (!corpoDeServico(corpo) || !(await ppDeServico(params.id)))) return negadoServico();   // v1006
     const id = await salvarPp(Number(params.id), corpo, nomeQuem(u));
     try { await enxugarItensPp(id); } catch (e) { console.log("enxugar anexos:", e.message); }   // v868
     const pp = await prisma.pp.findUnique({ where: { id }, include: { itens: true } });
