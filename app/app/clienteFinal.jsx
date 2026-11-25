@@ -49,15 +49,18 @@ export default function ClienteFinalForm({ valor, onChange, mobile }) {
         {PF ? (
           <>
             <Campo l="Nome completo" obrig span={mobile ? 2 : 4}>{I("nome", { autoComplete: "name" })}</Campo>
-            <Campo l="CPF" obrig={!v.cpfNA} span={2}>
+            {/* v1115 — "Não se aplica" na linha do rótulo: sem espaço extra antes do endereço */}
+            <div className="block text-xs" style={{ color: C.sub, gridColumn: "span 2 / span 2" }}>
+              <div className="flex items-center gap-3 mb-1">
+                <span>CPF{!v.cpfNA && <span style={{ color: C.red }}> *</span>}</span>
+                <label className="ml-auto inline-flex items-center gap-1.5 cursor-pointer select-none" style={{ color: C.text }}>
+                  <input type="checkbox" checked={!!v.cpfNA} onChange={(e) => onChange({ ...v, cpfNA: e.target.checked, cpf: e.target.checked ? "" : (v.cpf === "NÃO SE APLICA" ? "" : v.cpf) })} />
+                  Não se aplica
+                </label></div>
               {v.cpfNA
                 ? <input value="NÃO SE APLICA" disabled className="w-full rounded-lg px-3 py-2 text-sm outline-none" style={{ ...inp, color: C.sub }} />
                 : I("cpf", { inputMode: "numeric", placeholder: "000.000.000-00" })}
-              <span className="flex items-center gap-1.5 mt-1 cursor-pointer select-none" style={{ color: C.text }}>
-                <input type="checkbox" checked={!!v.cpfNA} onChange={(e) => onChange({ ...v, cpfNA: e.target.checked, cpf: e.target.checked ? "" : (v.cpf === "NÃO SE APLICA" ? "" : v.cpf) })} />
-                Não se aplica
-              </span>
-            </Campo>
+            </div>
           </>
         ) : (
           <>
