@@ -311,7 +311,7 @@ const catDoNome = (nome, tipo) => {
   const n = norm(nome);
   if (/solic|lancamento/.test(n)) return "SOLICITACAO";
   if (/\boc\b|ordem|compra|\bpc\b|pedido/.test(n.replace(/[_\-.]/g, " "))) return "OC";
-  if (/layout|arte|mock|logo/.test(n) || /^image\//.test(tipo || "")) return "LAYOUT";
+  // v1123 — anexo do lançamento nunca é layout: o layout do item vem da FPP (ou do quadro "Layout da peça")
   return "OUTRO";
 };
 const tipoPeca = (d, tipos) => {
@@ -731,7 +731,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       entregaModo: "UNICA", entregas: [],
     }));
     setItens(novosItens.length ? novosItens : [novoItem()]);
-    if (d.imagensSoltas?.length) setAnexos((l) => [...l, ...d.imagensSoltas.map((u, k) => ({ nome: `Layout ${k + 1} (da solicitação).${/jpeg/.test(u) ? "jpg" : "png"}`, tipo: /jpeg/.test(u) ? "image/jpeg" : "image/png", tamanho: Math.round(u.length * 0.75), categoria: "LAYOUT", base64: u }))]);
+    if (d.imagensSoltas?.length) setAnexos((l) => [...l, ...d.imagensSoltas.map((u, k) => ({ nome: `Layout ${k + 1} (da solicitação).${/jpeg/.test(u) ? "jpg" : "png"}`, tipo: /jpeg/.test(u) ? "image/jpeg" : "image/png", tamanho: Math.round(u.length * 0.75), categoria: "OUTRO", base64: u }))]);   // v1123
     // resumo para o vendedor conferir
     const av = [...(d.avisos || [])];
     if (pz?.passou) av.push(`Prazo de entrega do documento (${doc.prazoTexto}) já passou: confira o prazo.`);
@@ -997,7 +997,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
                   <div className="text-xs font-medium truncate" title={a.nome}>{a.nome}</div>
                   <div className="flex items-center gap-1 mt-1">
                     <select value={a.categoria || "OUTRO"} onChange={(e) => setAnexos((l) => l.map((x, j) => (j === k ? { ...x, categoria: e.target.value } : x)))} className="flex-1 text-xs px-1 py-0.5 rounded outline-none" style={inp}>
-                      {Object.entries(CATS).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+                      {Object.entries(CATS).filter(([v]) => v !== "LAYOUT" || a.categoria === "LAYOUT").map(([v, t]) => <option key={v} value={v}>{t}</option>)}
                     </select>
                     {/pdf/i.test(a.tipo || a.nome) && !f.servico && !efetivado && <button type="button" onClick={() => lerAnexoSalvo(a)} style={{ color: C.accent }} title="Preencher o pedido com esta solicitação de lançamento"><Wand2 size={14} /></button>}
                     <button type="button" onClick={() => setAnexos((l) => l.filter((_, j) => j !== k))} style={{ color: "#C77" }} title="Remover"><Trash2 size={14} /></button>
