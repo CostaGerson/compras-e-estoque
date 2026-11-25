@@ -1024,7 +1024,7 @@ export function Atendidos({ fases, ir, user }) {
               <input type="checkbox" checked={marc.has(i.id)} onChange={() => tog(i.id)} className="mt-0.5" />
               <div className="flex-1">
                 <div className="text-sm" style={{ color: C.text }}>{ch(i.chave)} · {i.descricao} <span className="text-xs" style={{ color: C.sub }}>({i.quantidade} pç · FPP {fmtFpp(i.fppNumero)})</span></div>
-                <div style={{ color: C.sub }}>{i.demanda.map((x) => `${x.nome}${x.cor ? ` ${x.cor}` : ""} ${qtdU(x.quantidade, x.unidade)}`).join(" · ")}</div>
+                <div style={{ color: C.sub }}>{i.demanda.map((x, j) => <span key={j}>{j ? " · " : ""}{x.nome}{x.cor ? ` ${x.cor}` : <b style={{ color: C.red }} title="Sem cor: informe a cor no aviamento da FPP (+) para comprar certo"> SEM COR</b>} {qtdU(x.quantidade, x.unidade)}</span>)}</div>
                 <div style={{ color: C.sub }}>Autorizado {i.autorizadoEm ? new Date(i.autorizadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : ""}{i.autorizadoPorNome ? ` por ${i.autorizadoPorNome}` : ""}</div>
               </div>
               {i.seguiu ? <Chip cor={C.sub}>material já na produção</Chip> : <Chip cor={C.green} fundo={C.greenSoft}>reservado</Chip>}
@@ -1106,7 +1106,7 @@ function Cruzamento({ user, veValores, onMudou, irPic }) {
                 <input type="checkbox" disabled={i.semDemanda} checked={marc.has(i.id)} onChange={() => tog(i.id)} className="mt-0.5" />
                 <div className="flex-1">
                   <div className="text-sm" style={{ color: C.text }}>{ch(i.chave)} · {i.descricao} <span className="text-xs" style={{ color: C.sub }}>({i.quantidade} pç · FPP {fmtFpp(i.fppNumero)})</span></div>
-                  <div style={{ color: C.sub }}>{i.demanda.map((x) => `${x.nome}${x.cor ? ` ${x.cor}` : ""} ${qtdU(x.quantidade, x.unidade)}`).join(" · ")}</div>
+                  <div style={{ color: C.sub }}>{i.demanda.map((x, j) => <span key={j}>{j ? " · " : ""}{x.nome}{x.cor ? ` ${x.cor}` : <b style={{ color: C.red }} title="Sem cor: informe a cor no aviamento da FPP (+) para comprar certo"> SEM COR</b>} {qtdU(x.quantidade, x.unidade)}</span>)}</div>
                 </div>
                 {!i.semDemanda && (i.atendido ? <span className="flex items-center gap-1.5"><Chip cor={C.green} fundo={C.greenSoft}>estoque atende</Chip>
                   <button type="button" onClick={(e) => { e.preventDefault(); reprovar([i.id]); }} className="text-[11px] px-2 py-0.5 rounded font-semibold" style={{ border: `1px solid ${C.red}`, color: C.red }}>reprovar</button></span>
@@ -1124,7 +1124,7 @@ function Cruzamento({ user, veValores, onMudou, irPic }) {
             <div key={i.id} className="flex items-start gap-3 px-4 py-2 text-xs" style={{ borderTop: `1px solid ${C.line}` }}>
               <div className="flex-1">
                 <div className="text-sm" style={{ color: C.text }}>{rotPed(i.pedidoNumero, i.cliente)} · {ch(i.chave)} · {i.descricao}</div>
-                <div style={{ color: C.sub }}>{i.demanda.map((x) => `${x.nome}${x.cor ? ` ${x.cor}` : ""} ${qtdU(x.quantidade, x.unidade)}`).join(" · ")}{i.autorizadoPorNome ? ` · reprovado por ${i.autorizadoPorNome}` : ""}</div>
+                <div style={{ color: C.sub }}>{i.demanda.map((x, j) => <span key={j}>{j ? " · " : ""}{x.nome}{x.cor ? ` ${x.cor}` : <b style={{ color: C.red }} title="Sem cor: informe a cor no aviamento da FPP (+) para comprar certo"> SEM COR</b>} {qtdU(x.quantidade, x.unidade)}</span>)}{i.autorizadoPorNome ? ` · reprovado por ${i.autorizadoPorNome}` : ""}</div>
               </div>
               <button onClick={() => reprovar([i.id], true)} className="text-[11px] px-2 py-0.5 rounded flex items-center gap-1" style={{ border: `1px solid ${C.line}`, color: C.sub }}><Undo2 size={11} /> desfazer</button>
             </div>

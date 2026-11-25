@@ -616,6 +616,9 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     const frP = fracoesPag(pagamentoFpp(f), num(f.valorProposto) * Math.max(1, num(f.qtde)));
     if (!frP.ok) return setMsg(`A condição de pagamento soma ${(Math.round(frP.soma * 1000) / 10).toString().replace(".", ",")}% do valor. Ajuste a entrada e as parcelas até fechar 100% para salvar a FPP.`);
     if (pend.length) return setMsg(`Escolha do estoque ou marque como "Artigo novo": ${pend.map(([n]) => n).join(", ")}.`);
+    // v1124 — #108: todo aviamento comprado precisa da cor (é com ela que vai para o levantamento/compras)
+    const semCor = avSemCor(f);
+    if (semCor.length) return setMsg(`Informe a cor no + de: ${semCor.join(", ")}. Aviamento sem cor não gera a compra certa.`);
     // v922 — sublimação total: papel (m/peça) e rendimento da malha (m/kg) são obrigatórios (deles sai o consumo de malha)
     const st = tipo === "MALHA" ? subTotalMalha(f) : null;
     if (st?.falta === "PAPEL") return setMsg("Sublimação total: informe o papel (peças por metro) na aplicação.");
@@ -843,8 +846,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
               <div className="av-row flex flex-wrap gap-4 items-start px-4 py-3 rounded-lg mb-2" style={{ background: C.panel2 }}>
                 {(tipo === "MALHA" || aberta) && (
                   <>
-                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.gola} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)}><Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>{r?.rib?.gola && <RibanaHint x={r.rib.gola} />}{tipo === "MALHA" && ehRibana(f.gola) && <CorRibana artigoDet={f.artigoDet} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)} />}</div>
-                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.punho} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)}><Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>{r?.rib?.punho && <RibanaHint x={r.rib.punho} />}{tipo === "MALHA" && ehRibana(f.punho) && <CorRibana artigoDet={f.artigoDet} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)} />}</div>
+                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.gola} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)}><Combo label="Gola" value={f.gola} onChange={(v) => set("gola", v)} options={golas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>{r?.rib?.gola && <RibanaHint x={r.rib.gola} />}{tipo === "MALHA" && temCorAv(f.gola) && <CorRibana rotulo="Cor da gola" artigoDet={f.artigoDet} det={f.aviamentosDet?.GOLA} onDet={(d) => setAvDet("GOLA", d)} />}</div>
+                    <div style={{ flex: "1 1 160px", minWidth: 0 }}><AvComDet valor={f.punho} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)}><Combo label="Punho" value={f.punho} onChange={(v) => set("punho", v)} options={punhos.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>{r?.rib?.punho && <RibanaHint x={r.rib.punho} />}{tipo === "MALHA" && temCorAv(f.punho) && <CorRibana rotulo="Cor do punho" artigoDet={f.artigoDet} det={f.aviamentosDet?.PUNHO} onDet={(d) => setAvDet("PUNHO", d)} />}</div>
                   </>
                 )}
                 {(tipo === "PLANO" || aberta) && (
@@ -2526,7 +2529,7 @@ function buscarArtigos(arts, categoria, texto) {
 const famDoDet = (arts, det) => { const a = det?.artigoId && arts.find((x) => x.id === det.artigoId); if (!a) return null; const k = famKey(a); return arts.filter((x) => famKey(x) === k); };
 
 // v1105 — cor da ribana (gola/punho): as cores do artigo principal ou outra cor (cadastro novo, com fornecedor, código…)
-function CorRibana({ artigoDet, det, onDet }) {
+function CorRibana({ artigoDet, det, onDet, rotulo = "Cor da ribana" }) {
   const [arts, setArts] = useState(_artCache || []);
   const [novo, setNovo] = useState(null);   // det inicial do cadastro de outra cor
   useEffect(() => { if (!_artCache || Date.now() - (_artCacheEm || 0) > 5 * 60e3) fetch("/api/artigos?estoque=1").then((r) => r.json()).then((l) => { _artCache = Array.isArray(l) ? l : []; _artCacheEm = Date.now(); setArts(_artCache); }).catch(() => {}); }, []);
@@ -2536,7 +2539,7 @@ function CorRibana({ artigoDet, det, onDet }) {
   const escolher = async (v) => {
     if (v === "") return onDet({});   // mesma cor da malha (sai da malha principal na compra)
     if (v === "OUTRA") {
-      const cor = (await perguntar("Nome da cor da ribana (cor que não existe no artigo principal):", ""))?.trim().toUpperCase();
+      const cor = (await perguntar(`${rotulo} (cor que não existe no artigo principal):`, ""))?.trim().toUpperCase();
       if (cor) setNovo({ cor, corNova: true });
       return;
     }
@@ -2546,7 +2549,7 @@ function CorRibana({ artigoDet, det, onDet }) {
   };
   return (
     <div className="mt-1">
-      <div className="text-[11px] mb-0.5" style={{ color: C.sub }}>Cor da ribana</div>
+      <div className="text-[11px] mb-0.5" style={{ color: C.sub }}>{rotulo}</div>
       <select value={atual} onChange={(e) => escolher(e.target.value)} className="w-full px-2 rounded text-xs" style={{ height: 28, background: "#fff", border: `1px solid ${C.line}`, color: C.text }}>
         <option value="">Mesma cor da malha</option>
         {fam.map((m) => <option key={m.id} value={`A:${m.id}`}>{m.cor}</option>)}
@@ -2554,7 +2557,7 @@ function CorRibana({ artigoDet, det, onDet }) {
         <option value="OUTRA">+ Outra cor…</option>
       </select>
       {atual === "NOVA" && <button type="button" onClick={() => setNovo({ ...d })} className="text-[11px] underline decoration-dotted" style={{ color: C.accent }}>cadastro da cor {d.cor}{d.fornecedorId ? "" : " · falta fornecedor"}</button>}
-      {novo && <ArtigoDetModal nome={`RIBANA ${novo.cor || ""}`.trim()} det={novo} categoria="AVIAMENTO" onClose={() => setNovo(null)} onSalvar={(x) => { onDet({ ...x, corNova: true }); setNovo(null); }} />}
+      {novo && <ArtigoDetModal nome={`${rotulo.replace(/^Cor d[ao] /i, "").toUpperCase()} ${novo.cor || ""}`.trim()} det={novo} categoria="AVIAMENTO" onClose={() => setNovo(null)} onSalvar={(x) => { onDet({ ...x, corNova: true }); setNovo(null); }} />}
     </div>
   );
 }
@@ -2708,6 +2711,7 @@ function AvComDet({ children, valor, det, onDet, botao }) {
     <div>
       <div className="flex gap-1 items-end"><div className="flex-1 min-w-0">{children}</div>{tem && <DetBotao det={det} categoria="AVIAMENTO" nome={botao ? "BOTÃO" : valor} onDet={onDet} botao={botao} />}</div>
       {tem && <ResumoDet det={det} categoria="AVIAMENTO" botao={botao} />}
+      {tem && !det?.cor && !temCorAv(valor) && <div className="text-[11px] font-semibold mt-0.5" style={{ color: C.red }}>Falta a cor (no +): obrigatória para a compra</div>}
     </div>
   );
 }
@@ -2767,6 +2771,7 @@ function ArtigoDetModal({ nome, det, categoria, botao, semQtd, onClose, onSalvar
         className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} /></label>
   );
   const salvar = () => {
+    if (categoria === "AVIAMENTO" && !String(x.cor || "").trim()) return alerta("Informe a cor do aviamento: é com ela que ele vai para as compras.");   // v1124 — #108
     const out = { ...(det.artigoId ? { artigoId: det.artigoId } : {}) };
     for (const [k, v] of Object.entries(x)) if (String(v).trim() !== "") out[k] = typeof v === "string" ? v.trim() : v;
     if (categoria !== "MALHA") { delete out.rendimento; delete out.tipoMalha; }
@@ -2883,6 +2888,17 @@ function Card({ title, children }) {
 // v839 — ribana da gola/punho calculada pela malha: R$/kg ribana = R$/kg malha × fator (1,4); R$/pç = R$/kg ribana ÷ rendimento
 //   constantes ajustáveis em Parâmetros (CONST): RIBANA_FATOR_CUSTO, RIBANA_REND_GOLA, RIBANA_REND_PUNHO.
 //   Se o valor da gola/punho foi ajustado na própria ficha (override), vale o ajuste.
+// v1124 — #108: aviamentos (gola/punho de compra, elástico, faixa, botão, adicionais) sem cor
+const temAv = (v, botao) => v && !/^SEM\b/i.test(String(v).trim()) && !/\bVI[EÉ]S\b/i.test(String(v)) && (!botao || Number(String(v).replace(",", ".")) > 0);
+function avSemCor(f) {
+  const D = f.aviamentosDet || {}, out = [];
+  for (const [k, v, rot, botao] of [["GOLA", f.gola, "Gola"], ["PUNHO", f.punho, "Punho"], ["ELASTICO", f.elastico, "Elástico"], ["FAIXA", f.faixa, "Faixa"], ["BOTAO", f.botaoQtd, "Botão", true]])
+    if (temAv(v, botao) && !D[k]?.cor && !((k === "GOLA" || k === "PUNHO") && temCorAv(v))) out.push(rot);   // gola/punho de ribana/polo sem cor = cor da malha
+  for (const x of Array.isArray(f.extrasAviamentos) ? f.extrasAviamentos : []) if (String(x?.desc || "").trim() && !x?.det?.cor) out.push(String(x.desc).trim());
+  return out;
+}
+// v1124 — #107: gola/punho com cor própria: ribana e também gola polo P.A / poliéster (viés e "sem" usam a própria malha)
+const temCorAv = (v) => { const s = String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(); return !!s && (/RIBANA|P\.?\s?A\b|POLIESTER|POLO/.test(s)) && !/VIES|^SEM\b/.test(s); };
 const ehRibana = (v) => /RIBANA/.test(String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase());
 function ribanaCalc(f, isMalha, cget, over) {
   const malhaKg = num(f.mpValor);
@@ -3011,6 +3027,7 @@ function AvExtras({ lista, onChange }) {
                   <button onClick={() => onChange(l.filter((_, j) => j !== i))} title="Remover" className="p-1 rounded" style={{ color: C.red }}><X size={15} /></button>
                 </div>
                 {x.desc && <ResumoDet det={x.det} categoria="AVIAMENTO" botao />}
+                {x.desc && !x.det?.cor && <div className="text-[11px] font-semibold mt-0.5" style={{ color: C.red }}>Falta a cor (no +): obrigatória para a compra</div>}
               </div>
             );
           })}
