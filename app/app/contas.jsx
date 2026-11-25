@@ -661,8 +661,8 @@ export default function ContasPagarReceber({ user, inicial = null }) {
             <label className="text-xs" style={{ color: C.sub }}>Até
               <input type="date" value={dFim} min={dIni} onChange={(e) => e.target.value && setDFim(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} />
             </label>
-            <div className="flex gap-1 pb-0.5">
-              {[["Hoje", hojeISO(), hojeISO()], ["Semana atual", segundaDaSemana(hojeISO()), somaDias(segundaDaSemana(hojeISO()), 4)], ["Mês até hoje", `${mesAtual()}-01`, hojeISO()], ["Mês", `${mes}-01`, fimDoMes(mes)]].map(([t, a, b]) => (
+            <div className="flex flex-wrap gap-1 pb-0.5">
+              {[["Hoje", hojeISO(), hojeISO()], ["Semana atual", segundaDaSemana(hojeISO()), somaDias(segundaDaSemana(hojeISO()), 4)], ["Mês até hoje", `${mesAtual()}-01`, hojeISO()], ["Mês atual", `${mesAtual()}-01`, fimDoMes(mesAtual())], ["Próximo mês", `${somaMes(mesAtual(), 1)}-01`, fimDoMes(somaMes(mesAtual(), 1))], ["Mês anterior", `${somaMes(mesAtual(), -1)}-01`, fimDoMes(somaMes(mesAtual(), -1))]].map(([t, a, b]) => (
                 <button key={t} onClick={() => { setDIni(a); setDFim(b); }} className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
                   style={dIni === a && dFim === b ? { background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}55` } : { background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>{t}</button>
               ))}
