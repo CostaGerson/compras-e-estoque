@@ -776,10 +776,14 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       if (!it.itemPadraoId) continue;
       const d = await fetch(`/api/itens-padrao/${it.itemPadraoId}`).then((r) => r.json()).catch(() => null);
       if (!d || d.error) continue;
-      const nova = chaveParams(it.parametros), k = `${it.itemPadraoId}|${nova}`;
-      if (nova === chaveParams(d.parametros) || respPadrao.current[k] != null) continue;
+      const nova = chaveParams(it.parametros) + (it.clonado ? `|fpp${it.fppId || d.fppId || ""}` : ""), k = `${ix}|${it.itemPadraoId}|${nova}`;
+      if (nova === chaveParams(d.parametros) + (it.clonado ? `|fpp${d.fppId || ""}` : "") || respPadrao.current[k] != null) continue;
       const nome = d.nomeInterno || d.nomeNf;
-      const op = await escolher(`O item "${nome}" foi alterado neste pedido. O que fazer com as alterações?`, [
+      // v1120 — item clonado (Duplicar) e alterado: é outro produto → código novo (ou só neste pedido)
+      const op = it.clonado ? await escolher(`O item ${ix + 1} foi duplicado de "${nome}" e alterado. Salvar como item novo, com código novo?`, [
+        { valor: "NOVO", texto: "Sim, salvar como item novo (código novo)", sub: "Aparece nos itens do cliente; o item original não muda." },
+        { valor: "PEDIDO", texto: "Não, só neste pedido", sub: "Fica com o código do item original." },
+      ], { titulo: "Item duplicado e alterado" }) : await escolher(`O item "${nome}" foi alterado neste pedido. O que fazer com as alterações?`, [
         { valor: "PEDIDO", texto: "Manter só neste pedido", sub: "O item padrão continua como está." },
         { valor: "ATUALIZAR", texto: `Atualizar o item padrão ${d.codigoPadrao || ""}`.trim(), sub: "Os próximos pedidos já vêm com estes parâmetros." },
         { valor: "NOVO", texto: "Criar um item novo com estes dados", sub: "Gera um código novo e o item passa a aparecer nos itens do cliente; o original não muda." },
@@ -800,10 +804,10 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         .then((x) => x.json()).catch(() => ({ error: "falha de conexão" }));
       if (r.error || !r.id) { alerta(`Não consegui criar o item novo: ${r.error || "erro"}`); continue; }
       const nv = await fetch(`/api/itens-padrao/${r.id}`).then((x) => x.json()).catch(() => ({}));
-      trocas[ix] = { itemPadraoId: r.id, codigo: nv.codigoPadrao || it.codigo, descricao: nomeNovo };
+      trocas[ix] = { itemPadraoId: r.id, codigo: nv.codigoPadrao || it.codigo, descricao: nomeNovo, clonado: false };
       alerta(`Item novo criado: ${nv.codigoPadrao || ""} ${nomeNovo}`.replace(/\s+/g, " ").trim());
     }
-    if (Object.keys(trocas).length) setItens((l) => l.map((x, i) => (trocas[i] ? { ...x, ...trocas[i] } : x)));
+    if (Object.keys(trocas).length) setItens((l) => l.map((x, i) => (trocas[i] ? { ...x, ...trocas[i], clonado: false } : x)));
     return trocas;
   };
   const salvar = async () => {
@@ -1136,7 +1140,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
         return (
           <Card key={i} destaque titulo={<>Item {i + 1}{it.descricao ? <span className="font-semibold opacity-80"> · {it.descricao}</span> : null}</>} extra={podeLancar && <span className="flex items-center gap-3">
               {/* v822 — #77: duplicar o item (mesmo produto mudando cor, estampa ou valor) */}
-              <button type="button" onClick={() => setItens((arr) => { const { id, linkId, linkToken, ...copia } = JSON.parse(JSON.stringify(arr[i])); return [...arr.slice(0, i + 1), copia, ...arr.slice(i + 1)]; })}
+              <button type="button" onClick={() => setItens((arr) => { const { id, linkId, linkToken, ...copia } = JSON.parse(JSON.stringify(arr[i])); return [...arr.slice(0, i + 1), { ...copia, clonado: true }, ...arr.slice(i + 1)]; })}
                 title="Duplicar este item logo abaixo" className="flex items-center gap-1 text-xs font-semibold" style={{ color: "#fff" }}><Copy size={14} /> Duplicar</button>
               <button type="button" onClick={() => setItens((arr) => arr.filter((_, j) => j !== i))} title="Excluir item" style={{ color: "#FFB4A8" }}><Trash2 size={16} /></button>
             </span>}>
