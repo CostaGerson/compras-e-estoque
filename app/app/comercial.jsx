@@ -1041,7 +1041,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                   </> : <span className="text-sm" style={{ color: C.sub }}>—</span>}
                 </CampoFin>
                 <CampoFin t="Repassar taxas">
-                  <Toggle on={!!f.repassarTaxas} onChange={(v) => set("repassarTaxas", v)} />
+                  {/* v1150 — ligar/desligar o repasse troca a sugestão e já aplica no valor proposto */}
+                  <Toggle on={!!f.repassarTaxas} onChange={(v) => { const sug = v ? r?.sugestaoRepasse : r?.sugestaoBase; setF((s0) => ({ ...s0, repassarTaxas: v, ...(sug != null && sug > 0 ? { valorProposto: sug.toFixed(2).replace(".", ",") } : {}) })); }} />
                 </CampoFin>
               </div>
             </Card>
