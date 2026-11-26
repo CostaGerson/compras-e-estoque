@@ -399,7 +399,7 @@ export const ehTitulosBaixados = (t) => /T[íi]tulos\s+Baixados/i.test(t) && /Pr
 export function parseTitulosBaixados(texto) {
   const t = String(texto || "").replace(/\s+/g, " ");
   const total = num((t.match(/R\$\s*([\d.]+,\d{2})\s*Valor\s+total\s+baixado|Valor\s+total\s+baixado:?\s*R\$\s*([\d.]+,\d{2})/i) || []).slice(1).find(Boolean));
-  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+(\S+)\s+(\d{2}\/\d{2}\/\d{4})\s+Nosso\s+N[úu]mero:\s*(\d+)\s+Sacado:\s*(.+?)\s+Valor\s+Baixado:\s*R\$\s*([\d.]+,\d{2})\s+Valor\s+da\s+Nota:\s*R\$\s*([\d.]+,\d{2})/gi;
+  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+(\S+)\s+(\d{2}\/\d{2}\/\d{4})\s+Nosso\s+N[úu]mero:\s*(\d*)\s+Sacado:\s*(.*?)\s*Valor\s+Baixado:\s*R\$\s*([\d.]+,\d{2})\s+Valor\s+da\s+Nota:\s*R\$\s*([\d.]+,\d{2})/gi;
   const itens = []; let m;
   while ((m = re.exec(t))) {
     itens.push({
@@ -418,7 +418,7 @@ export function parseTitulosPagos(texto) {
   const t = String(texto || "").replace(/\s+/g, " ");
   const total = num((t.match(/R\$\s*([\d.]+,\d{2})\s*Valor\s+total\s+cobrado|Valor\s+total\s+cobrado:?\s*R\$\s*([\d.]+,\d{2})/i) || []).slice(1).find(Boolean));
   const ult = dISO((t.match(/(\d{2}\/\d{2}\/\d{4})\s*[ÚU]ltimo\s+movimento|[ÚU]ltimo\s+movimento:?\s*(\d{2}\/\d{2}\/\d{4})/i) || []).slice(1).find(Boolean));
-  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+(\S+)\s+Nosso\s+N[úu]mero:\s*(\d+)\s+Sacado:\s*(.+?)\s+Valor\s+da\s+Nota:\s*R\$\s*([\d.]+,\d{2})\s+Valor\s+Cobrado:\s*R\$\s*([\d.]+,\d{2})/gi;
+  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+(\S+)\s+Nosso\s+N[úu]mero:\s*(\d*)\s+Sacado:\s*(.*?)\s*Valor\s+da\s+Nota:\s*R\$\s*([\d.]+,\d{2})\s+Valor\s+Cobrado:\s*R\$\s*([\d.]+,\d{2})/gi;
   const itens = []; let m;
   while ((m = re.exec(t))) {
     const venc = dISO(m[1]);
@@ -433,6 +433,42 @@ export function parseTitulosPagos(texto) {
 const soDig = (s) => String(s || "").replace(/\D/g, "");
 const nfDe = (seu) => String(seu || "").split(/[-\/]/)[0];   // "1910-1/2" → "1910"
 
+// v1132 — desde 26/11/2026 os relatórios do desconto (a vencer, vencidos, baixados, pagos) vêm SEM nosso número,
+// SEM sacado e com o seu número zerado. Sobra contrato + parcela + vencimento + valor: o título é achado pela
+// chave/observação gravada ao importar o contrato, pelas parcelas do próprio contrato (que têm nosso nº e NF)
+// ou, por último, pelo valor exato no mesmo vencimento quando só existe um.
+const isoD = (v) => (v ? new Date(v).toISOString().slice(0, 10) : "");
+const nfRel = (seu) => (/^0*$/.test(String(seu || "")) ? "" : nfDe(seu));
+const nossoIgual = (a, b) => { const x = soDig(a), y = soDig(b); return x.length >= 6 && y.length >= 6 && (x === y || x.startsWith(y) || y.startsWith(x)); };
+async function mapaContratos(itens) {
+  const cs = [...new Set(itens.map((i) => i.contrato).filter(Boolean))];
+  if (!cs.length) return {};
+  return Object.fromEntries((await prisma.finAntecipacao.findMany({ where: { contrato: { in: cs } }, select: { id: true, contrato: true, data: true, itens: true } })).map((c) => [c.contrato, c]));
+}
+function casarContratoParcela(it, cand, ctrs) {
+  if (!it.contrato || !it.parcela) return null;
+  const p = it.parcela, val = it.valorNota;
+  const reP = new RegExp(`CONTRATO\\s+${it.contrato}\\b[^·]*·\\s*PARCELA\\s+${p}\\b`);
+  let d = cand.find((x) => String(x.chaveImport || "").endsWith(`|${it.contrato}|P${p}`)) || cand.find((x) => reP.test(String(x.observacao || "")));
+  if (d) return d;
+  const ctr = ctrs[it.contrato];
+  const noVenc = (x) => [x.vencimento, x.vencimentoOriginal].some((v) => v && isoD(v) === it.vencimento);
+  if (ctr) {
+    const pi = (Array.isArray(ctr.itens) ? ctr.itens : []).find((x) => Number(x.parcela) === p);
+    if (pi) {
+      d = (pi.nosso && cand.find((x) => nossoIgual(x.nossoNumero, pi.nosso)))
+        || (pi.seu && cand.find((x) => nfDe(x.numeroDoc) && nfDe(x.numeroDoc) === nfDe(pi.seu) && Math.abs(Number(x.valor) - val) <= 1));
+      if (d) return d;
+    }
+    const doCtr = cand.filter((x) => x.antecipacaoId === ctr.id && Math.abs(Number(x.valor) - val) <= 0.02);
+    d = doCtr.find(noVenc) || (doCtr.length === 1 ? doCtr[0] : null);
+    if (d) return d;
+  }
+  const vv = cand.filter((x) => Math.abs(Number(x.valor) - val) <= 0.02 && noVenc(x));
+  return vv.length === 1 ? vv[0] : null;
+}
+const SEL_CASAR = { chaveImport: true, observacao: true, antecipacaoId: true, vencimentoOriginal: true };
+
 // casa cada baixa com o título descontado não liquidado
 export async function analisarBaixados(b64) {
   const texto = await textoPlano(Buffer.from(String(b64 || ""), "base64"));
@@ -442,28 +478,31 @@ export async function analisarBaixados(b64) {
   if (!itens.length) throw new Error("Não achei títulos pagos/baixados no relatório.");
   const desc = await prisma.finTitulo.findMany({
     where: { tipo: "RECEBER", OR: [{ status: "PAGO", OR: [{ cobranca: "DESCONTADO" }, { antecipadoForma: { not: null } }] }, { cobranca: "RECOMPRADO" }] },
-    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, nossoNumero: true, liquidadoEm: true, liquidacao: true, recompraId: true, status: true, cobranca: true },
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, nossoNumero: true, liquidadoEm: true, liquidacao: true, recompraId: true, status: true, cobranca: true, ...SEL_CASAR },
   });
+  const ctrs = await mapaContratos(itens);   // v1132
   // v540 — recompra de cada título (Títulos Baixados = o banco cobrou da Meridian: baixa a conta a pagar da recompra)
   const recs = Object.fromEntries((await prisma.finTitulo.findMany({ where: { id: { in: desc.map((d) => d.recompraId).filter(Boolean) } }, select: { id: true, status: true } })).map((c) => [c.id, c]));
   const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
   const usados = new Set();
   const casar = (it) => {
     const cand = desc.filter((d) => !usados.has(d.id));
-    const nn = soDig(it.nossoNumero), nf = nfDe(it.seuNumero);
+    const nn = soDig(it.nossoNumero), nf = nfRel(it.seuNumero);
     // 1) nosso número bate
-    let d = cand.find((x) => soDig(x.nossoNumero) && soDig(x.nossoNumero) === nn);
+    let d = nn ? cand.find((x) => soDig(x.nossoNumero) && soDig(x.nossoNumero) === nn) : null;
     // 2) NF (numeroDoc) + valor da nota próximos
-    if (!d) d = cand.find((x) => nfDe(x.numeroDoc) === nf && Math.abs(Number(x.valor) - it.valorNota) <= 1);
-    // 3) valor exato + nome do sacado
-    if (!d) d = cand.find((x) => Math.abs(Number(x.valor) - it.valorNota) <= 0.02 && norm(x.parceiro).includes(norm(it.sacado).split(" ")[0]));
+    if (!d && nf) d = cand.find((x) => nfDe(x.numeroDoc) === nf && Math.abs(Number(x.valor) - it.valorNota) <= 1);
+    // 3) v1132 — contrato + parcela (relatório sem nosso nº, sacado e NF)
+    if (!d) d = casarContratoParcela(it, cand, ctrs);
+    // 4) valor exato + nome do sacado
+    if (!d && String(it.sacado || "").trim()) d = cand.find((x) => Math.abs(Number(x.valor) - it.valorNota) <= 0.02 && norm(x.parceiro).includes(norm(it.sacado).split(" ")[0]));
     if (d) usados.add(d.id);
     return d || null;
   };
   const linhas = itens.map((it) => {
     const d = casar(it);
     return {
-      ...it,
+      ...it, sacado: it.sacado || d?.parceiro || "", seuNumero: nfRel(it.seuNumero) || d?.numeroDoc || it.seuNumero,   // v1132 — relatório sem sacado/NF: mostra os do sistema
       titulo: d ? { id: d.id, titulo: d.titulo, parceiro: d.parceiro, valor: Number(d.valor), vencimento: d.vencimento, numeroDoc: d.numeroDoc, nossoNumero: d.nossoNumero, jaLiquidado: !!d.liquidadoEm, temRecompra: !!d.recompraId } : null,
       // v540 — Títulos PAGOS: cliente pagou o boleto → liquida o título.
       //        Títulos BAIXADOS: o banco cobrou da Meridian → baixa a conta a pagar da recompra; o título volta a receber do cliente.
@@ -498,7 +537,7 @@ export const ehTitulosVencidos = (t) => /T[íi]tulos\s+Vencidos/i.test(t) && /Pr
 export function parseTitulosVencidos(texto) {
   const t = String(texto || "").replace(/\s+/g, " ");
   const total = num((t.match(/R\$\s*([\d.]+,\d{2})\s*Valor\s+total\s+vencidos|Valor\s+total\s+vencidos:?\s*R\$\s*([\d.]+,\d{2})/i) || []).slice(1).find(Boolean));
-  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+(\S+)\s+Nosso\s+N[úu]mero:\s*(\d+)\s+Sacado:\s*(.+?)\s+Valor\s+dos\s+Encargos:\s*R\$\s*([\d.]+,\d{2})\s+Valor\s+da\s+Nota:\s*R\$\s*([\d.]+,\d{2})/gi;
+  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d+)\s+(\S+)\s+Nosso\s+N[úu]mero:\s*(\d*)\s+Sacado:\s*(.*?)\s*Valor\s+dos\s+Encargos:\s*R\$\s*([\d.]+,\d{2})\s+Valor\s+da\s+Nota:\s*R\$\s*([\d.]+,\d{2})/gi;
   const itens = []; let m;
   while ((m = re.exec(t))) {
     itens.push({
@@ -517,18 +556,20 @@ export async function analisarVencidos(b64) {
   if (!itens.length) throw new Error("Não achei títulos vencidos no relatório.");
   const desc = await prisma.finTitulo.findMany({
     where: { tipo: "RECEBER", status: "PAGO", OR: [{ cobranca: "DESCONTADO" }, { antecipadoForma: { not: null } }] },
-    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, nossoNumero: true, liquidadoEm: true, liquidacao: true, recompraId: true },
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, nossoNumero: true, liquidadoEm: true, liquidacao: true, recompraId: true, ...SEL_CASAR },
   });
+  const ctrs = await mapaContratos(itens);   // v1132
   const recompras = await prisma.finTitulo.findMany({ where: { id: { in: desc.map((d) => d.recompraId).filter(Boolean) } }, select: { id: true, status: true } });
   const recStatus = new Map(recompras.map((c) => [c.id, c.status]));
   const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
   const usados = new Set();
   const casar = (it) => {
     const cand = desc.filter((d) => !usados.has(d.id));
-    const nn = soDig(it.nossoNumero), nf = nfDe(it.seuNumero);
-    let d = cand.find((x) => soDig(x.nossoNumero) && soDig(x.nossoNumero) === nn);
-    if (!d) d = cand.find((x) => nfDe(x.numeroDoc) === nf && Math.abs(Number(x.valor) - it.valorNota) <= 1);
-    if (!d) d = cand.find((x) => Math.abs(Number(x.valor) - it.valorNota) <= 0.02 && norm(x.parceiro).includes(norm(it.sacado).split(" ")[0]));
+    const nn = soDig(it.nossoNumero), nf = nfRel(it.seuNumero);
+    let d = nn ? cand.find((x) => soDig(x.nossoNumero) && soDig(x.nossoNumero) === nn) : null;
+    if (!d && nf) d = cand.find((x) => nfDe(x.numeroDoc) === nf && Math.abs(Number(x.valor) - it.valorNota) <= 1);
+    if (!d) d = casarContratoParcela(it, cand, ctrs);   // v1132
+    if (!d && String(it.sacado || "").trim()) d = cand.find((x) => Math.abs(Number(x.valor) - it.valorNota) <= 0.02 && norm(x.parceiro).includes(norm(it.sacado).split(" ")[0]));
     if (d) usados.add(d.id);
     return d || null;
   };
@@ -536,7 +577,7 @@ export async function analisarVencidos(b64) {
     const d = casar(it);
     const temRecompraViva = d && d.recompraId && recStatus.get(d.recompraId) && recStatus.get(d.recompraId) !== "CANCELADO";
     return {
-      ...it,
+      ...it, sacado: it.sacado || d?.parceiro || "", seuNumero: nfRel(it.seuNumero) || d?.numeroDoc || it.seuNumero,   // v1132
       titulo: d ? { id: d.id, titulo: d.titulo, parceiro: d.parceiro, valor: Number(d.valor), vencimento: d.vencimento, numeroDoc: d.numeroDoc, nossoNumero: d.nossoNumero, jaLiquidado: !!d.liquidadoEm, temRecompra: !!temRecompraViva } : null,
       total: r2((it.valorNota || 0) + (it.encargos || 0)),
       status: !d ? "SEM_CONTA" : d.liquidadoEm ? "JA_LIQUIDADO" : temRecompraViva ? "JA_RECOMPRA" : "RECOMPRAR",
@@ -576,7 +617,7 @@ export function parseTitulosAVencer(texto) {
   const t = String(texto || "").replace(/\s+/g, " ");
   const total = num((t.match(/R\$\s*([\d.]+,\d{2})\s*Valor\s+total\s+a\s+vencer|Valor\s+total\s+a\s+vencer:?\s*R\$\s*([\d.]+,\d{2})/i) || []).slice(1).find(Boolean));
   const consulta = dISO((t.match(/(\d{2}\/\d{2}\/\d{4})\s+\d{2}:\d{2}:\d{2}\s*Data\s+da\s+consulta|Data\s+da\s+consulta:?\s*(\d{2}\/\d{2}\/\d{4})/i) || []).slice(1).find(Boolean));
-  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d{8,})\s+(\S+)\s+Nosso\s+N[úu]mero:\s*(\d+)\s+Sacado:\s*(.*?)\s*Juros:\s*R\$\s*([\d.]+,\d{2})\s+Valor\s+da\s+Nota:\s*R\$\s*([\d.]+,\d{2})/gi;
+  const re = /(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(\d{8,})\s+(\S+)\s+Nosso\s+N[úu]mero:\s*(\d*)\s+Sacado:\s*(.*?)\s*Juros:\s*R\$\s*([\d.]+,\d{2})\s+Valor\s+da\s+Nota:\s*R\$\s*([\d.]+,\d{2})/gi;
   const itens = []; let m;
   while ((m = re.exec(t))) {
     itens.push({ vencimento: dISO(m[1]), parcela: Number(m[2]), contrato: m[3], seuNumero: m[4], nossoNumero: m[5],
@@ -594,14 +635,16 @@ export async function analisarAVencer(b64) {
   const { montarCasador, baseNosso } = await import("@/lib/finRetorno");
   const casar = await montarCasador();
   const todos = await prisma.finTitulo.findMany({ where: { tipo: "RECEBER", status: { not: "CANCELADO" } },
-    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, nossoNumero: true, status: true, cobranca: true, antecipadoForma: true, antecipadoEm: true, antecipacaoId: true, liquidadoEm: true, liquidacao: true, recompraId: true, observacao: true } });
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, numeroDoc: true, nossoNumero: true, status: true, cobranca: true, antecipadoForma: true, antecipadoEm: true, antecipacaoId: true, liquidadoEm: true, liquidacao: true, recompraId: true, observacao: true, chaveImport: true, vencimentoOriginal: true } });
+  const ctrs = await mapaContratos(itens);   // v1132
   const porId = new Map(todos.map((x) => [x.id, x]));
   const contratos = Object.fromEntries((await prisma.finAntecipacao.findMany({ where: { contrato: { in: [...new Set(itens.map((i) => i.contrato))] } }, select: { id: true, contrato: true, data: true } })).map((c) => [c.contrato, c]));
   const usados = new Set();
   const linhas = itens.map((it) => {
     const bn = baseNosso(it.nossoNumero);
-    let d = todos.find((x) => !usados.has(x.id) && bn && baseNosso(x.nossoNumero) === bn) || null;
-    if (!d) { const c = casar({ numeroDoc: it.seuNumero, controle: "", nosso: it.nossoNumero, valor: it.valorNota }); d = c.t && !usados.has(c.t.id) ? porId.get(c.t.id) : null; }
+    let d = (bn && todos.find((x) => !usados.has(x.id) && baseNosso(x.nossoNumero) === bn)) || null;
+    if (!d) d = casarContratoParcela(it, todos.filter((x) => !usados.has(x.id)), ctrs);   // v1132 — relatório sem nosso nº/NF
+    if (!d && (bn || nfRel(it.seuNumero))) { const c = casar({ numeroDoc: it.seuNumero, controle: "", nosso: it.nossoNumero, valor: it.valorNota }); d = c.t && !usados.has(c.t.id) ? porId.get(c.t.id) : null; }
     if (d) usados.add(d.id);
     let status, msg = null;
     if (!d) { status = "SEM_CONTA"; msg = "Não há conta a receber com esse nosso nº / NF no sistema."; }
@@ -611,7 +654,7 @@ export async function analisarAVencer(b64) {
     else if (d.status === "PAGO" && d.liquidadoEm) { status = "DIVERGENTE"; msg = `No sistema já está liquidado (${d.liquidacao === "RECOMPRA" ? "recompra" : "cliente pagou"} em ${dBR(d.liquidadoEm.toISOString())}), mas o banco ainda lista como a vencer.`; }
     else { status = "DIVERGENTE"; msg = `No sistema está ${d.status === "PAGO" ? "recebido (não como antecipado)" : d.status.toLowerCase()} — confira.`; }
     const ctr = contratos[it.contrato] || null;
-    return { ...it, status, msg, contratoNoSistema: !!ctr,
+    return { ...it, sacado: it.sacado || d?.parceiro || "", seuNumero: nfRel(it.seuNumero) || d?.numeroDoc || it.seuNumero, status, msg, contratoNoSistema: !!ctr,
       titulo: d ? { id: d.id, titulo: d.titulo, parceiro: d.parceiro, valor: Number(d.valor), vencimento: d.vencimento.toISOString().slice(0, 10), status: d.status } : null };
   });
   // antecipados no sistema, ainda a vencer na data da consulta, que o banco não listou
@@ -635,7 +678,7 @@ export async function aplicarAVencer(b64, { ids, quem } = {}) {
       const dt = ctr?.data || dUTC(r.consulta || new Date().toISOString().slice(0, 10));
       await prisma.finTitulo.update({ where: { id: t.id }, data: {
         status: "PAGO", dataPagamento: dt, valorPago: t.valor, previsao: false, valorConfirmado: true, cobranca: "DESCONTADO", formaPagamento: "DESCONTO",
-        antecipadoForma: "BRADESCO", antecipadoEm: dt, antecipacaoId: ctr?.id || null, nossoNumero: t.nossoNumero || l.nossoNumero,
+        antecipadoForma: "BRADESCO", antecipadoEm: dt, antecipacaoId: ctr?.id || null, nossoNumero: t.nossoNumero || l.nossoNumero || null,
         observacao: [t.observacao, `ANTECIPADO — CONFIRMADO NO RELATÓRIO TÍTULOS A VENCER (BRADESCO, ${dBR(r.consulta || "")}) · CONTRATO ${l.contrato} · PARCELA ${l.parcela}`].filter(Boolean).join(" · ").slice(0, 1000),
         atualizadoPorNome: quem || null } });
       out.marcados++; out.valor = r2(out.valor + Number(t.valor));
