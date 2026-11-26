@@ -16,7 +16,7 @@ import { imprimirPedido } from "./impressaoPedido";   // v615 — PP (sem valore
 import { pecaParaItem, condicaoParaPagamento, prazoParaDias, corNaFpp } from "@/lib/lancamentoSkill";   // v696
 import {
   num, hojeISO, dataBR, somaDias, qtdGrade, conferirEntregas, parcelasCalc, textoCondicao, textoRestricao, DOWS, DOWS_LONGO, textoObsNf, MODOS_ENTREGA, DOCS_ENTREGA, BASES, freteTotal, valorDesconto, precoComDesconto,
-  paramFora, tecidoDaFpp, numFpp, partesTecido, tecidoDoResumo,
+  paramFora, tecidoDaFpp, numFpp, partesTecido, tecidoDoResumo, comObsFpp,
 } from "@/lib/pedidoLanc";
 
 const C = {
@@ -555,7 +555,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
   const indexarFpp = (i, rf) => {
     sugerirPrazo(rf);
     setItens((arr) => arr.map((it, j) => (j !== i ? it : ajTipo({
-      ...it, fppId: rf.id, fppNumero: rf.numero, fpp: rf, parametros: { ...it.parametros, TECIDO: tecidoDaFpp(rf) },
+      ...it, fppId: rf.id, fppNumero: rf.numero, fpp: rf, parametros: comObsFpp({ ...it.parametros, TECIDO: tecidoDaFpp(rf) }, rf),   // v1144 — obs de produção da FPP
       tipoPecaNome: it.descricao ? it.tipoPecaNome : (tipoPeca(rf.item, TIPOS) || it.tipoPecaNome),
       descricao: it.descricao || String(rf.nomeComercial || rf.item || "").toUpperCase(),
       valorUnitario: it.valorUnitario || (veVal && rf.valorProposto ? String(Number(rf.valorProposto).toFixed(2)).replace(".", ",") : ""),
@@ -599,7 +599,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
     for (const a of d.anexos || []) {
       try { const b = await fetch(`/api/itens-padrao/${d.id}?anexo=${a.id}`).then((r) => r.blob()); anexosPadrao.push({ nome: `${a.tipo === "MEDIDAS" ? "Tabela de medidas" : "Layout"} · ${a.nome}`, mime: a.mime || b.type || null, base64: await readB64(b) }); } catch {}
     }
-    const item = ajTipo({ ...novoItem(), anexos: anexosPadrao, tipoPecaNome: tipo, codigo: d.codigo || "", descricao: d.nomeNf || "", parametros: params, fotoBase64: d.fotoBase64 || "",
+    const item = ajTipo({ ...novoItem(), anexos: anexosPadrao, tipoPecaNome: tipo, codigo: d.codigo || "", descricao: d.nomeNf || "", parametros: rf ? comObsFpp(params, rf) : params,   // v1144 fotoBase64: d.fotoBase64 || "",
       valorUnitario: veVal && d.precoAtual != null ? String(Number(d.precoAtual).toFixed(2)).replace(".", ",") : "", fppId: rf ? rf.id : null, fppNumero: rf ? rf.numero : null, fpp: rf || null, itemPadraoId: d.id });
     // ocupa o primeiro item vazio; senão acrescenta
     // v754 — escolhido no próprio item (código/descrição): entra nele, mantendo a grade já digitada
@@ -708,7 +708,7 @@ export default function PedidoEditor({ ppId: ppId0, onVoltar, podeLancar = true,
       if (it.tipoPecaNome) it.grade = gradeParaTipo(it.grade, it.tipoPecaNome, tamanhos);   // v890
       const nFpp = pc.fpp || unico || (doc.fpps.length === doc.pecas.length ? doc.fpps[i] : null);
       const rf = nFpp ? d.fpps?.[nFpp] : null;
-      if (rf) Object.assign(it, { fppId: rf.id, fppNumero: rf.numero, fpp: rf, parametros: { ...it.parametros, TECIDO: tecidoDaFpp(rf, corNaFpp(pc.cor, rf)) } });
+      if (rf) Object.assign(it, { fppId: rf.id, fppNumero: rf.numero, fpp: rf, parametros: comObsFpp({ ...it.parametros, TECIDO: tecidoDaFpp(rf, corNaFpp(pc.cor, rf)) }, rf) });   // v1144
       if (rf && it._doc.cor && !corNaFpp(pc.cor, rf) && (rf.cores || []).length) it.parametros["COR DO TECIDO"] = String(it._doc.cor).toUpperCase();
       if (!it.tipoPecaNome && TIPOS.length) it.tipoPecaNome = "";
       if (pc.imagem) it.fotoBase64 = pc.imagem;

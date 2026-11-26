@@ -974,6 +974,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                 </div>
               )}
               <ExtrasCustos lista={f.extrasProducao} onChange={(l) => set("extrasProducao", l)} />
+              {/* v1144 — obs de produção: acompanha a FPP e, no lançamento do pedido, entra em OBSERVAÇÕES do item */}
+              <ObsProducao valor={f.obsProducao || ""} onChange={(v) => set("obsProducao", v)} />
             </Card>}
 
             {/* v294 — lead time previsto logo depois da personalização */}
@@ -2945,6 +2947,25 @@ function BarraFppCel({ r, f, salvar, salvando, editId }) {
         style={{ height: 42, background: C.accent, color: "#fff", opacity: bloqueado ? 0.6 : 1 }}>
         <Save size={16} /> {salvando ? "Salvando…" : editId ? "Atualizar" : "Salvar"}
       </button>
+    </div>
+  );
+}
+function ObsProducao({ valor, onChange }) {
+  const [ab, setAb] = useState(!!String(valor || "").trim());
+  if (!ab) return (
+    <button type="button" onClick={() => setAb(true)} className="flex items-center gap-1 text-xs font-semibold mt-3" style={{ color: C.accent }}>
+      <Plus size={14} /> Observação de produção
+    </button>
+  );
+  return (
+    <div className="mt-3">
+      <div className="flex items-center gap-2 text-xs mb-1" style={{ color: C.sub }}>
+        <span className="font-semibold">Observação de produção</span>
+        <span>· vai para as OBSERVAÇÕES do item ao lançar o pedido com esta FPP</span>
+        {!String(valor || "").trim() && <button type="button" onClick={() => setAb(false)} className="ml-auto" style={{ color: C.sub }}><X size={14} /></button>}
+      </div>
+      <textarea value={valor} onChange={(e) => onChange(e.target.value.toUpperCase())} rows={2} placeholder="ex.: costura reforçada no ombro, etiqueta interna na lateral…"
+        className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text, resize: "vertical" }} />
     </div>
   );
 }

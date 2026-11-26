@@ -194,7 +194,17 @@ export function resumoFpp(f) {
     medida: rc ? (malha ? `Rend. ${fmt(rc, 2)} pç/kg` : `Consumo ${fmt(rc)} m/pç`) : "",
     forro, consumoForro: forro ? cf : null,
     aplicacoes: aplicacoesDaFpp(e),   // v806
+    obsProducao: String(e.obsProducao || "").trim().toUpperCase() || null,   // v1144 — obs de produção da FPP → OBSERVAÇÕES do item
   };
+}
+// v1144 — a obs de produção da FPP entra no parâmetro OBSERVAÇÕES do item do pedido (sem repetir se já estiver lá)
+export const PARAM_OBS = "OBSERVAÇÕES";
+export function comObsFpp(parametros, rf) {
+  const o = String(rf?.obsProducao || "").trim();
+  if (!o) return parametros || {};
+  const atual = String(parametros?.[PARAM_OBS] || "").trim();
+  if (atual.toUpperCase().includes(o.toUpperCase())) return parametros;
+  return { ...(parametros || {}), [PARAM_OBS]: [atual, o].filter(Boolean).join(" · ") };
 }
 // v806 — locais de aplicação (mesmos da FPP) e rótulos
 export const LOCAIS_APL = [["PEITO_E", "Peito esq."], ["PEITO_D", "Peito dir."], ["PEITO_C", "Peito central"], ["COSTAS_SUP", "Costas sup."], ["COSTAS_MEIO", "Costas meio"], ["COSTAS_INF", "Costas inf."], ["MANGA_D", "Manga dir."], ["MANGA_E", "Manga esq."],
