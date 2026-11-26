@@ -584,7 +584,8 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     const totalItem = vp * num(f.qtde);
     // v294 — sugestão do valor proposto (20% de margem). Sem repassar: a empresa absorve título, investimento e comissão.
     //   Repassando: o preço cobre essas taxas e a margem de 20% fica preservada.
-    const denBase = 1 - imposto - MARGEM_SUGERIDA;
+    // v1145 — op. título ligada: a sugestão já cobre o custo do título (a margem fica em 20% depois dele), repassando ou não
+    const denBase = 1 - imposto - kTit - MARGEM_SUGERIDA;
     const denRep = 1 - imposto - comissaoPct - kTit - MARGEM_SUGERIDA;
     const sugestaoBase = denBase > 0 ? custoProducao / denBase : null;
     const sugestaoRepasse = denRep > 0 ? (custoProducao + opInv) / denRep : null;
