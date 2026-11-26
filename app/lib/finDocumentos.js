@@ -24,6 +24,16 @@ const empresaDe = (txt) => (/\bNORT\b/.test(normRegra(txt)) ? "NORT" : "MERIDIAN
 // v1079 — folha / resumo de ADIANTAMENTO (Alterdata): o título do relatório fala em adiantamento (nas primeiras linhas;
 //   a rubrica "606 Adiantamento" que aparece como desconto na folha do 5º dia útil não conta)
 const ehAdiantamento = (L) => L.slice(0, 14).some((l) => /ADIANTAMENTO/.test(normRegra(l)) && !/^\d{3}\s/.test(l.trim()));
+// v1139 — fopag do 13º (mesmo formato Alterdata): 1ª parcela (vence 30/11) ou 2ª (vence 15/12)
+const RE13 = /13\s*[º°ªO]?\s*SAL|D[EÉ]CIMO\s+TERCEIRO|13\s*[º°ªO]\s*\(/i;
+const eh13 = (L) => L.slice(0, 16).some((l) => RE13.test(l.toUpperCase()) && !/^\d{3}\s/.test(l.trim()));
+function parcela13(L, r) {
+  if (!eh13(L)) return null;
+  const cab = L.slice(0, 16).join(" ").toUpperCase();
+  if (/2\s*[ªA°º]\s*PARC|SEGUNDA\s+PARC|PARCELA\s*(FINAL|2)|INTEGRAL/.test(cab)) return 2;
+  if (/1\s*[ªA°º]\s*PARC|PRIMEIRA\s+PARC|PARCELA\s*1|ADIANTAMENTO/.test(cab)) return 1;
+  return r?.comp && r.comp.slice(5, 7) === "12" ? 2 : 1;
+}
 const ref = (txt) => {   // "01/09/2026 a 30/09/2026" → { de, ate, comp }
   const m = txt.match(/(\d{2})\/(\d{2})\/(\d{4})\s*a\s*(\d{2})\/(\d{2})\/(\d{4})/);
   return m ? { de: `${m[3]}-${m[2]}-${m[1]}`, ate: `${m[6]}-${m[5]}-${m[4]}`, comp: `${m[6]}-${m[5]}` } : null;
@@ -45,12 +55,13 @@ const DETECTORES = [
       const funcionarios = [];
       for (const l of L) { const m = l.match(/^(\d{6})\s+(.+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})$/); if (m) funcionarios.push({ codigo: m[1], nome: m[2].toUpperCase(), liquido: num(m[3]) }); }
       const tot = t.match(/Total por Empresa\s*=>\s*([\d.]+,\d{2})/i);
-      return { empresa: empresaDe(L.slice(0, 3).join(" ")), ref: r, total: tot ? num(tot[1]) : r2(funcionarios.reduce((s, f) => s + f.liquido, 0)), funcionarios, adiantamento: ehAdiantamento(L) };
+      const decimo = parcela13(L, r);
+      return { empresa: empresaDe(L.slice(0, 3).join(" ")), ref: r, total: tot ? num(tot[1]) : r2(funcionarios.reduce((s, f) => s + f.liquido, 0)), funcionarios, adiantamento: !decimo && ehAdiantamento(L), decimo };
     },
   },
   {
     tipo: "FOLHA",
-    casa: (L) => L.some((l) => /^FOLHA DE (PAGAMENTO|ADIANTAMENTO)\b/i.test(l)) && L.some((l) => /Total L[ií]quido/i.test(l)),
+    casa: (L) => L.some((l) => /^FOLHA DE (PAGAMENTO|ADIANTAMENTO|13|D[EÉ]CIMO)/i.test(l)) && L.some((l) => /Total L[ií]quido/i.test(l)),
     ler(L) {
       const t = L.join("\n");
       const emp = (L.find((l) => /^Empresa\s*:/i.test(l)) || "").replace(/^Empresa\s*:\s*/i, "");
@@ -69,7 +80,7 @@ const DETECTORES = [
       return {
         empresa: empresaDe(emp), ref: ref(t), total: liq ? num(liq[1]) : 0, bruto: bruto ? num(bruto[1]) : null,
         qtdFuncionarios: qtd ? Number(qtd[1]) : funcionarios.length,
-        funcionarios: funcionarios.filter((f) => f.liquido > 0), adiantamento: ehAdiantamento(L),
+        funcionarios: funcionarios.filter((f) => f.liquido > 0), adiantamento: !parcela13(L, ref(t)) && ehAdiantamento(L), decimo: parcela13(L, ref(t)),
         semLiquido: funcionarios.filter((f) => !(f.liquido > 0)).map((f) => f.nome),
       };
     },
@@ -236,7 +247,7 @@ export async function analisarDocumentos(docs) {
   // folha + resumo de líquidos da mesma empresa e mês → um lançamento
   const folhas = new Map();
   for (const d of docs.filter((x) => x.tipo === "FOLHA" || x.tipo === "LIQUIDOS")) {
-    const k = `${d.empresa}|${d.ref?.comp || "?"}${d.adiantamento ? "|ADIANT" : ""}`;
+    const k = `${d.empresa}|${d.decimo ? `${(d.ref?.comp || String(new Date().getFullYear())).slice(0, 4)}-13` : d.ref?.comp || "?"}${d.decimo ? `|13P${d.decimo}` : d.adiantamento ? "|ADIANT" : ""}`;
     if (!folhas.has(k)) folhas.set(k, []);
     folhas.get(k).push(d);
   }
@@ -245,9 +256,11 @@ export async function analisarDocumentos(docs) {
   for (const [k, ds] of folhas) {
     const [empresa, compRef, kindA] = k.split("|");
     const adiant = kindA === "ADIANT";   // v1079 — adiantamento: pago no dia 20 do próprio mês
+    const dec = /^13P[12]$/.test(kindA || "") ? Number(kindA.slice(3)) : null;   // v1139 — 13º: 1ª parcela 30/11 · 2ª 15/12
+    const ano13 = dec ? compRef.slice(0, 4) : null;
     const folha = ds.find((x) => x.tipo === "FOLHA"), liq = ds.find((x) => x.tipo === "LIQUIDOS");
     const valor = r2((folha || liq).total);
-    const comp = compRef !== "?" ? (adiant ? compRef : somaMes(compRef, 1)) : null;   // folha de setembro → paga no 5º dia útil de outubro; adiantamento no dia 20 do mês
+    const comp = dec ? `${ano13}-${dec === 1 ? "11" : "12"}` : compRef !== "?" ? (adiant ? compRef : somaMes(compRef, 1)) : null;   // folha de setembro → paga no 5º dia útil de outubro; adiantamento no dia 20 do mês
     const avisos = [];
     if (folha && liq) {
       if (Math.abs(folha.total - liq.total) > 0.01) avisos.push(`Folha (${folha.total.toFixed(2)}) e resumo de líquidos (${liq.total.toFixed(2)}) não batem.`);
@@ -286,9 +299,11 @@ export async function analisarDocumentos(docs) {
       rateio = linhas.length ? linhas.map(({ contaId, pct }) => ({ contaId, pct })) : null;
     }
     const chave = adiant ? (empresa === "NORT" ? "NORT|ADIANTAMENTO" : "MATRIZ|pessoal|ADIANTAMENTO") : empresa === "NORT" ? "NORT|FOLHA5" : "MATRIZ|pessoal|SALARIO";
-    let alvo = opcoes.find((t) => recDe[chave] && t.recorrenciaId === recDe[chave]);
-    if (!alvo && adiant) alvo = opcoes.find((t) => /ADIANT/.test(normRegra(t.titulo)) && (empresa === "NORT") === /NORT/.test(normRegra(`${t.titulo} ${t.parceiro}`)) && t.status === "ABERTO");
-    if (!alvo && !adiant) alvo = opcoes.find((t) => /^SAL[AÁ]RIO/.test(t.titulo) && (empresa === "NORT") === /NORT/.test(`${t.titulo} ${t.parceiro}`))
+    const ehT13 = (t) => /13\s*[º°O]?\s*SAL|D[EÉ]CIMO/.test(normRegra(t.titulo).replace(/º/g, "O")) || /13[º°]/.test(t.titulo);
+    let alvo = dec ? opcoes.find((t) => ehT13(t) && (empresa === "NORT") === /NORT/.test(normRegra(`${t.titulo} ${t.parceiro}`)) && t.status === "ABERTO") || null
+      : opcoes.find((t) => recDe[chave] && t.recorrenciaId === recDe[chave]);
+    if (!alvo && adiant && !dec) alvo = opcoes.find((t) => /ADIANT/.test(normRegra(t.titulo)) && (empresa === "NORT") === /NORT/.test(normRegra(`${t.titulo} ${t.parceiro}`)) && t.status === "ABERTO");
+    if (!alvo && !adiant && !dec) alvo = opcoes.find((t) => /^SAL[AÁ]RIO/.test(t.titulo) && (empresa === "NORT") === /NORT/.test(`${t.titulo} ${t.parceiro}`))
       || (empresa === "NORT" ? opcoes.find((t) => /NORT/.test(t.titulo) && /FOLHA|SAL[AÁ]RIO/.test(t.titulo) && !/ADIANT/.test(t.titulo)) : null);
     // v1079 — um lançamento por pessoa (como os freelancers): líquido da fopag + chave PIX do cadastro do RH
     const { pessoasDaFolha } = await import("@/lib/finFolhaMatriz");
@@ -296,8 +311,8 @@ export async function analisarDocumentos(docs) {
     const semPix = pessoas.filter((x) => !x.pix).map((x) => x.nome);
     if (semPix.length) avisos.push(`Sem chave PIX no cadastro do RH (o lançamento da pessoa sai sem PIX): ${semPix.join(", ")}.`);
     itens.push({
-      chave: `FOLHA|${k}`, tipo: "FOLHA", adiantamento: adiant, empresa, comp, refTexto: compRef !== "?" ? nomeMes(compRef) : "?",
-      descricao: `${adiant ? "Adiantamento" : "Folha"} de ${compRef !== "?" ? nomeMes(compRef) : "?"} — ${empresa} · líquido de ${(liq || folha).funcionarios.length} funcionário(s) · um lançamento por pessoa com o PIX`,
+      chave: `FOLHA|${k}`, tipo: "FOLHA", adiantamento: adiant, decimo: dec, empresa, comp, refTexto: dec ? `13º ${dec}ª PARCELA ${ano13}` : compRef !== "?" ? nomeMes(compRef) : "?",
+      descricao: `${dec ? `13º salário ${ano13} · ${dec}ª parcela` : `${adiant ? "Adiantamento" : "Folha"} de ${compRef !== "?" ? nomeMes(compRef) : "?"}`} — ${empresa} · líquido de ${(liq || folha).funcionarios.length} funcionário(s) · um lançamento por pessoa com o PIX`,
       pessoas: pessoas.map((x) => ({ nome: x.nome, liquido: x.liquido, depto: x.depto, pix: x.pix || null })),
       valor, arquivos: ds.map((x) => x.arquivo), docs: ds.map((x) => x.tipo),
       funcionarios: (liq || folha).funcionarios, bruto: folha?.bruto ?? null, avisos,
@@ -306,8 +321,8 @@ export async function analisarDocumentos(docs) {
       alvo: saida(alvo), opcoes: opcoes.map(saida),
       // v698 — sem conta da folha no mês (ex.: NORT sem funcionário na Matriz): já vem pronta para criar
       novo: alvo ? null : {
-        titulo: adiant ? (empresa === "NORT" ? "NORT - FOLHA ADIANTAMENTO" : "ADIANTAMENTO SALARIAL") : empresa === "NORT" ? "NORT - FOLHA 5º DIA ÚTIL" : "SALÁRIO", parceiro: empresa === "NORT" ? "FOLHA DE PAGAMENTO NORT" : "FOLHA DE PAGAMENTO",
-        vencimento: comp ? (adiant ? `${comp}-20` : (() => { try { return vencNoMes(comp, 5, true, true).toISOString().slice(0, 10); } catch { return ""; } })()) : "",
+        titulo: dec ? `${empresa === "NORT" ? "NORT - " : ""}13º SALÁRIO ${ano13} - ${dec}ª PARCELA` : adiant ? (empresa === "NORT" ? "NORT - FOLHA ADIANTAMENTO" : "ADIANTAMENTO SALARIAL") : empresa === "NORT" ? "NORT - FOLHA 5º DIA ÚTIL" : "SALÁRIO", parceiro: empresa === "NORT" ? "FOLHA DE PAGAMENTO NORT" : "FOLHA DE PAGAMENTO",
+        vencimento: dec ? `${ano13}-${dec === 1 ? "11-30" : "12-15"}` : comp ? (adiant ? `${comp}-20` : (() => { try { return vencNoMes(comp, 5, true, true).toISOString().slice(0, 10); } catch { return ""; } })()) : "",
         contaId: rateio?.[0]?.contaId || null,
       },
     });
@@ -629,7 +644,7 @@ export async function lancarFolhaPorPessoa(tituloId, it, quem) {
     if (!p.pix) semPix++;
     await prisma.finSemanaItem.create({ data: {
       tituloId: Number(tituloId), grupo, nome, chavePix: p.pix || "", setor: p.depto || "ADM", contaId: idC[p.contaCodigo] || idC["2128200"],
-      valor: r2(p.liquido), linhas: [], descricao: `${grupo === "ADIANTAMENTO" ? "ADIANTAMENTO" : "SALÁRIO"}${ref ? ` ${ref}` : ""} · LÍQUIDO DA FOPAG`,
+      valor: r2(p.liquido), linhas: [], descricao: `${it.decimo ? "" : grupo === "ADIANTAMENTO" ? "ADIANTAMENTO" : "SALÁRIO"}${ref ? `${it.decimo ? "" : " "}${ref}` : ""} · LÍQUIDO DA FOPAG`,
       observacao: p.pix ? null : "SEM CHAVE PIX NO CADASTRO DO RH", criadoPorNome: quem || null } });
     criados++;
   }

@@ -562,7 +562,7 @@ function FichaModal({ user, pessoa, onClose }) {
 }
 
 /* ---------------- financeiro do RH ---------------- */
-const CAT = { FOLHA: "Folha", ADIANTAMENTO: "Adiantamento", INSS: "INSS", FGTS: "FGTS", IFOOD: "iFood", RESCISAO: "Rescisão", ESTAGIO: "Estágio", OUTRO: "Outro" };
+const CAT = { FOLHA: "Folha", DECIMO13: "13º salário", ADIANTAMENTO: "Adiantamento", INSS: "INSS", FGTS: "FGTS", IFOOD: "iFood", RESCISAO: "Rescisão", ESTAGIO: "Estágio", OUTRO: "Outro" };
 function FinanceiroRH({ user, d, onSalvo, onAnexar }) {
   const setImp = () => onAnexar(null);
   const [ifood, setIfood] = useState(false);

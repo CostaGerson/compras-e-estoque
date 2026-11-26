@@ -159,14 +159,15 @@ export async function calendario(comp = mesAtual()) {
     where: { tipo: "PAGAR", competencia: comp, status: { not: "CANCELADO" } },
     select: { id: true, titulo: true, recorrenciaId: true, _count: { select: { anexos: true } } },
   });
-  const PISTA = { FOLHA: /SAL[AÁ]RIO|FOLHA 5/, ADIANTAMENTO: /ADIANT/, INSS: /\bINSS\b/, FGTS: /\bFGTS\b/, IFOOD: /IFOOD|BENEF/ };
-  const casa = (emp, cat) => (t) => t._count.anexos > 0 && (t.recorrenciaId === recId[CHAVES[emp][cat]]
-    || (PISTA[cat].test(t.titulo.toUpperCase()) && (emp === "NORT") === /NORT/.test(t.titulo.toUpperCase()) && !/RESCIS/.test(t.titulo.toUpperCase())));
+  const PISTA = { FOLHA: /SAL[AÁ]RIO|FOLHA 5/, ADIANTAMENTO: /ADIANT/, INSS: /\bINSS\b/, FGTS: /\bFGTS\b/, IFOOD: /IFOOD|BENEF/, DECIMO13: /13\s*[º°O]?\s*SAL|D[EÉ]CIMO/ };
+  const T13 = /13\s*[º°O]?\s*SAL|D[EÉ]CIMO/;
+  const casa = (emp, cat) => (t) => t._count.anexos > 0 && ((CHAVES[emp][cat] && t.recorrenciaId === recId[CHAVES[emp][cat]])
+    || (PISTA[cat].test(t.titulo.toUpperCase()) && (cat === "DECIMO13" || !T13.test(t.titulo.toUpperCase())) && (emp === "NORT") === /NORT/.test(t.titulo.toUpperCase()) && !/RESCIS/.test(t.titulo.toUpperCase())));
   const anexado = (emp, cat) => titulos.some(casa(emp, cat));
   // v993 — anexos de cada obrigação (para baixar clicando no card): contas que receberam o envio + contas do mês que casam
   const tituloIdsDe = (emp, cats) => [...new Set([...envios.filter((e) => e.empresa === emp && cats.includes(e.categoria) && e.tituloId).map((e) => e.tituloId),
     ...cats.flatMap((c) => titulos.filter(casa(emp, c)).map((t) => t.id))])];
-  const todosIds = [...new Set(["MERIDIAN", "NORT"].flatMap((emp) => tituloIdsDe(emp, ["FOLHA", "ADIANTAMENTO", "INSS", "FGTS", "IFOOD"])))];
+  const todosIds = [...new Set(["MERIDIAN", "NORT"].flatMap((emp) => tituloIdsDe(emp, ["FOLHA", "ADIANTAMENTO", "INSS", "FGTS", "IFOOD", "DECIMO13"])))];
   const anexosL = todosIds.length ? await prisma.finTituloAnexo.findMany({ where: { tituloId: { in: todosIds } }, orderBy: { createdAt: "asc" },
     select: { id: true, tituloId: true, nome: true, tamanho: true, criadoPorNome: true, createdAt: true } }) : [];
   const enviado = (emp, c) => envios.some((e) => e.empresa === emp && e.categoria === c) || anexado(emp, c);
@@ -184,6 +185,9 @@ export async function calendario(comp = mesAtual()) {
       ["ADIANTAMENTO", dia17, ["ADIANTAMENTO"], `Adiantamento de ${nomeMes(comp)}`],
       ["IMPOSTOS", dia17, ["INSS", "FGTS"], `Guias de INSS e FGTS de ${nomeMes(ant)}`],
       ["IFOOD", `${comp}-25`, ["IFOOD"], `Recargas do iFood de ${nomeMes(comp)} + boleto/PIX`],
+      // v1139 — 13º salário: só em novembro (1ª parcela, vence 30/11) e dezembro (2ª parcela, vence 15/12)
+      ...(mm === 11 ? [["DECIMO13", `${a}-11-30`, ["DECIMO13"], `13º salário — 1ª parcela (fopag + líquidos) · vence 30/11`]]
+        : mm === 12 ? [["DECIMO13", `${a}-12-15`, ["DECIMO13"], `13º salário — 2ª parcela (fopag + líquidos) · vence 15/12`]] : []),
     ]) {
       const feito = tem(emp, cats);
       const parcial = !feito && cats.length > 1 && cats.some((c) => enviado(emp, c));
@@ -202,10 +206,11 @@ export async function calendario(comp = mesAtual()) {
 
 // categoria do documento pela conta que recebeu (para o calendário)
 export function categoriaEnvio(it, titulo) {
-  if (it.tipo === "FOLHA") return it.adiantamento ? "ADIANTAMENTO" : "FOLHA";   // v1079
+  if (it.tipo === "FOLHA") return it.decimo ? "DECIMO13" : it.adiantamento ? "ADIANTAMENTO" : "FOLHA";   // v1079 · v1139 — 13º
   if (it.tipo === "IFOOD") return "IFOOD";
   if (it.tipo === "GUIA" && ["INSS", "FGTS"].includes(it.guia)) return it.guia === "FGTS" && /RESCIS/.test(String(it.descricao)) ? "RESCISAO" : it.guia;
   const t = String(`${titulo?.titulo || ""} ${it.descricao || ""}`).toUpperCase();
+  if (/13\s*[º°O]?\s*SAL|D[EÉ]CIMO/.test(t)) return "DECIMO13";   // v1139
   if (/ADIANT/.test(t)) return "ADIANTAMENTO";
   if (/IFOOD|BENEF/.test(t)) return "IFOOD";
   if (/RESCIS/.test(t)) return "RESCISAO";
