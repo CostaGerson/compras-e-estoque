@@ -128,8 +128,11 @@ function acaoDe(r) {
 export async function montarCasador() {
   const tits = await prisma.finTitulo.findMany({
     where: { tipo: "RECEBER", status: { not: "CANCELADO" } },
-    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, numeroDoc: true, nossoNumero: true, observacao: true, cobranca: true, antecipadoForma: true, liquidadoEm: true, remessa: true, registradoEm: true },
+    select: { id: true, titulo: true, parceiro: true, valor: true, vencimento: true, status: true, numeroDoc: true, nossoNumero: true, observacao: true, cobranca: true, antecipadoForma: true, liquidadoEm: true, remessa: true, registradoEm: true, recompraId: true },
   });
+  // v1134 — recompras em aberto dos antecipados (o retorno com o pagamento do cliente exclui a recompra)
+  const recAbertas = new Set((await prisma.finTitulo.findMany({ where: { id: { in: tits.map((t) => t.recompraId).filter(Boolean) }, status: "ABERTO" }, select: { id: true } })).map((c) => c.id));
+  for (const t of tits) t.recompraAberta = !!t.recompraId && recAbertas.has(t.recompraId);
   const porDoc = new Map(), porNosso = new Map(), porNf = new Map();
   const add = (m, k, t) => { if (!k) return; if (!m.has(k)) m.set(k, []); m.get(k).push(t); };
   for (const t of tits) {
@@ -202,7 +205,8 @@ export async function analisarRetornos(arquivos) {
             msg = `NF ${nf.numero} está no sistema (${nf.fonte}) mas sem conta a receber — criar a conta ${sn.parc}/${sn.total} com os dados do boleto.`;
           }
         }
-        else if (acao === "LIQUIDAR" && t.status === "PAGO" && (t.antecipadoForma || t.cobranca === "DESCONTADO") && !t.liquidadoEm) { msg = "Título antecipado: o cliente pagou o banco — confirma a liquidação da antecipação."; }
+        else if (acao === "LIQUIDAR" && t.status === "PAGO" && (t.antecipadoForma || t.cobranca === "DESCONTADO") && !t.liquidadoEm) { msg = `Título antecipado: o cliente pagou o banco — confirma a liquidação da antecipação.${t.recompraAberta ? " A recompra em aberto será EXCLUÍDA (o cliente pagou atrasado)." : ""}`; }
+        else if (acao === "LIQUIDAR" && t.status === "PAGO" && (t.antecipadoForma || t.cobranca === "DESCONTADO") && t.recompraAberta) { msg = "Título antecipado já liquidado no sistema — o retorno confirma o pagamento: a recompra em aberto será EXCLUÍDA (o cliente pagou atrasado)."; }
         else if (acao === "LIQUIDAR" && t.status !== "ABERTO") { situacao = "JA_BAIXADA"; msg = "Conta já baixada — nada a fazer."; }
         else if (acao === "DESCONTAR" && (t.antecipadoForma || t.cobranca === "DESCONTADO")) { situacao = "JA_BAIXADA"; msg = "Título já está como antecipado — nada a fazer."; }
         else if (acao === "DESCONTAR" && t.status !== "ABERTO") { situacao = "JA_BAIXADA"; msg = `Transferido para desconto, mas a conta já está ${t.status === "PAGO" ? "recebida" : t.status.toLowerCase()} — confira.`; }
@@ -301,6 +305,23 @@ export async function aplicarRetornos(itens, arquivos, { quem } = {}) {
       }
       if (acao !== "LIQUIDAR") continue;
       if (usados.has(id)) continue;
+      // v1134 — o retorno (e só ele) confirma que o cliente pagou: a recompra criada e ainda em aberto é excluída (pagou atrasado)
+      const excluirRecompra = async () => {
+        if (!t.recompraId) return null;
+        const c = await prisma.finTitulo.findUnique({ where: { id: t.recompraId } });
+        if (!c || c.status !== "ABERTO") return null;
+        const { excluirTitulo } = await import("@/lib/finLote");
+        await excluirTitulo(c, quem || "RETORNO");
+        await prisma.finTitulo.update({ where: { id: t.id }, data: { recompraId: null,
+          critica: String(t.critica || "").split(" · ").filter((x) => !/recompra|T[íi]tulos Vencidos/i.test(x)).join(" · ") || null,
+          observacao: [(await prisma.finTitulo.findUnique({ where: { id: t.id }, select: { observacao: true } }))?.observacao, `RECOMPRA #${c.id} EXCLUÍDA: O RETORNO ${f.sequencia || f.arquivo} INFORMOU O PAGAMENTO DO CLIENTE (PAGOU ATRASADO)`].filter(Boolean).join(" · ").slice(0, 1000) } });
+        r.recomprasExcluidas = (r.recomprasExcluidas || 0) + 1;
+        r.linhas.push(`${t.titulo}: recompra #${c.id} (${Number(c.valor).toFixed(2).replace(".", ",")}) excluída — o cliente pagou atrasado`);
+        return c.id;
+      };
+      if (t.status === "PAGO" && (t.antecipadoForma || t.cobranca === "DESCONTADO") && t.liquidadoEm && t.liquidacao === "CLIENTE") {
+        if (await excluirRecompra()) { usados.add(id); await anexar(id, f.a, f.hash, quem); continue; }
+      }
       // v186 — título antecipado: o pagamento do cliente confirma a antecipação (liquidado), sem mexer no recebimento
       if (t.status === "PAGO" && (t.antecipadoForma || t.cobranca === "DESCONTADO") && !t.liquidadoEm) {
         const dl = reg.dataOcorrencia || reg.dataCredito;
@@ -311,6 +332,7 @@ export async function aplicarRetornos(itens, arquivos, { quem } = {}) {
         await anexar(id, f.a, f.hash, quem);
         r.antecipadasLiquidadas = (r.antecipadasLiquidadas || 0) + 1;
         r.linhas.push(`${t.titulo}: antecipado — cliente pagou em ${dBR(dl)}`);
+        await excluirRecompra();
         continue;
       }
       if (t.status !== "ABERTO") { r.linhas.push(`${t.titulo}: já baixada — ignorada`); continue; }

@@ -102,9 +102,11 @@ async function amarrarCobrancas(quem) {
       // recompra estornada: volta a ser antecipado aguardando o cliente (se o cliente ainda não pagou)
       await prisma.finTitulo.update({ where: { id: t.id }, data: { liquidadoEm: null, liquidacao: null, liquidadoPorNome: null,
         ...(t.status === "ABERTO" && t.cobranca === "RECOMPRADO" ? { status: "PAGO", dataPagamento: t.antecipadoEm || hojeUTC(), valorPago: t.valor, cobranca: "DESCONTADO", formaPagamento: "DESCONTO" } : {}) } });
-    } else if (c.status === "ABERTO" && t.liquidadoEm && t.liquidacao === "CLIENTE" && !String(c.observacao || "").includes(AGUARDA_BAIXADOS)) {   // v832 — cliente pagou à Meridian: a recompra espera os Títulos Baixados
-      await prisma.finTitulo.update({ where: { id: c.id }, data: { status: "CANCELADO", critica: null,
-        observacao: [c.observacao, `CANCELADA: O CLIENTE PAGOU O TÍTULO (${dBR(t.liquidadoEm)})`].filter(Boolean).join(" · ").slice(0, 1000) } });
+    } else if (c.status === "ABERTO" && t.liquidadoEm && t.liquidacao === "CLIENTE" && !String(c.observacao || "").includes(AGUARDA_BAIXADOS)) {
+      // v1134 — só o RETORNO exclui a recompra (cliente pagou atrasado). Liquidado por outro caminho (baixa manual,
+      // relatório Títulos Pagos): a recompra continua em aberto, esperando o retorno ou os Títulos Baixados.
+      await prisma.finTitulo.update({ where: { id: c.id }, data: {
+        observacao: [c.observacao, `CLIENTE PAGOU EM ${dBR(t.liquidadoEm)} (SEM RETORNO) — ${AGUARDA_BAIXADOS} OU O RETORNO DO BANCO`].filter(Boolean).join(" · ").slice(0, 1000) } });
     }
   }
 }
