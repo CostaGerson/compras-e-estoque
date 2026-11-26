@@ -1,6 +1,6 @@
 // v404 — Compras: FPP base de cada item de pedido, demanda de matéria-prima e levantamento.
 import { prisma } from "./prisma";
-import { elasticoCalc, faixaCalc, botaoUnit, nomeFaixaCompra, faixaRefletivaDaMontada, obsBotao, ehPecaAberta, ehRevenda } from "./fppAv";   // v410 · v512
+import { elasticoCalc, faixaCalc, botaoUnit, nomeFaixaCompra, faixaRefletivaDaMontada, obsBotao, ehPecaAberta, ehRevenda, golaPunhoInfo, ehSobreposto } from "./fppAv";   // v410 · v512
 
 export const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
 const vazio = (v) => v == null || String(v).trim() === "";
@@ -149,14 +149,26 @@ export function materiaisDaFpp(fpp, params = [], corSel = null, grade = null) {
     const ad = e.artigoDet || {};
     let lg = n0(ad.largura) || 0; if (lg > 10) lg /= 100;
     const mkg = n0(ad.rendimento) || (lg > 0 && n0(ad.gramatura) > 0 ? 1000 / (lg * n0(ad.gramatura)) : 0);
-    for (const [on, modo, pcsM, chave, grupo, pode] of [[e.golaSob, e.gola2, e.gola2PcsM, "GOLA2", "GOLA", /CAMISETA/.test(peca)], [e.punhoSob, e.punho2, e.punho2PcsM, "PUNHO2", "PUNHO", /CAMISETA|POLO/.test(peca)]]) {
-      if (!on || !pode) continue;
-      const rot = grupo === "GOLA" ? "GOLA SOBREPOSTA" : "PUNHO SOBREPOSTO";
-      if ((modo || "RIBANA") === "MALHA") {
+    // v1128 — a sobreposição vem no nome (RIBANA SOBREPOSTA, PRÓPRIA MALHA SOBREPOSTA, BAINHA SOBREPOSTO); checkbox da v1125 = legado
+    //   gola PRÓPRIA MALHA (sem sobreposição) também sai da malha, com o consumo da própria malha sobreposta
+    const sobDe = (v, legOn, legModo, pode, grupo) => {
+      const inf = golaPunhoInfo(grupo, v);
+      if (inf.sob) return inf.sob;
+      if (ehSobreposto(v) || !legOn || !pode) return null;
+      return legModo || "RIBANA";
+    };
+    const camadas = [
+      [golaPunhoInfo("GOLA", e.gola).base === "MALHA" ? "MALHA" : null, e.gola2PcsM, "GOLA", "GOLA", "GOLA PRÓPRIA MALHA"],
+      [sobDe(e.gola, e.golaSob, e.gola2, /CAMISETA/.test(peca), "GOLA"), e.gola2PcsM, "GOLA2", "GOLA", "GOLA SOBREPOSTA"],
+      [sobDe(e.punho, e.punhoSob, e.punho2, /CAMISETA|POLO/.test(peca), "PUNHO"), e.punho2PcsM, "PUNHO2", "PUNHO", "PUNHO SOBREPOSTO"],
+    ];
+    for (const [modo, pcsM, chave, grupo, rot] of camadas) {
+      if (!modo) continue;
+      if (modo === "MALHA") {
         const pm = n0(pcsM) || cget(grupo === "PUNHO" ? "SOB_PUNHO_PCS_M" : "SOB_GOLA_PCS_M") || (grupo === "PUNHO" ? 45 : 35);
         const c = pm > 0 && mkg > 0 ? 1 / (pm * mkg) : 0;
         if (c > 0 && nomeP) out.push({ papel: chave, ref: { campo: "artigoDet" }, derivado: true, categoria: "MALHA", unidade: "KG", nome: nomeP.toUpperCase(),
-          det: detComCor(e.artigoDet || {}, corSel), consumoPorPeca: c, valorUnitario: n0(e.mpValor), base: `${String(pm).replace(".", ",")} peças/m · ${rot} NA MALHA` });
+          det: detComCor(e.artigoDet || {}, corSel), consumoPorPeca: c, valorUnitario: n0(e.mpValor), base: `${String(pm).replace(".", ",")} peças/m · ${rot}${/PRÓPRIA/.test(rot) ? "" : " NA MALHA"}` });
         continue;
       }
       const c = ribanaCalc(cget, grupo, n0(e.mpValor) || 0);
@@ -170,6 +182,8 @@ export function materiaisDaFpp(fpp, params = [], corSel = null, grade = null) {
     const v = e[a.campo];
     if (ehSem(v)) continue;
     if (a.chave === "GOLA" && ehGolaVies(v)) continue;   // v522
+    // v1128 — bainha (punho) não é aviamento; gola própria malha já saiu acima, em kg da malha
+    if ((a.chave === "GOLA" || a.chave === "PUNHO") && tipo === "MALHA" && ["NADA", "MALHA"].includes(golaPunhoInfo(a.chave, v).base)) continue;
     const det = avDet[a.chave] || {};
     if ((a.chave === "GOLA" || a.chave === "PUNHO") && ehRibana(v)) {
       const c = ribanaCalc(cget, a.chave, tipo === "MALHA" ? n0(e.mpValor) || 0 : 0);

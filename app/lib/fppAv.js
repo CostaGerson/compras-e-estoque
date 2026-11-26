@@ -26,6 +26,32 @@ export const ehMontada = (tipo) => /MONTADA/i.test(String(tipo || ""));   // v50
 export const faixaPedeCor = (tipo) => /MONTADA|PRONTA/i.test(String(tipo || ""));
 export const semAv = (v) => !String(v || "").trim() || /^SEM\b/i.test(String(v).trim());
 
+// v1128 — gola e punho: a sobreposição vem no próprio nome da opção (sem checkbox)
+//   GOLA: RIBANA · RIBANA SOBREPOSTA · PRÓPRIA MALHA · PRÓPRIA MALHA SOBREPOSTA
+//   PUNHO: RIBANA · RIBANA SOBREPOSTO · BAINHA (substitui "sem punho") · BAINHA SOBREPOSTO
+//   Própria malha (com ou sem sobreposta) e bainha sobreposto usam o consumo da malha em peças/m (gola 35 · punho 45).
+const nrmGP = (v) => String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
+export const GOLA_OPCOES = ["RIBANA", "RIBANA SOBREPOSTA", "PRÓPRIA MALHA", "PRÓPRIA MALHA SOBREPOSTA"];
+export const PUNHO_OPCOES = ["RIBANA", "RIBANA SOBREPOSTO", "BAINHA", "BAINHA SOBREPOSTO"];
+export const ehSobreposto = (v) => /SOBREPOST/.test(nrmGP(v));
+export const ehPropriaMalha = (v) => /PROPRIA MALHA/.test(nrmGP(v));
+export const ehBainha = (v) => /\bBAINHA\b/.test(nrmGP(v));
+// base: "RIBANA" | "MALHA" (gola própria malha) | "NADA" (bainha) | null (outra opção do cadastro) · sob: "RIBANA" | "MALHA" | null
+export function golaPunhoInfo(grupo, v) {
+  const s = nrmGP(v);
+  const rib = /\bRIBANA\b/.test(s), pm = ehPropriaMalha(s), bainha = ehBainha(s);
+  const base = rib ? "RIBANA" : pm && grupo === "GOLA" ? "MALHA" : bainha ? "NADA" : null;
+  const sob = !ehSobreposto(s) ? null : rib ? "RIBANA" : pm || bainha ? "MALHA" : null;
+  return { base, sob };
+}
+// lista do combo: as opções fixas primeiro (sobrepostas só onde a peça permite) e depois o resto do cadastro, sem repetir e sem "SEM PUNHO"
+export function opcoesGolaPunho(grupo, chaves, podeSob) {
+  const fixas = (grupo === "PUNHO" ? PUNHO_OPCOES : GOLA_OPCOES).filter((o) => podeSob || !ehSobreposto(o));
+  const ja = new Set((grupo === "PUNHO" ? PUNHO_OPCOES : GOLA_OPCOES).map(nrmGP));
+  const resto = (chaves || []).filter((c) => { const s = nrmGP(c); return s && !ja.has(s) && !(grupo === "PUNHO" && /^SEM\b/.test(s)); });
+  return [...fixas, ...resto];
+}
+
 const n = (v) => {
   if (v == null || v === "") return 0;
   if (typeof v === "number") return isFinite(v) ? v : 0;
