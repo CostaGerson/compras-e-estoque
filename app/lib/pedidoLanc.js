@@ -198,7 +198,7 @@ export function resumoFpp(f) {
 }
 // v806 — locais de aplicação (mesmos da FPP) e rótulos
 export const LOCAIS_APL = [["PEITO_E", "Peito esq."], ["PEITO_D", "Peito dir."], ["PEITO_C", "Peito central"], ["COSTAS_SUP", "Costas sup."], ["COSTAS_MEIO", "Costas meio"], ["COSTAS_INF", "Costas inf."], ["MANGA_D", "Manga dir."], ["MANGA_E", "Manga esq."],
-  ["PERNA_LAT_D", "Lateral perna dir."], ["PERNA_LAT_E", "Lateral perna esq."], ["BOLSO_DIANT_D", "Bolso diant. dir."], ["BOLSO_DIANT_E", "Bolso diant. esq."], ["BOLSO_TRAS_D", "Bolso tras. dir."], ["BOLSO_TRAS_E", "Bolso tras. esq."], ["TOTAL", "Total"]];
+  ["PERNA_LAT_D", "Lateral perna dir."], ["PERNA_LAT_E", "Lateral perna esq."], ["BOLSO_DIANT_D", "Bolso diant. dir."], ["BOLSO_DIANT_E", "Bolso diant. esq."], ["BOLSO_TRAS_D", "Bolso tras. dir."], ["BOLSO_TRAS_E", "Bolso tras. esq."], ["BOLSO_LAT_D", "Bolso lateral dir."], ["BOLSO_LAT_E", "Bolso lateral esq."], ["TOTAL", "Total"]];
 export const nomeLocalApl = (k) => (LOCAIS_APL.find((x) => x[0] === k) || [k, String(k || "").replace(/_/g, " ")])[1];
 export const NOME_METODO = { SILK: "Silk", DTF: "DTF", BORDADO: "Bordado", SUBLIMACAO: "Sublimação" };
 // "SILK 2 CORES · PEITO ESQ. · 10 × 8 CM"

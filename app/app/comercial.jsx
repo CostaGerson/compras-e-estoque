@@ -183,7 +183,7 @@ const POS = [["peitoD", "Peito D"], ["peitoE", "Peito E"], ["mangaD", "Manga D"]
 // v272 — personalização por aplicação: local + método (silk cobra R$/cor das Análises; os demais, valor digitado)
 const LOCAIS_PERS = [["PEITO_E", "Peito esq."], ["PEITO_D", "Peito dir."], ["PEITO_C", "Peito central"], ["COSTAS_SUP", "Costas sup."], ["COSTAS_MEIO", "Costas meio"], ["COSTAS_INF", "Costas inf."], ["MANGA_D", "Manga dir."], ["MANGA_E", "Manga esq."]];
 // v693 — calça/bermuda/short: laterais das pernas e bolsos dianteiros e traseiros
-const LOCAIS_CALCA = [["PERNA_LAT_D", "Lateral perna dir."], ["PERNA_LAT_E", "Lateral perna esq."], ["BOLSO_DIANT_D", "Bolso diant. dir."], ["BOLSO_DIANT_E", "Bolso diant. esq."], ["BOLSO_TRAS_D", "Bolso tras. dir."], ["BOLSO_TRAS_E", "Bolso tras. esq."]];
+const LOCAIS_CALCA = [["PERNA_LAT_D", "Lateral perna dir."], ["PERNA_LAT_E", "Lateral perna esq."], ["BOLSO_DIANT_D", "Bolso diant. dir."], ["BOLSO_DIANT_E", "Bolso diant. esq."], ["BOLSO_TRAS_D", "Bolso tras. dir."], ["BOLSO_TRAS_E", "Bolso tras. esq."], ["BOLSO_LAT_D", "Bolso lateral dir."], ["BOLSO_LAT_E", "Bolso lateral esq."]];
 const ehCalca = (item) => /CALCA|CALÇA|BERMUDA|SHORT/i.test(String(item || "").normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
 const locaisDaPeca = (item) => (ehCalca(item) ? LOCAIS_CALCA : LOCAIS_PERS);
 const METODOS_PERS = [["SILK", "Silk", true], ["BORDADO", "Bordado", true], ["DTF", "DTF", false], ["SUBLIMACAO", "Sublimação", false]];
