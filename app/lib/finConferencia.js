@@ -233,7 +233,7 @@ export async function conferencia(ano = new Date().getFullYear(), hoje = new Dat
     ]));
     const { visaoAtraso } = await import("@/lib/finAtraso");
     const va = await visaoAtraso().catch(() => null);
-    const totAtraso = va ? r2((va.atrasadas || []).reduce((s, t) => s + Number(t.valor || 0), 0)) : null;
+    const totAtraso = va ? r2((va.atrasadas || []).filter((t) => !t.antecipado).reduce((s, t) => s + Number(t.valor || 0), 0)) : null;
     checks.push(chk("Atrasados", "Contas a receber atrasadas", [
       { tela: "Painel do mês", fonte: p.manual.receberAtrasadasManual != null ? "valor digitado" : "contas a receber vencidas", valor: r2(p.atrasadoReceber) },
       { tela: "Financeiro › Atrasados", fonte: "títulos em cobrança", valor: totAtraso },

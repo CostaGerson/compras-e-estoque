@@ -132,7 +132,7 @@ export default function AtrasoReceber({ user, aba, setAba, onEditar, contasPorId
 
       {aba === "ATRASADAS" && <Atrasadas user={user} d={d} ok={ok} setErro={setErro} onEditar={onEditar} contasPorId={contasPorId} irExecucao={(id) => { setAba("EXECUCOES"); setTimeout(() => setAberta(id), 0); }} />}
       {aba === "EXECUCOES" && (aberta
-        ? <Execucao user={user} id={aberta} atrasadas={d.atrasadas} voltar={() => { setAberta(null); carregar(); }} ok={ok} />
+        ? <Execucao user={user} id={aberta} atrasadas={d.atrasadas.filter((t) => !t.antecipado)} voltar={() => { setAberta(null); carregar(); }} ok={ok} />
         : <Execucoes d={d} abrir={setAberta} />)}
       {aba === "PERDAS" && <Perdas user={user} d={d} ok={ok} setErro={setErro} />}
     </div>
@@ -150,6 +150,11 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar, contasPorId = {
   }, [d, busca]);
   const { lista, Th } = useOrdem(filtradas);
   const escolhidas = d.atrasadas.filter((t) => sel.has(t.id));
+  // v1135 — antecipado vencido: entra na cobrança (card, e-mail, Excel, NFs), mas não baixa, não vai para execução nem perda
+  //   (o título está no banco: primeiro a recompra; pagando a recompra ele volta a ser conta em aberto normal)
+  const escAbertas = escolhidas.filter((t) => !t.antecipado);
+  const soAnt = escolhidas.length > 0 && !escAbertas.length;
+  const tAnt = "Título antecipado: o cliente paga o banco (ou, depois da recompra paga, a Meridian). Baixa, execução e perda só depois da recompra.";
   const marcar = (id, on) => setSel((s) => { const n = new Set(s); on ? n.add(id) : n.delete(id); return n; });
   const todas = lista.length > 0 && lista.every((t) => sel.has(t.id));
   return (
@@ -167,9 +172,9 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar, contasPorId = {
         {escolhidas.length > 0 && <BotaoNfs user={user} ids={escolhidas.map((t) => t.id)} />}   {/* v903 */}
         <BtnA cor={C.blue} disabled={!escolhidas.length} onClick={() => setModal("email")} title="Rascunho do e-mail de cobrança por cliente"><Mail size={14} /> E-mail de cobrança</BtnA>
         <BtnA cor={C.accent} disabled={!escolhidas.length} onClick={() => setModal("card")} title="Card em PNG por cliente com os títulos em aberto"><ImageIcon size={14} /> Gerar card cobrança</BtnA>
-        <BtnA cor={C.green} disabled={!escolhidas.length} onClick={() => setModal("baixar")} title="Baixar como recebida (justificativa ou arquivo obrigatório)"><CheckCircle2 size={14} /> Baixar</BtnA>
-        <BtnA cor={C.navy} disabled={!escolhidas.length} onClick={() => setModal("execucao")}><Gavel size={14} /> Mover para execução</BtnA>
-        <BtnA cor={C.red} disabled={!escolhidas.length} onClick={() => setModal("perda")}><Ban size={14} /> Reconhecer perda</BtnA>
+        <BtnA cor={C.green} disabled={!escAbertas.length} onClick={() => setModal("baixar")} title={soAnt ? tAnt : "Baixar como recebida (justificativa ou arquivo obrigatório)"}><CheckCircle2 size={14} /> Baixar</BtnA>
+        <BtnA cor={C.navy} disabled={!escAbertas.length} onClick={() => setModal("execucao")} title={soAnt ? tAnt : undefined}><Gavel size={14} /> Mover para execução</BtnA>
+        <BtnA cor={C.red} disabled={!escAbertas.length} onClick={() => setModal("perda")} title={soAnt ? tAnt : undefined}><Ban size={14} /> Reconhecer perda</BtnA>
       </div>
       <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
         {/* v825 — mesma fonte e informações da lista do contas a receber */}
@@ -192,7 +197,10 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar, contasPorId = {
                 <td className="px-3 py-2" style={{ maxWidth: 220 }}>{(t.rateio || []).length ? (t.rateio || []).map((x, i) => { const c = contasPorId[x.contaId]; return <div key={i} className="truncate" style={{ maxWidth: 210 }}>{c ? `${c.codigo} ${c.nome}` : "—"}{(t.rateio || []).length > 1 ? ` · ${x.pct}%` : ""}</div>; }) : <span style={{ color: C.sub }}>—</span>}</td>
                 <td className="px-3 py-2 text-right whitespace-nowrap font-semibold" style={{ color: corAtraso(t.diasAtraso) }}>{t.diasAtraso} dia(s)</td>
                 <td className="px-3 py-2 text-right whitespace-nowrap font-bold">{moeda(t.valor)}</td>
-                <td className="px-3 py-2"><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ background: C.yellowSoft, color: C.yellow }}>EM COBRANÇA</span></td>
+                <td className="px-3 py-2">{t.antecipado
+                  ? <div title={tAnt}><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ background: C.redSoft, color: C.red }}>ANTECIPADO · CLIENTE NÃO PAGOU</span>
+                      <div className="text-[10px] mt-0.5 whitespace-nowrap" style={{ color: C.sub }}>{t.antecipado.recompra ? `recompra ${moeda(t.antecipado.recompra.valor)} · ${t.antecipado.recompra.status === "PAGO" ? "paga" : `vence ${dBR(t.antecipado.recompra.vencimento)}`}` : "sem recompra ainda"}</div></div>
+                  : <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap" style={{ background: C.yellowSoft, color: C.yellow }}>EM COBRANÇA</span>}</td>
                 <td className="px-3 py-2 text-right">{onEditar && <button onClick={() => onEditar(t)} title="Editar conta" className="p-1 rounded" style={{ color: C.blue }}><Pencil size={14} /></button>}</td>
               </tr>
             ))}
@@ -200,13 +208,13 @@ function Atrasadas({ user, d, ok, setErro, irExecucao, onEditar, contasPorId = {
           </tbody>
         </table>
       </div>
-      {modal === "execucao" && <MoverExecucao user={user} contas={escolhidas} execucoes={d.execucoes.filter((e) => e.status === "ATIVA")}
+      {modal === "execucao" && <MoverExecucao user={user} contas={escAbertas} execucoes={d.execucoes.filter((e) => e.status === "ATIVA")}
         onClose={() => setModal(null)} onFeito={(r) => { setModal(null); setSel(new Set()); ok(`${r.movidas} conta(s) movida(s) para a execução.`); irExecucao(r.execucaoId); }} />}
       {modal === "card" && <CardCobrancaModal contas={escolhidas} onClose={() => setModal(null)} />}
       {modal === "email" && <EmailCobrancaModal user={user} contas={escolhidas} onClose={() => setModal(null)} />}
-      {modal === "baixar" && <BaixarAtrasadas user={user} contas={escolhidas}
+      {modal === "baixar" && <BaixarAtrasadas user={user} contas={escAbertas}
         onClose={() => setModal(null)} onFeito={(r) => { setModal(null); setSel(new Set()); ok(`${r.baixadas} conta(s) baixada(s) · ${moeda(r.valor)} recebido(s) em ${dBR(r.data)}.`); }} />}
-      {modal === "perda" && <ReconhecerPerda user={user} contas={escolhidas}
+      {modal === "perda" && <ReconhecerPerda user={user} contas={escAbertas}
         onClose={() => setModal(null)} onFeito={(r) => { setModal(null); setSel(new Set()); ok(`${r.perdas} perda(s) reconhecida(s) · ${moeda(r.valor)} lançado(s) na DRE de ${nomeMes(r.competencia)}.`); }} />}
     </div>
   );

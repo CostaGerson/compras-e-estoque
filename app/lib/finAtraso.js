@@ -36,18 +36,26 @@ const anota = (obs, txt) => [obs, txt].filter(Boolean).join(" · ").slice(0, 100
 export async function visaoAtraso() {
   const hoje = dUTC(hojeISO());
   { const { preencherEmissao } = await import("@/lib/finEmissao"); await preencherEmissao().catch(() => null); }   // v205: emissão da NF no card de cobrança
-  const [atrasadas, perdas, execs] = await Promise.all([
+  const [abertas, antVenc, perdas, execs] = await Promise.all([
     prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo: "RECEBER", status: "ABERTO", vencimento: { lt: hoje } }, orderBy: { vencimento: "asc" } }),
+    // v1135 — título antecipado (descontado) vencido que o cliente não pagou: no sistema está "pago" pelo banco,
+    // mas o cliente deve — entra em atrasados para a cobrança (o banco vai cobrar a recompra da Meridian)
+    prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo: "RECEBER", status: "PAGO", liquidadoEm: null, vencimento: { lt: hoje }, OR: [{ antecipadoForma: { not: null } }, { cobranca: "DESCONTADO" }] }, orderBy: { vencimento: "asc" } }),
     prisma.finTitulo.findMany({ where: { ...SEM_NORT, tipo: "RECEBER", status: "PERDA" }, orderBy: [{ perdaData: "desc" }, { id: "desc" }] }),
     listarExecucoes(),
   ]);
+  const recs = antVenc.some((t) => t.recompraId) ? await prisma.finTitulo.findMany({ where: { id: { in: antVenc.map((t) => t.recompraId).filter(Boolean) } }, select: { id: true, status: true, valor: true, vencimento: true } }) : [];
+  const recDe = new Map(recs.map((c) => [c.id, c]));
+  const atrasadas = [...abertas.map((t) => ({ t })), ...antVenc.map((t) => { const c = recDe.get(t.recompraId); return { t, antecipado: { forma: t.antecipadoForma || "BRADESCO",
+    recompra: c && c.status !== "CANCELADO" ? { id: c.id, status: c.status, valor: r2(c.valor), vencimento: c.vencimento.toISOString().slice(0, 10) } : null } }; })]
+    .sort((a, b) => a.t.vencimento - b.t.vencimento);
   // v205 — contato do cliente (cadastro) para a cobrança: e-mail, preposto, telefones
-  const docs = [...new Set(atrasadas.map((t) => String(t.documento || "").replace(/\D/g, "")).filter(Boolean))];
+  const docs = [...new Set(atrasadas.map(({ t }) => String(t.documento || "").replace(/\D/g, "")).filter(Boolean))];
   const cli = docs.length ? await prisma.cliente.findMany({ select: { cnpj: true, razaoSocial: true, nomeFantasia: true, emailNf: true, preposto: true, telefones: true } }).catch(() => []) : [];
   const porDoc = {};
   for (const c of cli) { const k = String(c.cnpj || "").replace(/\D/g, ""); if (k) porDoc[k] = c; }
   const comCli = (t) => { const c = porDoc[String(t.documento || "").replace(/\D/g, "")]; return { ...tOut(t), contato: c ? { razao: c.razaoSocial, fantasia: c.nomeFantasia, email: c.emailNf, preposto: c.preposto, telefones: c.telefones } : null }; };
-  return { atrasadas: atrasadas.map(comCli), perdas: perdas.map(tOut), execucoes: execs, mesAtual: mes(hojeISO()) };
+  return { atrasadas: atrasadas.map(({ t, antecipado }) => ({ ...comCli(t), ...(antecipado ? { antecipado } : {}) })), perdas: perdas.map(tOut), execucoes: execs, mesAtual: mes(hojeISO()) };
 }
 
 export async function listarExecucoes() {
