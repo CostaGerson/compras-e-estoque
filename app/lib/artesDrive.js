@@ -46,11 +46,51 @@ export async function testar() {
 }
 // leitura para baixar/visualizar: cache curto em memória (abrir a prévia e baixar logo depois não busca duas vezes)
 const cache = new Map();
+// v1133 — cópia em disco do que está no Drive (arquivos/gdrive-cache/<id>.bin + .json): abrir um layout não passa mais
+//   pelo Apps Script a cada vez (era lento: o arquivo inteiro vinha em base64). O 1º acesso grava; o envio ao Drive já grava.
+const idOk = (id) => /^[A-Za-z0-9_-]{10,120}$/.test(String(id || ""));
+async function dirCache() { const { DIR } = await import("@/lib/arquivos"); const path = await import("path"); return path.join(DIR, "gdrive-cache"); }
+export async function caminhoCacheDrive(id) {
+  if (!idOk(id)) return null;
+  const fs = await import("fs/promises"); const path = await import("path");
+  const d = await dirCache(), bin = path.join(d, `${id}.bin`);
+  try { const st = await fs.stat(bin); if (!st.size) return null; let meta = {}; try { meta = JSON.parse(await fs.readFile(path.join(d, `${id}.json`), "utf8")); } catch {} return { bin, tamanho: st.size, ...meta }; } catch { return null; }
+}
+let gravacoes = 0;
+export async function gravarCacheDrive(id, base64, { mime, nome } = {}) {
+  if (!idOk(id) || !base64) return;
+  try {
+    const fs = await import("fs/promises"); const path = await import("path");
+    const d = await dirCache(); await fs.mkdir(d, { recursive: true });
+    const tmp = path.join(d, `${id}.tmp${process.pid}`);
+    await fs.writeFile(tmp, Buffer.from(String(base64).replace(/^data:[^,]+,/, ""), "base64"));
+    await fs.rename(tmp, path.join(d, `${id}.bin`));
+    await fs.writeFile(path.join(d, `${id}.json`), JSON.stringify({ mime: mime || null, nome: nome || null }));
+    if (++gravacoes % 50 === 0) aparar().catch(() => null);
+  } catch (e) { console.log("drive/cache:", e.message); }
+}
+// mantém a pasta abaixo de ~8 GB: sai o que foi aberto há mais tempo
+async function aparar(max = 8 * 1024 ** 3) {
+  const fs = await import("fs/promises"); const path = await import("path");
+  const d = await dirCache();
+  const l = [];
+  for (const n of await fs.readdir(d)) if (n.endsWith(".bin")) { const st = await fs.stat(path.join(d, n)).catch(() => null); if (st) l.push({ n, t: st.atimeMs || st.mtimeMs, s: st.size }); }
+  let tot = l.reduce((a, x) => a + x.s, 0);
+  for (const x of l.sort((a, b) => a.t - b.t)) { if (tot <= max) break; await fs.unlink(path.join(d, x.n)).catch(() => null); await fs.unlink(path.join(d, x.n.replace(/\.bin$/, ".json"))).catch(() => null); tot -= x.s; }
+}
 export async function lerDoDrive(id) {
   const c = cache.get(id);
   if (c && Date.now() - c.em < 5 * 60e3) return c.r;
+  const dc = await caminhoCacheDrive(id);
+  if (dc) {
+    const fs = await import("fs/promises");
+    const r = { base64: (await fs.readFile(dc.bin)).toString("base64"), mime: dc.mime || null, nome: dc.nome || null };
+    fs.utimes(dc.bin, new Date(), new Date()).catch(() => null);
+    return r;
+  }
   const j = await chamar({ acao: "ler", id });
   const r = { base64: j.base64, mime: j.mime || null, nome: j.nome || null };
+  if (j.base64) await gravarCacheDrive(id, j.base64, r);
   if ((j.base64 || "").length < 30e6) { cache.set(id, { r, em: Date.now() }); if (cache.size > 30) cache.delete(cache.keys().next().value); }
   return r;
 }
@@ -140,6 +180,7 @@ export async function enviarPendentes(max = 3) {
       const igual = await prisma.arteArquivo.findFirst({ where: { hash: h, status: "ENVIADO", driveId: { not: null } } });
       const j = igual ? { id: igual.driveId, link: igual.driveLink } : await chamar({ acao: "enviar", nome: /\.[a-z0-9]{2,5}$/i.test(r.nome) ? r.nome : `${r.nome}${ext(c.mime)}`, mime: c.mime || "application/octet-stream", base64: b64, subpasta: subpasta(r) }, cfg);
       if (!j?.id) throw new Error("O Drive não devolveu o arquivo.");
+      if (!igual) await gravarCacheDrive(j.id, b64, { mime: r.mime || c.mime || null, nome: r.nome });   // v1133 — já fica a cópia local
       if (!igual && j.tamanho != null && Math.abs(Number(j.tamanho) - Buffer.byteLength(b64, "base64")) > 2) throw new Error(`Tamanho no Drive (${j.tamanho}) diferente do original — não troquei o arquivo.`);
       await prisma.arteArquivo.update({ where: { id: r.id }, data: { status: "ENVIADO", driveId: j.id, driveLink: j.link || null, hash: h, enviadoEm: new Date(), erro: null, conteudo: null, mime: r.mime || c.mime || null } });
       if (r.origem === "MANUAL" && c.bruto) { const { tokenDe, DIR } = await import("@/lib/arquivos"); const t = tokenDe(c.bruto); if (t) { const fs = await import("fs/promises"); const path = await import("path"); await fs.unlink(path.join(DIR, `${t}.bin`)).catch(() => null); } }
@@ -161,10 +202,21 @@ export async function enviarPendentes(max = 3) {
 }
 
 let rodando = false;
+// v1133 — traz para o disco, aos poucos, os arquivos do Drive dos últimos 60 dias (o 1º clique também fica rápido)
+async function aquecerCache(max = 15) {
+  const l = await prisma.arteArquivo.findMany({ where: { status: "ENVIADO", driveId: { not: null }, excluidoEm: null, createdAt: { gte: new Date(Date.now() - 60 * 86400e3) } }, select: { driveId: true, mime: true, nome: true }, orderBy: { createdAt: "desc" }, take: 400 });
+  let n = 0;
+  for (const x of l) {
+    if (n >= max) break;
+    if (await caminhoCacheDrive(x.driveId)) continue;
+    try { await lerDoDrive(x.driveId); n++; } catch { break; }
+  }
+  return n;
+}
 export async function sincronizarArtes() {
   if (rodando) return null;
   rodando = true;
-  try { const reg = await registrar(); const env = await enviarPendentes(); return { registrados: reg, ...env }; }
+  try { const reg = await registrar(); const env = await enviarPendentes(); const aq = await aquecerCache().catch(() => 0); return { registrados: reg, ...env, aquecidos: aq }; }
   finally { rodando = false; }
 }
 export function agendarArtes() {

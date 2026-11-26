@@ -87,7 +87,15 @@ export async function respostaAnexo(b64, { nome, mime } = {}) {
   if (t) return resposta(t, { nome, mime });
   const g = driveDe(b64);
   if (g) {   // v1003 — vem do Google Drive
-    const r = await (await import("@/lib/artesDrive")).lerDoDrive(g).catch((e) => ({ error: e.message }));
+    // v1133 — cópia em disco: envia o arquivo direto do disco (sem base64) e o navegador guarda por 1 dia (o id do Drive não muda de conteúdo)
+    const AD = await import("@/lib/artesDrive");
+    let dc = await AD.caminhoCacheDrive(g);
+    if (!dc) { await AD.lerDoDrive(g).catch(() => null); dc = await AD.caminhoCacheDrive(g); }
+    if (dc) {
+      const fs0 = await import("fs/promises");
+      return new Response(await fs0.readFile(dc.bin), { headers: { "Cache-Control": "private, max-age=86400", "Content-Type": mime || dc.mime || "application/octet-stream", "Content-Length": String(dc.tamanho), "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(nome || dc.nome || "arquivo")}` } });
+    }
+    const r = await AD.lerDoDrive(g).catch((e) => ({ error: e.message }));
     if (!r?.base64) return new Response(`Não foi possível ler o arquivo no Google Drive${r?.error ? `: ${r.error}` : ""}.`, { status: 502 });
     return new Response(Buffer.from(r.base64, "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": mime || r.mime || "application/octet-stream", "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(nome || r.nome || "arquivo")}` } });
   }

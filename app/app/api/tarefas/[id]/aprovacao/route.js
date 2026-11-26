@@ -21,7 +21,7 @@ export async function GET(req, { params }) {
       await (await import("@/lib/arquivos")).garantirDiscoTarefa({ ids: [Number(sp.get("arquivo")) || 0] });   // v1038
       const a = await prisma.tarefaArquivo.findUnique({ where: { id: Number(sp.get("arquivo")) || 0 } });
       if (!a || !ids.has(a.tarefaId)) return new Response("Não encontrado.", { status: 404 });
-      return new Response(Buffer.from((await lerB64(a.conteudo)) || "", "base64"), { headers: { "Cache-Control": "no-store", "Content-Type": a.mime || "application/octet-stream", "Content-Disposition": `inline; filename="${encodeURIComponent(a.nome)}"` } });
+      return (await import("@/lib/arquivos")).respostaAnexo(a.conteudo, { nome: a.nome, mime: a.mime });   // v1133 — disco/cópia do Drive, sem base64 na memória
     }
     const v = vs.find((x) => x.tarefaId === Number(sp.get("versao")));
     if (!v) return new Response("Não encontrado.", { status: 404 });
