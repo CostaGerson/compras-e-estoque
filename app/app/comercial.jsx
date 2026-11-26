@@ -3022,7 +3022,7 @@ function custoMpExtras(l) {
   }, 0);
 }
 // v839 — grade única da matéria-prima: artigo · custo · rendimento/consumo · (forrada) · R$/peça
-const mpGrid = (forrada) => "minmax(0,1fr) 130px 150px" + (forrada ? " 110px" : "") + " 104px";
+const mpGrid = (forrada) => "minmax(0,1fr) 130px 165px" + (forrada ? " 110px" : "") + " 104px";
 function CustoPeca({ valor, onRemover }) {
   return (
     <div>
@@ -3037,9 +3037,9 @@ function CustoPeca({ valor, onRemover }) {
 function UnidadeSeg({ rend, onChange }) {
   const b = (on) => ({ background: on ? C.accent : "#fff", color: on ? "#fff" : C.sub, border: `1px solid ${on ? C.accent : C.line}` });
   return (
-    <div className="flex items-center justify-between mb-1" style={{ height: 16 }}>
-      <span className="text-xs" style={{ color: C.sub }}>{rend ? "Rendimento" : "Consumo"}</span>
-      <span className="flex text-[10px] font-semibold leading-none">
+    <div className="flex items-center justify-between gap-1 mb-1" style={{ height: 16 }}>   {/* v1146 — rótulo encurta em vez de encavalar no seletor */}
+      <span className="text-xs truncate min-w-0" style={{ color: C.sub }} title={rend ? "Rendimento (peças por kg)" : "Consumo (metros por peça)"}>{rend ? "Rend." : "Consumo"}</span>
+      <span className="flex text-[10px] font-semibold leading-none shrink-0">
         <button type="button" onClick={() => onChange("RENDIMENTO")} className="px-1.5 py-0.5 rounded-l" style={b(rend)} title="Rendimento: peças por kg">pç/kg</button>
         <button type="button" onClick={() => onChange("CONSUMO")} className="px-1.5 py-0.5 rounded-r" style={{ ...b(!rend), marginLeft: -1 }} title="Consumo: metros por peça">m/pç</button>
       </span>
