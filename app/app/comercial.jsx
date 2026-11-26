@@ -715,7 +715,27 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
       <style>{`.fpp-maiusc, .fpp-maiusc input:not([type=number]):not([type=date]):not([type=email]):not([type=password]), .fpp-maiusc textarea, .fpp-maiusc select, .fpp-maiusc option, .fpp-maiusc button{text-transform:uppercase}
         .fpp-maiusc input::placeholder, .fpp-maiusc textarea::placeholder{text-transform:none}
         .fpp-maiusc td{font-size:.9em}
-        .fpp-maiusc input:not([type=number]):not([type=date]):not([type=checkbox]):not([type=radio]), .fpp-maiusc textarea, .fpp-maiusc select{font-size:13px}`}</style>
+        .fpp-maiusc input:not([type=number]):not([type=date]):not([type=checkbox]):not([type=radio]), .fpp-maiusc textarea, .fpp-maiusc select{font-size:13px}
+        .fpp-barra{display:none}
+        @media (max-width:767px){
+          .fpp-maiusc .fpp-g1{grid-template-columns:minmax(0,1fr)!important}
+          .fpp-maiusc .fpp-g2{grid-template-columns:repeat(2,minmax(0,1fr))!important;column-gap:10px!important;row-gap:10px!important}
+          .fpp-maiusc .fpp-f1>:first-child{grid-column:1/-1}
+          .fpp-maiusc .fpp-id>:nth-child(2),.fpp-maiusc .fpp-id>:nth-child(3){grid-column:1/-1}
+          .fpp-maiusc .fpp-fin1>:nth-child(2){grid-column:1/-1;order:3}
+          .fpp-maiusc .fpp-cab{display:none!important}
+          .fpp-maiusc .fpp-exc{grid-template-columns:minmax(0,1fr) 92px auto auto!important}
+          .fpp-maiusc .fpp-pag>div:empty{display:none}
+          .fpp-maiusc .fpp-pag>:first-child{padding-top:0}
+          .fpp-maiusc .fpp-g2.px-4{padding:10px!important}
+          .fpp-maiusc .fpp-res{position:static!important;max-height:none!important;overflow:visible!important}
+          .fpp-maiusc .rounded-xl.p-4{padding:12px}
+          .fpp-maiusc .av-row{padding:10px!important;gap:12px!important}
+          .fpp-maiusc .av-row>div{flex-basis:100%!important}
+          .fpp-maiusc .fpp-ficha{padding-bottom:76px}
+          .fpp-maiusc .w-72{max-width:calc(100vw - 32px)}
+          .fpp-barra{display:flex}
+        }`}</style>
       {/* topo: abas ficha/banco (o tipo é definido pela peça) */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex gap-1 flex-1" style={{ borderBottom: `1px solid ${C.line}` }}>
@@ -748,13 +768,15 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
       {itemPadrao && <ItemPadraoModal id={itemPadrao.id || null} fppInicialId={itemPadrao.fppId || null} user={user} componentes={componentes}
         onClose={() => setItemPadrao(null)} onSaved={() => { setItemPadrao(null); alerta("Item padrão salvo. Ele já aparece no lançamento do pedido para o cliente (e no portal, se o cliente tiver)."); }} />}
 
+      {/* v1130 — celular: barra fixa no rodapé com a margem, o total e o salvar (os resultados ficam no fim da ficha) */}
+      {aba === "ficha" && <BarraFppCel r={r} f={f} salvar={salvar} salvando={salvando} editId={editId} />}
       {aba === "ficha" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 fpp-ficha">
           {/* coluna de entradas */}
           <div className="lg:col-span-2 space-y-4">
             <Card title="Identificação">
               {/* v690 — linha 1: item · nome comercial · cliente · qtde; linha 2: negociação + alterar parâmetros */}
-              <div className="grid gap-3 items-end" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.2fr) 90px" }}>
+              <div className="grid gap-3 items-end fpp-g2 fpp-f1 fpp-id" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.2fr) 90px" }}>
                 <Combo label="Item (peça)" value={f.item} options={pecasAll.map((p) => p.chave)}
                   onChange={escolherPeca} onPick={escolherPeca} placeholder="Digite a peça…" />
                 <Inp label="Nome comercial do item" value={f.nomeComercial} onChange={(v) => set("nomeComercial", v)} text full />
@@ -765,7 +787,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                   onCreated={(c) => { setClientes((l) => [c, ...l]); setF((s) => ({ ...s, clienteNome: c.razaoSocial, clienteId: c.id, clienteGrupoId: null })); }} />
                 <Inp full label="Qtde" value={f.qtde} onChange={(v) => set("qtde", v)} />
               </div>
-              <div className="grid gap-3 items-end mt-3" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,2.4fr)" }}>
+              <div className="grid gap-3 items-end mt-3 fpp-g1" style={{ gridTemplateColumns: "minmax(0,1fr) minmax(0,2.4fr)" }}>
                 <Combo label="Negociação" value={f.negociacao} options={negs} livre
                   onChange={(v) => set("negociacao", String(v || "").toUpperCase())} onPick={(v) => set("negociacao", String(v || "").toUpperCase())}
                   placeholder="Escolha ou digite uma nova…" />
@@ -791,7 +813,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
             {revenda && (
               <Card title="Produto revenda">
                 {/* v512 — revenda: só o preço de custo do produto pronto; o resto (personalização, lead time, logística, financeiro) segue igual */}
-                <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "minmax(0,1.4fr) minmax(0,0.8fr) minmax(0,1fr) 160px" }}>
+                <div className="grid gap-3 items-start fpp-g2 fpp-f1" style={{ gridTemplateColumns: "minmax(0,1.4fr) minmax(0,0.8fr) minmax(0,1fr) 160px" }}>
                   <Inp full text label="Descrição do produto" value={f.revendaDescricao} onChange={(v) => set("revendaDescricao", v.toUpperCase())} placeholder="ex.: BONÉ TRUCKER, GARRAFA TÉRMICA…" />
                   <Inp full text label="Marca" value={f.revendaMarca || ""} onChange={(v) => set("revendaMarca", v.toUpperCase())} />
                   <Inp full text label="Fornecedor" value={f.revendaFornecedor} onChange={(v) => set("revendaFornecedor", v.toUpperCase())} />
@@ -807,7 +829,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
             {!revenda && <Card title="Matéria-prima">
               {/* v411 — linhas na mesma grade: artigo · custo · consumo/rendimento · (forrada) */}
               <div className="space-y-3">
-                <div className="grid gap-3 items-start" style={{ gridTemplateColumns: mpGrid(tipo === "PLANO" || aberta) }}>
+                <div className="grid gap-3 items-start fpp-g2 fpp-f1" style={{ gridTemplateColumns: mpGrid(tipo === "PLANO" || aberta) }}>
                   <ArtigoNomeDet label={tipo === "MALHA" ? "Artigo (malha)" : "Artigo (tecido externo)"} nome={f.nomeArtigo} det={f.artigoDet} categoria={tipo === "MALHA" ? "MALHA" : "TECIDO"}
                     onNome={(v) => set("nomeArtigo", v.toUpperCase())} onDet={(d) => setF((o) => ({ ...o, artigoDet: d, nomeComercial: comCor(o.nomeComercial, o.artigoDet?.cor, d?.cor) }))} podeVariar
                     onPick={({ nome, det, custo }) => setF((o) => ({ ...o, nomeArtigo: String(nome || "").toUpperCase(), artigoDet: det, nomeComercial: comCor(o.nomeComercial, o.artigoDet?.cor, det?.cor), ...(custo != null ? { mpValor: custo } : {}) }))} />
@@ -828,7 +850,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                   <CustoPeca valor={r?.mpBase} />
                 </div>
                 {(tipo === "PLANO" || aberta) && f.forrada && (
-                  <div className="grid gap-3 items-start" style={{ gridTemplateColumns: mpGrid(true) }}>
+                  <div className="grid gap-3 items-start fpp-g2 fpp-f1" style={{ gridTemplateColumns: mpGrid(true) }}>
                     <ArtigoNomeDet label="Artigo (forro)" nome={f.nomeArtigoForro} det={f.artigoForroDet} categoria="TECIDO"
                       onNome={(v) => set("nomeArtigoForro", v.toUpperCase())} onDet={(d) => set("artigoForroDet", d)}
                       onPick={({ nome, det, custo }) => setF((o) => ({ ...o, nomeArtigoForro: String(nome || "").toUpperCase(), artigoForroDet: det, ...(custo != null ? { forroValor: custo } : {}) }))} />
@@ -960,7 +982,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
             </div>
 
             <Card title="Logística e embalagem">
-              <div className="grid gap-3 items-end" style={{ gridTemplateColumns: "180px minmax(0,1.4fr) minmax(0,1fr)" }}>   {/* v975 — em maiúsculas o rótulo quebrava: coluna maior e campos alinhados pela base */}
+              <div className="grid gap-3 items-end fpp-g1" style={{ gridTemplateColumns: "180px minmax(0,1.4fr) minmax(0,1fr)" }}>   {/* v975 — em maiúsculas o rótulo quebrava: coluna maior e campos alinhados pela base */}
                 <Inp full label="Frete por volume (R$)" value={f.freteVolume} onChange={(v) => set("freteVolume", v)} />
                 <Combo label="Embalagem externa" value={f.embExt} onChange={(v) => set("embExt", v)} options={embExts.map((g) => g.chave)} placeholder="Digite…" />
                 <Combo label="Embalagem interna" value={f.embInt} onChange={(v) => set("embInt", v)} options={embInts.map((g) => g.chave)} placeholder="Digite…" />
@@ -981,7 +1003,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
             <Card title="Operação financeira">
               {/* v689 — card no padrão da personalização: prazo de pagamento › operações e comissão › valor proposto */}
               <PagamentoFpp pag={pagamentoFpp(f)} onChange={(p) => set("pagamento", p)} total={num(f.valorProposto) * Math.max(1, num(f.qtde))} fr={r?.pagFr} />
-              <div className="grid gap-4 items-start px-4 py-3 rounded-lg mt-3" style={{ background: C.panel2, gridTemplateColumns: "minmax(150px,1fr) minmax(240px,1.4fr) minmax(130px,0.8fr)" }}>
+              <div className="grid gap-4 items-start px-4 py-3 rounded-lg mt-3 fpp-g2 fpp-fin1" style={{ background: C.panel2, gridTemplateColumns: "minmax(150px,1fr) minmax(240px,1.4fr) minmax(130px,0.8fr)" }}>
                 <CampoFin t="Op. investimento">
                   <Toggle on={f.opInvest === "SIM"} onChange={(v) => set("opInvest", v ? "SIM" : "NAO")} />
                 </CampoFin>
@@ -1000,7 +1022,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                   <input value={f.comissaoPct} onChange={(e) => set("comissaoPct", e.target.value)} inputMode="decimal" placeholder="ex.: 3" className="w-full h-full px-2 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
                 </CampoFin>
               </div>
-              <div className="grid gap-4 items-start px-4 py-3 rounded-lg mt-2" style={{ background: C.panel2, gridTemplateColumns: "minmax(150px,1fr) minmax(240px,1.4fr) minmax(130px,0.8fr)" }}>
+              <div className="grid gap-4 items-start px-4 py-3 rounded-lg mt-2 fpp-g2 fpp-f1" style={{ background: C.panel2, gridTemplateColumns: "minmax(150px,1fr) minmax(240px,1.4fr) minmax(130px,0.8fr)" }}>
                 <CampoFin t="Valor proposto (R$)">
                   <input value={f.valorProposto} onChange={(e) => set("valorProposto", e.target.value)} inputMode="decimal" placeholder={r?.sugestao ? brl(r.sugestao).replace("R$ ", "") : ""} className="w-full h-full px-2 rounded text-sm font-semibold" style={{ background: "#fff", border: `1px solid ${C.accent}`, color: C.text }} />
                 </CampoFin>
@@ -1019,7 +1041,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
 
           {/* coluna de resultados */}
           <div className="space-y-4">
-            <div style={{ position: "sticky", top: 0, maxHeight: "calc(100vh - 16px)", overflowY: "auto" }} className="space-y-4">
+            <div id="fpp-resultados" style={{ position: "sticky", top: 0, maxHeight: "calc(100vh - 16px)", overflowY: "auto" }} className="space-y-4 fpp-res">
             <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-lg p-4">
               <div className="text-sm font-semibold mb-3" style={{ color: C.text }}>Resultados</div>
               {r && (
@@ -2192,7 +2214,7 @@ function PersAplicacoes({ lista, onChange, params, qtde, item, fppId, user, subT
         return (
           <div key={a.uid || i} className="mb-2">
           <div className="flex items-center gap-2">
-            <div className="flex-1 grid gap-4 items-center px-4 py-3 rounded-lg" style={{ background: C.panel2, gridTemplateColumns: "minmax(120px,1.3fr) minmax(120px,1.3fr) minmax(100px,1fr) minmax(130px,1.1fr) minmax(110px,1fr) auto" }}>
+            <div className="flex-1 grid gap-4 items-center px-4 py-3 rounded-lg fpp-g2" style={{ background: C.panel2, gridTemplateColumns: "minmax(120px,1.3fr) minmax(120px,1.3fr) minmax(100px,1fr) minmax(130px,1.1fr) minmax(110px,1fr) auto" }}>
               {/* v659 — método primeiro; sublimação tem o local "Total" */}
               {lbl("Método", <select value={a.metodo} onChange={(e) => mud(i, "metodo", e.target.value)} className="w-full h-full px-2 rounded text-sm" style={sel}>
                 {METODOS_PERS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
@@ -2880,6 +2902,33 @@ function AnexosFpp({ fppId, user }) {
   );
 }
 
+// v1130 — barra do celular: margem de contribuição, total do item, atalho para os resultados e o botão de salvar
+function BarraFppCel({ r, f, salvar, salvando, editId }) {
+  const m = r?.margem;
+  const cor = m == null ? "#9FB0C7" : m >= 0.3 ? "#3DD68C" : m >= 0.16 ? "#F5B83D" : "#FF6B6B";
+  const bloqueado = salvando || (r?.pagFr && !r.pagFr.ok);
+  return (
+    <div className="fpp-barra fixed left-0 right-0 bottom-0 z-20 items-center gap-2 px-3 pt-2"
+      style={{ background: "#001E41", paddingBottom: "calc(8px + env(safe-area-inset-bottom))", boxShadow: "0 -4px 16px rgba(0,0,0,.18)" }}>
+      <button type="button" onClick={() => document.getElementById("fpp-resultados")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        className="flex-1 min-w-0 flex items-center gap-3 text-left" style={{ color: "#fff" }}>
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold" style={{ color: "#9FB0C7" }}>MARGEM</div>
+          <div className="text-lg font-extrabold leading-tight tabular-nums" style={{ color: cor }}>{m == null ? "—" : pct(m)}</div>
+        </div>
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold" style={{ color: "#9FB0C7" }}>{num(f.valorProposto) > 0 ? "TOTAL DO ITEM" : "CUSTO FINAL/PÇ"}</div>
+          <div className="text-sm font-bold leading-tight tabular-nums truncate">{r ? brl(num(f.valorProposto) > 0 ? r.totalItem : r.custoFinal) : "—"}</div>
+        </div>
+        <ChevronDown size={16} style={{ color: "#9FB0C7", flexShrink: 0 }} />
+      </button>
+      <button type="button" onClick={salvar} disabled={salvando} className="flex items-center gap-1.5 px-4 rounded-lg text-sm font-bold shrink-0"
+        style={{ height: 42, background: C.accent, color: "#fff", opacity: bloqueado ? 0.6 : 1 }}>
+        <Save size={16} /> {salvando ? "Salvando…" : editId ? "Atualizar" : "Salvar"}
+      </button>
+    </div>
+  );
+}
 function Card({ title, children }) {
   return (
     <div style={{ background: C.panel, border: `1px solid ${C.line}` }} className="rounded-xl p-4">
@@ -2964,7 +3013,7 @@ function MpExtras({ lista, onChange, cols }) {
       {l.map((x, i) => {
         const rend = x.modo === "RENDIMENTO";
         return (
-          <div key={i} className="grid gap-3 items-start" style={{ gridTemplateColumns: mpGrid(cols) }}>
+          <div key={i} className="grid gap-3 items-start fpp-g2 fpp-f1" style={{ gridTemplateColumns: mpGrid(cols) }}>
             <ArtigoNomeDet label={`Matéria-prima adicional ${i + 1}`} nome={x.nome} det={x.det} categoria={rend ? "MALHA" : "TECIDO"}
               onNome={(v) => alt(i, "nome", v.toUpperCase())} onDet={(d) => alt(i, "det", d)}
               onPick={({ nome, det, custo }) => onChange(l.map((y, j) => (j === i ? { ...y, nome: String(nome || "").toUpperCase(), det, ...(custo != null ? { custo } : {}) } : y)))} />
@@ -3006,14 +3055,14 @@ function AvExtras({ lista, onChange }) {
       {l.length > 0 && (
         <div className="space-y-2 mb-2">
           <div className="text-xs font-semibold" style={{ color: C.sub }}>Aviamentos adicionais</div>
-          <div className="grid gap-2 text-xs" style={{ ...grid, color: C.sub }}>
+          <div className="grid gap-2 text-xs fpp-cab" style={{ ...grid, color: C.sub }}>
             <span>Aviamento</span><span>Unidade</span><span>Consumo/peça</span><span>R$ por un/m</span><span>R$/pç</span><span />
           </div>
           {l.map((x0, i) => {
             const x = avExtraNorm(x0);
             return (
               <div key={i}>
-                <div className="grid gap-2 items-center" style={grid}>
+                <div className="grid gap-2 items-center fpp-g2 fpp-f1 fpp-avx" style={grid}>
                   <div className="flex gap-1">
                     <input value={sc(x.desc || "")} onChange={(e) => alt(i, "desc", e.target.value.toUpperCase())} placeholder="Ex.: zíper, etiqueta, velcro…"
                       className="w-full px-2 py-1.5 rounded text-sm" style={sel} />
@@ -3051,12 +3100,12 @@ function ExtrasCustos({ lista, onChange, comDet }) {
     <div className="mt-3">
       {l.length > 0 && (
         <div className="space-y-2 mb-2">
-          <div className="grid gap-2 text-xs" style={{ gridTemplateColumns: cols, color: C.sub }}>
+          <div className="grid gap-2 text-xs fpp-cab" style={{ gridTemplateColumns: cols, color: C.sub }}>
             <span>Custo extra (descrição)</span><span>Valor (R$ por peça)</span><span />{comDet && <span />}
           </div>
           {l.map((x, i) => (
             <React.Fragment key={i}>
-            <div className="grid gap-2 items-center" style={{ gridTemplateColumns: cols }}>
+            <div className="grid gap-2 items-center fpp-exc" style={{ gridTemplateColumns: cols }}>
               <input value={sc(x.desc || "")} onChange={(e) => alt(i, "desc", e.target.value.toUpperCase())} placeholder="Ex.: zíper, etiqueta, lavagem…"
                 className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, color: C.text }} />
               <input value={x.valor ?? ""} onChange={(e) => alt(i, "valor", e.target.value)} inputMode="decimal" placeholder="0,00 por peça"
@@ -3122,7 +3171,7 @@ function PagamentoFpp({ pag, onChange, total, fr }) {
   // função (não componente) para os inputs não perderem o foco ao digitar
   const linha = (key, nome, onDel, children) => (
     <div key={key} className="flex items-center gap-2 mb-2">
-      <div className="flex-1 grid gap-4 items-center px-4 py-3 rounded-lg" style={{ background: C.panel2, gridTemplateColumns: cols }}>
+      <div className="flex-1 grid gap-4 items-center px-4 py-3 rounded-lg fpp-g2 fpp-f1 fpp-pag" style={{ background: C.panel2, gridTemplateColumns: cols }}>
         <div className="text-sm font-semibold pt-4" style={{ color: C.text }}>{nome}</div>
         {children}
       </div>
@@ -3210,7 +3259,7 @@ function CoresRevenda({ cor, variar, onCor, onVariar }) {
     setNova("");
   };
   return (
-    <div className="grid gap-3 items-start mt-3" style={{ gridTemplateColumns: "200px minmax(0,1fr)" }}>
+    <div className="grid gap-3 items-start mt-3 fpp-g1" style={{ gridTemplateColumns: "200px minmax(0,1fr)" }}>
       <Inp full text label="Cor desta FPP" value={cor} onChange={(v) => onCor(v.toUpperCase())} placeholder="ex.: PRETO" />
       <div>
         <div className="text-xs mb-1 whitespace-nowrap" style={{ color: C.sub }}>Variar cores (uma FPP por cor ao salvar)</div>
