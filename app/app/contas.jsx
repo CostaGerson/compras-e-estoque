@@ -493,6 +493,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
   // seleção: só contas em aberto; o resumo usa tudo que está na tela (período + vencidos anteriores)
   const porId = useMemo(() => Object.fromEntries([...(d?.periodo || []), ...(d?.titulos || []), ...(d?.atrasados || [])].map((t) => [t.id, t])), [d]);
   const marcados = [...sel].map((id) => porId[id]).filter((t) => t && t.status === "ABERTO");
+  const [relSel, setRelSel] = useState(false);   // v1137
   const marcar = (ids, on) => setSel((x) => { const n = new Set(x); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
   const fazerLote = async (acao, dataPagamento) => {
     try {
@@ -717,6 +718,8 @@ export default function ContasPagarReceber({ user, inicial = null }) {
               <button onClick={() => setLote("baixar")} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.green, color: "#fff" }}><CheckCircle2 size={14} /> {P ? "Baixar" : "Receber"}</button>
               {!P && <BotaoNfs user={user} ids={marcados.map((t) => t.id)} estilo={{ background: "#fff", color: C.navy }} />}   {/* v903 */}
               <button onClick={() => setLote("excluir")} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.red, color: "#fff" }}><Trash2 size={14} /> Excluir</button>
+              {/* v1137 — R: relatório dos títulos selecionados (copiar como imagem ou baixar em PDF) */}
+              <button onClick={() => setRelSel(true)} title="Relatório dos títulos selecionados" className="flex items-center justify-center rounded-lg text-xs font-black" style={{ width: 30, height: 30, background: "#fff", color: C.navy }}>R</button>
               <button onClick={() => setSel(new Set())} className="px-2 py-1.5 text-xs underline" style={{ color: "#fff" }}>limpar</button>
             </div>
           )}
@@ -754,6 +757,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
       {modal?.t === "ia" && <AnaliseTitulosModal user={user} tipo={tipo} dIni={dIni} dFim={dFim < dIni ? dIni : dFim} contas={d?.contas || []} contasPorId={contasPorId}
         onEditar={(t) => setModal({ t: "titulo", item: t })} onClose={() => { setModal(null); carregar(); }} />}
       {lote && <LoteModal acao={lote} P={P} itens={marcados} onClose={() => setLote(null)} onOk={fazerLote} />}
+      {relSel && <RelatorioTitulos P={P} itens={[...sel].map((id) => porId[id]).filter(Boolean).sort((a, b) => String(a.vencimento).localeCompare(String(b.vencimento)) || a.id - b.id)} onClose={() => setRelSel(false)} />}
     </div>
   );
 }
@@ -1933,6 +1937,93 @@ export function RemessaModal({ user, onClose, onSalvo, iniciais }) {
 }
 
 /* ---------------- ações em lote ---------------- */
+// v1137 — relatório dos títulos selecionados: desenhado num canvas (prévia), copiado como imagem ou salvo em PDF (A4, paginado)
+function desenharRelatorio(itens, P) {
+  const W = 1240, PAD = 40, LH = 34;
+  const cols = [["Vencimento", 120], ["Título", 360], [P ? "Fornecedor" : "Cliente", 300], ["Nº doc.", 130], ["Situação", 130], ["Valor", 120]];
+  const H = PAD + 92 + 40 + itens.length * LH + 70 + PAD;
+  const esc = H * 2 <= 30000 ? 2 : Math.max(0.5, Math.min(1, 30000 / H));   // canvas tem limite de altura
+  const cv = document.createElement("canvas"); cv.width = W * esc; cv.height = H * esc;
+  const g = cv.getContext("2d"); g.scale(esc, esc);
+  g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
+  const fonte = (px, peso = 400) => { g.font = `${peso} ${px}px Inter, "Segoe UI", Arial, sans-serif`; };
+  const corta = (txt, max) => { let t = String(txt ?? ""); if (g.measureText(t).width <= max) return t; while (t && g.measureText(t + "…").width > max) t = t.slice(0, -1); return t + "…"; };
+  // cabeçalho
+  g.fillStyle = "#001E41"; g.fillRect(0, 0, W, 8);
+  fonte(26, 800); g.fillStyle = "#001E41"; g.fillText(`Contas a ${P ? "pagar" : "receber"} — ${itens.length} título(s)`, PAD, PAD + 30);
+  fonte(14); g.fillStyle = "#667085";
+  const vs = itens.map((t) => t.vencimento).filter(Boolean).sort();
+  g.fillText(`Meridian · vencimentos de ${dBR(vs[0])} a ${dBR(vs[vs.length - 1])} · gerado em ${new Date().toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`, PAD, PAD + 58);
+  // tabela
+  let y = PAD + 92;
+  g.fillStyle = "#F1F3F5"; g.fillRect(PAD, y, W - 2 * PAD, 40);
+  fonte(13, 700); g.fillStyle = "#667085";
+  let x = PAD + 12;
+  for (const [n, w] of cols) { if (n === "Valor") { g.textAlign = "right"; g.fillText(n.toUpperCase(), x + w - 12, y + 25); g.textAlign = "left"; } else g.fillText(n.toUpperCase(), x, y + 25); x += w; }
+  y += 40;
+  itens.forEach((t, i) => {
+    if (i % 2) { g.fillStyle = "#FAFBFC"; g.fillRect(PAD, y, W - 2 * PAD, LH); }
+    const st = situacao(t);
+    const cel = [dBR(t.vencimento), t.titulo, t.parceiro, t.numeroDoc || "—", st.t, moeda(t.valor).replace(" ", " ")];
+    x = PAD + 12;
+    cols.forEach(([n, w], k) => {
+      fonte(14, k === 5 || k === 1 ? 600 : 400);
+      g.fillStyle = k === 4 ? st.c : "#1F2733";
+      if (k === 5) { g.textAlign = "right"; g.fillText(cel[k], x + w - 12, y + 22); g.textAlign = "left"; }
+      else g.fillText(corta(cel[k], w - 16), x, y + 22);
+      x += w;
+    });
+    g.strokeStyle = "#E4E7EC"; g.beginPath(); g.moveTo(PAD, y + LH); g.lineTo(W - PAD, y + LH); g.stroke();
+    y += LH;
+  });
+  // total
+  const total = itens.reduce((a, t) => a + (Number(t.valor) || 0), 0);
+  y += 14; g.fillStyle = "#001E41"; g.fillRect(W - PAD - 380, y, 380, 44);
+  fonte(15, 600); g.fillStyle = "#fff"; g.fillText(`TOTAL (${itens.length})`, W - PAD - 364, y + 28);
+  fonte(18, 800); g.textAlign = "right"; g.fillText(moeda(total).replace(" ", " "), W - PAD - 16, y + 29); g.textAlign = "left";
+  return { cv, W, H };
+}
+function RelatorioTitulos({ P, itens, onClose }) {
+  const [img, setImg] = useState(null);
+  const [msg, setMsg] = useState("");
+  const ref = useRef(null);
+  useEffect(() => { const r = desenharRelatorio(itens, P); ref.current = r; setImg(r.cv.toDataURL("image/png")); }, []);
+  const nome = `contas-a-${P ? "pagar" : "receber"}-${itens.length}-titulos-${hojeISO()}`;
+  const copiar = async () => {
+    try {
+      const blob = await new Promise((ok) => ref.current.cv.toBlob(ok, "image/png"));
+      await navigator.clipboard.write([new window.ClipboardItem({ "image/png": blob })]);
+      setMsg("✓ Imagem copiada — cole no WhatsApp ou e-mail.");
+    } catch { const a = document.createElement("a"); a.href = img; a.download = `${nome}.png`; a.click(); setMsg("O navegador não deixou copiar: a imagem foi baixada."); }
+    setTimeout(() => setMsg(""), 4000);
+  };
+  const pdf = async () => {
+    const { jsPDF } = await import("jspdf");
+    const { cv, W, H } = ref.current;
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pw = 210, ph = 297, m = 8, lw = pw - 2 * m;
+    const mmPorPx = lw / W, fatiaPx = Math.floor((ph - 2 * m) / mmPorPx);
+    for (let y0 = 0, pg = 0; y0 < H; y0 += fatiaPx, pg++) {
+      const h = Math.min(fatiaPx, H - y0);
+      const c = document.createElement("canvas"); c.width = cv.width; c.height = Math.ceil(h * (cv.width / W));
+      c.getContext("2d").drawImage(cv, 0, y0 * (cv.width / W), cv.width, c.height, 0, 0, cv.width, c.height);
+      if (pg) doc.addPage();
+      doc.addImage(c.toDataURL("image/png"), "PNG", m, m, lw, h * mmPorPx);
+    }
+    doc.save(`${nome}.pdf`);
+  };
+  return (
+    <Modal titulo={`Relatório · ${itens.length} título(s) selecionado(s)`} icone={FileText} onClose={onClose} largura={900}
+      rodape={<>
+        {msg && <span className="mr-auto text-xs font-semibold" style={{ color: /✓/.test(msg) ? C.green : C.sub }}>{msg}</span>}
+        <button onClick={copiar} disabled={!img} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.accent}`, color: C.accent, background: "#fff" }}><CopyIco size={15} /> Copiar imagem</button>
+        <BtnP onClick={pdf} disabled={!img}><Download size={15} /> Baixar PDF</BtnP>
+      </>}>
+      {img ? <img src={img} alt="Relatório dos títulos" className="w-full rounded-lg" style={{ border: `1px solid ${C.line}` }} />
+        : <div className="text-sm flex items-center gap-2" style={{ color: C.sub }}><Loader2 size={14} className="animate-spin" /> Montando…</div>}
+    </Modal>
+  );
+}
 function LoteModal({ acao, P, itens, onClose, onOk }) {
   const [dt, setDt] = useState(hojeISO());
   const [s, setS] = useState(false);
