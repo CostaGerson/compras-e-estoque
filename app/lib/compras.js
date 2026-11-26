@@ -279,8 +279,13 @@ export async function artigoDaFpp(m, fpp, db = prisma, { criar = true } = {}) { 
     const f = await db.fornecedor.findFirst({ where: { OR: [{ nome: { equals: nm, mode: "insensitive" } }, { nomeFantasia: { equals: nm, mode: "insensitive" } }, { razaoSocial: { equals: nm, mode: "insensitive" } }] }, select: { id: true } }).catch(() => null);
     if (f) k.fornecedorId = f.id;
   }
-  const cands = await db.artigo.findMany({ where: { ativo: true, categoria: m.categoria, unidade: m.unidade, nome: { equals: m.nome, mode: "insensitive" } },   // v410 — mesma unidade
-    select: { id: true, fornecedorId: true, cor: true, codigo: true, origem: true } });
+  // v1143 — nome padrão (sem fornecedor/cor dentro) e busca pelo nome normalizado: o mesmo artigo não nasce duas vezes
+  const { nomePadrao, chaveNome } = await import("@/lib/artigoPadrao");
+  const fornNome = k.fornecedorId ? (await db.fornecedor.findUnique({ where: { id: k.fornecedorId }, select: { nome: true, nomeFantasia: true } }).catch(() => null)) : null;
+  const nomeStd = nomePadrao(m.nome, { fornecedor: fornNome?.nome || fornNome?.nomeFantasia || m.det?.fornecedorNome, cor: k.cor });
+  const kn = new Set([chaveNome(m.nome), chaveNome(nomeStd)]);
+  const cands = (await db.artigo.findMany({ where: { ativo: true, categoria: m.categoria, unidade: m.unidade, ...(k.fornecedorId ? { fornecedorId: k.fornecedorId } : {}) },   // v410 — mesma unidade
+    select: { id: true, nome: true, fornecedorId: true, cor: true, codigo: true, origem: true } })).filter((a) => kn.has(chaveNome(a.nome)));
   const igual = cands.find((a) => (a.fornecedorId || null) === k.fornecedorId && (a.cor ? norm(a.cor) : null) === k.cor && (a.codigo ? norm(a.codigo) : null) === k.codigo);
   const d = m.det || {};
   const dados = {
@@ -296,7 +301,7 @@ export async function artigoDaFpp(m, fpp, db = prisma, { criar = true } = {}) { 
   }
   if (!criar) return null;
   const novo = await db.artigo.create({ data: {
-    categoria: m.categoria, nome: m.nome, unidade: m.unidade, fornecedorId: k.fornecedorId, cor: k.cor, codigo: k.codigo,
+    categoria: m.categoria, nome: nomeStd, unidade: m.unidade, fornecedorId: k.fornecedorId, cor: k.cor, codigo: k.codigo,
     ...(m.det?.obs ? { especificacao: String(m.det.obs).toUpperCase() } : {}),
     ...dados, origem: "FPP", origemFppId: fpp.id,
   }, select: { id: true } });

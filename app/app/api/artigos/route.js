@@ -44,11 +44,14 @@ export async function POST(req) {
   const b = await req.json();
   if (!b.nome || !b.nome.trim())
     return Response.json({ error: "Nome do artigo é obrigatório" }, { status: 400 });
+  // v1143 — cadastro manual: nome no padrão do catálogo (sem fornecedor e cor dentro do nome)
+  const { nomePadrao } = await import("@/lib/artigoPadrao");
+  const fo = b.fornecedorId ? await prisma.fornecedor.findUnique({ where: { id: Number(b.fornecedorId) }, select: { nome: true, nomeFantasia: true } }).catch(() => null) : null;
   const artigo = await prisma.artigo.create({
     data: {
       categoria: b.categoria || "MALHA",
       fornecedorId: b.fornecedorId ? Number(b.fornecedorId) : null,
-      nome: up(b.nome.trim()),
+      nome: nomePadrao(b.nome, { fornecedor: fo?.nome || fo?.nomeFantasia, cor: b.cor }),
       artigoInterno: up(b.artigoInterno),
       codigo: up(b.codigo),
       cor: up(b.cor),

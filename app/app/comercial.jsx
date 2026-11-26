@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Acompanhamento from "./acompanhamento";   // v381
+import { fornecedoresParecidos } from "@/lib/artigoPadrao";   // v1143
 import { elasticoCalc, faixaCalc, botaoUnit, faixaPedeCor, FAIXA_CORES, semAv, fmtNum, obsBotao, PECAS_ESPECIAIS, ehPecaAberta, ehRevenda, golaPunhoInfo, opcoesGolaPunho, ehSobreposto } from "@/lib/fppAv";   // v410 · v512
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
@@ -619,6 +620,10 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
     const frP = fracoesPag(pagamentoFpp(f), num(f.valorProposto) * Math.max(1, num(f.qtde)));
     if (!frP.ok) return setMsg(`A condição de pagamento soma ${(Math.round(frP.soma * 1000) / 10).toString().replace(".", ",")}% do valor. Ajuste a entrada e as parcelas até fechar 100% para salvar a FPP.`);
     if (pend.length) return setMsg(`Escolha do estoque ou marque como "Artigo novo": ${pend.map(([n]) => n).join(", ")}.`);
+    // v1143 — artigo novo precisa de nome, fornecedor (da lista) e cor, para entrar no estoque no padrão do catálogo
+    const novosInc = [[f.nomeArtigo, f.artigoDet], [f.nomeArtigoForro, f.artigoForroDet], ...(Array.isArray(f.materiasExtras) ? f.materiasExtras : []).map((x) => [x?.nome, x?.det])]
+      .filter(([n, d]) => d?.novo && !d?.artigoId && String(n || "").trim() && (!d.fornecedorId || !String(d.cor || "").trim()));
+    if (novosInc.length) return setMsg(`Artigo novo sem fornecedor ou cor (preencha no +): ${novosInc.map(([n]) => n).join(", ")}.`);
     // v1124 — #108: todo aviamento comprado precisa da cor (é com ela que vai para o levantamento/compras)
     const semCor = avSemCor(f);
     if (semCor.length) return setMsg(`Informe a cor no + de: ${semCor.join(", ")}. Aviamento sem cor não gera a compra certa.`);
@@ -2675,6 +2680,7 @@ function ArtigoNomeDet({ label, nome, det, categoria, onNome, onDet, onPick, pod
         </div>
       )}
       {pendente && !open && <div className="text-[11px] mt-0.5" style={{ color: C.accent }}>Escolha um artigo do estoque ou clique em "Artigo novo".</div>}
+      {det?.novo && !det?.artigoId && (!det?.fornecedorId || !String(det?.cor || "").trim()) && <div className="text-[11px] mt-0.5 font-semibold" style={{ color: C.red }}>Artigo novo: preencha no + {[!det?.fornecedorId && "o fornecedor", !String(det?.cor || "").trim() && "a cor"].filter(Boolean).join(" e ")} (obrigatório).</div>}
       <ResumoDet det={det} categoria={categoria} />
       {podeVariar && det?.artigoId && !vc.length && (famDoDet(arts, det)?.length || 0) > 1 && (
         <button type="button" onClick={() => setVariar(famDoDet(arts, det))} className="text-[11px] font-semibold mt-0.5" style={{ color: C.accent }}>+ Variar cores ({famDoDet(arts, det).length})</button>
@@ -2750,6 +2756,8 @@ function FornecedorCombo({ forns, id, nome, onPick, onCriado }) {
   const hay = (f) => [f.nome, f.nomeFantasia, f.razaoSocial, ...(f.cnpjs || []).map((c) => `${c.razaoSocial || ""} ${c.cnpj}`)].join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
   const lista = forns.filter((f) => !nq || hay(f).includes(nq)).sort((a, b) => nomeForn(a).localeCompare(nomeForn(b))).slice(0, 40);
   const exato = forns.some((f) => nomeForn(f).toUpperCase().trim() === nq);
+  // v1143 — não cadastra fornecedor parecido com um que já existe: tem de escolher da lista
+  const parecidos = nq ? fornecedoresParecidos(q, forns, nomeForn) : [];
   async function criar() {
     setCriando(true);
     const r = await fetch("/api/fornecedores", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nome: q.trim().toUpperCase() }) });
@@ -2764,6 +2772,7 @@ function FornecedorCombo({ forns, id, nome, onPick, onCriado }) {
       <input value={q} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
         onChange={(e) => { setQ(e.target.value); setOpen(true); if (id) onPick(null); }} placeholder="Nome do fornecedor"
         className="w-full px-2 py-1.5 rounded text-sm" style={{ background: "#fff", border: `1px solid ${id ? C.green : open ? C.accent : C.line}`, color: C.text }} />
+      {!id && nq && !open && <div className="text-[11px] mt-0.5 font-semibold" style={{ color: C.red }}>{parecidos.length ? "Escolha o fornecedor na lista (já cadastrado)." : "Fornecedor não escolhido: clique nele na lista ou cadastre."}</div>}
       {open && (
         <div className="absolute z-30 mt-1 w-full rounded-md shadow-lg max-h-56 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
           {lista.map((f) => (
@@ -2773,7 +2782,12 @@ function FornecedorCombo({ forns, id, nome, onPick, onCriado }) {
             </button>
           ))}
           {!lista.length && !nq && <div className="px-3 py-2 text-xs" style={{ color: C.sub }}>Nenhum fornecedor cadastrado.</div>}
-          {nq && !exato && (
+          {nq && !exato && parecidos.length > 0 && !id && (
+            <div className="px-3 py-2 text-[11px] font-semibold" style={{ color: C.red, borderTop: `1px solid ${C.line}` }}>
+              Já existe fornecedor parecido ({parecidos.slice(0, 3).map(nomeForn).join(", ")}{parecidos.length > 3 ? "…" : ""}): escolha da lista. Não dá para cadastrar outro com nome diferente.
+            </div>
+          )}
+          {nq && !exato && !parecidos.length && (
             <button type="button" disabled={criando} onMouseDown={(e) => { e.preventDefault(); criar(); }} className="flex items-center gap-1 w-full text-left px-3 py-2 text-sm font-semibold" style={{ color: C.accent, borderTop: `1px solid ${C.line}` }}>
               <Plus size={14} /> {criando ? "Cadastrando…" : `Cadastrar “${q.trim().toUpperCase()}” (só o nome)`}
             </button>
@@ -2797,6 +2811,11 @@ function ArtigoDetModal({ nome, det, categoria, botao, semQtd, onClose, onSalvar
   );
   const salvar = () => {
     if (categoria === "AVIAMENTO" && !String(x.cor || "").trim()) return alerta("Informe a cor do aviamento: é com ela que ele vai para as compras.");   // v1124 — #108
+    // v1143 — artigo novo (fora do cadastro): fornecedor da lista e cor são obrigatórios
+    if (det.novo && !det.artigoId) {
+      if (!x.fornecedorId) return alerta("Artigo novo: escolha o fornecedor na lista (ou cadastre, se não existir nenhum parecido).");
+      if (!String(x.cor || "").trim()) return alerta("Artigo novo: informe a cor.");
+    }
     const out = { ...(det.artigoId ? { artigoId: det.artigoId } : {}) };
     for (const [k, v] of Object.entries(x)) if (String(v).trim() !== "") out[k] = typeof v === "string" ? v.trim() : v;
     if (categoria !== "MALHA") { delete out.rendimento; delete out.tipoMalha; }
