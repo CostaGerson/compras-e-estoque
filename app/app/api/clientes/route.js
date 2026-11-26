@@ -30,7 +30,7 @@ export async function POST(req) {
     else if (c === "telefones" || c === "preposto" || c === "obs") { data[c] = b[c] ? String(b[c]).trim() : null; }
     else data[c] = up(b[c]);
   }
-  data.aceitaAntecipacao = !!b.aceitaAntecipacao;   // v1147
+  data.aceitaAntecipacao = b.aceitaAntecipacao === true || b.aceitaAntecipacao === false ? b.aceitaAntecipacao : null;   // v1147 · v1149
   data.vendedor = String(b.vendedor || "").trim().toUpperCase() || null;   // v1148
   const cli = await prisma.cliente.create({ data });
   await (await import("@/lib/clientePendencias")).avisarPendenciasCliente(cli, b.usuarioId);   // v1148

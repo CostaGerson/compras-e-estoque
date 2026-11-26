@@ -4060,7 +4060,7 @@ function ClienteEditModal({ cliente, onClose, onSaved }) {
     logradouro: v(cliente.logradouro), numero: v(cliente.numero), complemento: v(cliente.complemento),
     bairro: v(cliente.bairro), municipio: v(cliente.municipio), uf: v(cliente.uf), cep: v(cliente.cep),
     preposto: v(cliente.preposto), telefones: v(cliente.telefones), emailNf: v(cliente.emailNf), obs: v(cliente.obs),
-    aceitaAntecipacao: !!cliente.aceitaAntecipacao,   // v1147
+    aceitaAntecipacao: cliente.aceitaAntecipacao === true || cliente.aceitaAntecipacao === false ? cliente.aceitaAntecipacao : null,   // v1147 · v1149
     vendedor: v(cliente.vendedor),   // v1148
   });
   const set = (k, val) => setF((s) => ({ ...s, [k]: val }));
@@ -4122,14 +4122,15 @@ function ClienteEditModal({ cliente, onClose, onSaved }) {
             </div>
           </div>
           {/* v1147 — aceita antecipação de recebíveis */}
-          <label className="flex items-center gap-3 cursor-pointer select-none py-1">
-            <button type="button" onClick={() => set("aceitaAntecipacao", !f.aceitaAntecipacao)} aria-pressed={!!f.aceitaAntecipacao}
-              style={{ width: 40, height: 22, borderRadius: 11, background: f.aceitaAntecipacao ? C.accent : C.line, position: "relative", flexShrink: 0, transition: "background .15s" }}>
-              <span style={{ position: "absolute", top: 3, left: f.aceitaAntecipacao ? 21 : 3, width: 16, height: 16, borderRadius: 8, background: "#fff", transition: "left .15s", boxShadow: "0 1px 2px rgba(0,0,0,.25)" }} />
-            </button>
-            <span className="text-sm" style={{ color: C.text }}>Aceita antecipação de recebíveis</span>
-            <span className="text-xs" style={{ color: C.sub }}>{f.aceitaAntecipacao ? "sim" : "não"}</span>
-          </label>
+          {/* v1149 — obrigatório marcar Sim ou Não */}
+          <div className="flex items-center gap-2 flex-wrap py-1">
+            <span className="text-sm" style={{ color: C.text }}>Aceita antecipação de recebíveis?</span>
+            {[[true, "Sim"], [false, "Não"]].map(([v, t]) => (
+              <button key={t} type="button" onClick={() => set("aceitaAntecipacao", v)} className="px-3 py-1 rounded text-sm font-semibold"
+                style={f.aceitaAntecipacao === v ? { background: v ? C.green || "#12A150" : C.red || "#D92D20", color: "#fff", border: "1px solid transparent" } : { background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>{t}</button>
+            ))}
+            {f.aceitaAntecipacao == null && <span className="text-xs font-semibold" style={{ color: "#D92D20" }}>obrigatório: marque sim ou não</span>}
+          </div>
 
           <div>
             <div className="text-xs mb-1" style={{ color: C.sub }}>Observações</div>
