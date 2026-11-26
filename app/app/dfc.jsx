@@ -1,7 +1,7 @@
 "use client";
 // v157 — DFC · fluxo de caixa futuro (regime de caixa), por dia, com sugestões de operação
 import React, { useState, useEffect } from "react";
-import { Loader2, ChevronDown, ChevronRight, AlertTriangle, CheckCircle2, Lightbulb, Info, Landmark } from "lucide-react";
+import { Loader2, ChevronDown, ChevronRight } from "lucide-react";
 
 const C = {
   panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
@@ -15,17 +15,6 @@ const somaDias = (iso, n) => { const [a, m, d] = iso.split("-").map(Number); con
 const segunda = (iso) => { const [a, m, d] = iso.split("-").map(Number); const w = new Date(a, m - 1, d).getDay(); return somaDias(iso, w === 0 ? -6 : 1 - w); };
 const fimMes = (iso) => { const [a, m] = iso.split("-").map(Number); return `${a}-${String(m).padStart(2, "0")}-${String(new Date(a, m, 0).getDate()).padStart(2, "0")}`; };
 const inpS = { border: `1px solid ${C.line}`, background: "#fff", color: C.text };
-const NIVEL = { ALERTA: [AlertTriangle, C.red, C.redSoft], OPERACAO: [Lightbulb, C.accent, C.accentSoft], AVISO: [Info, C.yellow, C.yellowSoft], OK: [CheckCircle2, C.green, C.greenSoft] };
-
-function Kpi({ rotulo, valor, sub, cor }) {
-  return (
-    <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-      <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.sub }}>{rotulo}</div>
-      <div className="text-xl font-bold mt-1" style={{ color: cor || C.navy }}>{valor}</div>
-      {sub && <div className="text-xs mt-0.5" style={{ color: C.sub }}>{sub}</div>}
-    </div>
-  );
-}
 
 export default function Dfc({ user }) {
   const [dIni, setDIni] = useState(hojeISO());
@@ -67,77 +56,48 @@ export default function Dfc({ user }) {
       {!d && !erro && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={16} className="animate-spin" /> Calculando…</div>}
       {d && (
         <>
-          <div className="rounded-xl p-3 mb-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs" style={{ background: C.navy, color: "#fff" }}>
-            <span className="flex items-center gap-1.5 font-semibold"><Landmark size={14} style={{ color: C.accent }} /> Caixa atual {moeda(d.caixa.saldo)}</span>
-            {d.caixa.bancos.map((b) => <span key={b.nome} style={{ color: "rgba(255,255,255,.75)" }}>{b.nome}: {moeda(b.saldo)}{b.limite ? ` · limite livre ${moeda(b.livre)}` : ""}</span>)}
-            <span style={{ color: "rgba(255,255,255,.6)" }}>{d.caixa.origem ? `do Painel de previsão de ${d.caixa.origem.competencia.split("-").reverse().join("/")} · ${new Date(d.caixa.origem.em).toLocaleDateString("pt-BR")}` : "sem caixa informado"}</span>
+          {/* v1140 — visão simples: uma linha de resumo e o caixa previsto dia a dia (sem cards de insights) */}
+          <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1 mb-3 px-1 text-sm">
+            <span style={{ color: C.sub }}>Saldo em {dBR(r.ini)} <b style={{ color: r.saldoInicial < 0 ? C.red : C.navy }}>{moeda(r.saldoInicial)}</b></span>
+            <span style={{ color: C.sub }}>Entradas <b style={{ color: C.green }}>+{moeda(r.entradas)}</b></span>
+            <span style={{ color: C.sub }}>Saídas <b style={{ color: C.red }}>−{moeda(r.saidas)}</b></span>
+            <span style={{ color: C.sub }}>Saldo em {dBR(r.fim)} <b style={{ color: r.saldoFinal < 0 ? C.red : C.navy }}>{moeda(r.saldoFinal)}</b></span>
+            {r.menorSaldo && r.menorSaldo.valor < 0 && <span className="text-xs" style={{ color: C.red }}>menor saldo {moeda(r.menorSaldo.valor)} em {dBR(r.menorSaldo.data)}</span>}
           </div>
-          <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(6, minmax(0, 1fr))" }}>
-            <Kpi rotulo="Saldo inicial" valor={moeda(r.saldoInicial)} sub={`em ${dBR(r.ini)}`} cor={r.saldoInicial < 0 ? C.red : C.navy} />
-            <Kpi rotulo="Entradas" valor={moeda(r.entradas)} sub="contas a receber" cor={C.green} />
-            <Kpi rotulo="Saídas" valor={moeda(r.saidas)} sub="contas a pagar" cor={C.red} />
-            <Kpi rotulo="Resultado do período" valor={moeda(r.resultado)} cor={r.resultado < 0 ? C.red : C.green} />
-            <Kpi rotulo="Saldo final" valor={moeda(r.saldoFinal)} sub={`em ${dBR(r.fim)}`} cor={r.saldoFinal < 0 ? C.red : C.navy} />
-            <Kpi rotulo="Menor saldo" valor={r.menorSaldo ? moeda(r.menorSaldo.valor) : "—"} sub={r.menorSaldo ? `em ${dBR(r.menorSaldo.data)}${r.diasNegativos ? ` · ${r.diasNegativos} dia(s) negativo(s)` : ""}` : ""} cor={r.menorSaldo?.valor < 0 ? C.red : C.navy} />
-          </div>
-          {r.sugestoes.length > 0 && (
-            <div className="grid gap-2 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
-              {r.sugestoes.map((s, i) => {
-                const [Ico, cor, bg] = NIVEL[s.nivel] || NIVEL.AVISO;
-                return (
-                  <div key={i} className="rounded-xl p-3" style={{ background: bg, border: `1px solid ${cor}44` }}>
-                    <div className="flex items-center gap-1.5 text-sm font-bold mb-1" style={{ color: cor }}><Ico size={15} /> {s.titulo}</div>
-                    <div className="text-xs" style={{ color: C.text }}>{s.texto}</div>
-                    {s.titulos?.length > 0 && <div className="text-[11px] mt-1.5" style={{ color: C.sub }}>Maiores: {s.titulos.map((t) => `${t.parceiro} ${moeda(t.valor)} (${dBR(t.vencimento)})`).join(" · ")}</div>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          <div className="rounded-xl overflow-auto" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-            <table className="w-full text-sm">
-              <thead><tr className="text-xs uppercase tracking-wide text-left" style={{ background: C.panel2, color: C.sub }}>
-                <th className="px-3 py-2 w-8" /><th className="px-3 py-2">Dia</th><th className="px-3 py-2 text-right">Entradas</th><th className="px-3 py-2 text-right">Saídas</th>
-                <th className="px-3 py-2 text-right">Resultado do dia</th><th className="px-3 py-2 text-right">Saldo projetado</th>
-              </tr></thead>
-              <tbody>
-                {dias.map((x) => {
-                  const ab = aberto[x.data], tem = x.receber.length || x.pagar.length;
-                  return (
-                    <React.Fragment key={x.data}>
-                      <tr style={{ borderTop: `1px solid ${C.line}`, background: x.saldo < 0 ? C.redSoft : x.data === r.hoje ? C.accentSoft : undefined, cursor: tem ? "pointer" : "default" }}
-                        onClick={() => tem && setAberto((a) => ({ ...a, [x.data]: !a[x.data] }))}>
-                        <td className="px-3 py-2" style={{ color: C.sub }}>{tem ? (ab ? <ChevronDown size={14} /> : <ChevronRight size={14} />) : null}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-semibold" style={{ color: C.navy }}>{dBR(x.data)} <span className="font-normal text-xs" style={{ color: C.sub }}>{DSEM[new Date(`${x.data}T12:00:00`).getDay()]}{x.data === r.hoje ? " · hoje" : ""}</span></td>
-                        <td className="px-3 py-2 text-right" style={{ color: x.entradas ? C.green : C.sub }}>{x.entradas ? moeda(x.entradas) : "—"}</td>
-                        <td className="px-3 py-2 text-right" style={{ color: x.saidas ? C.red : C.sub }}>{x.saidas ? moeda(x.saidas) : "—"}</td>
-                        <td className="px-3 py-2 text-right font-semibold" style={{ color: x.resultado < 0 ? C.red : x.resultado > 0 ? C.green : C.sub }}>{moeda(x.resultado)}</td>
-                        <td className="px-3 py-2 text-right font-bold" style={{ color: x.saldo < 0 ? C.red : C.navy }}>{moeda(x.saldo)}</td>
-                      </tr>
-                      {ab && [...x.receber.map((t) => ({ ...t, e: true })), ...x.pagar].map((t) => (
-                        <tr key={`${x.data}-${t.id}`} className="text-xs" style={{ background: C.panel2 }}>
-                          <td />
-                          <td className="px-3 py-1.5" colSpan={1}><span className="font-semibold" style={{ color: t.e ? C.green : C.red }}>{t.e ? "▲ receber" : "▼ pagar"}</span>{t.atrasado && <span style={{ color: C.yellow }}> · atrasada ({dBR(t.vencimento)})</span>}{t.previsao && <span style={{ color: C.sub }}> · previsão</span>}</td>
-                          <td className="px-3 py-1.5" colSpan={2}><b style={{ color: C.navy }}>{t.titulo}</b> <span style={{ color: C.sub }}>· {t.parceiro}</span></td>
-                          <td className="px-3 py-1.5 text-right font-semibold" style={{ color: t.e ? C.green : C.red }}>{t.e ? "" : "−"}{moeda(t.valor)}</td>
-                          <td />
-                        </tr>
-                      ))}
-                    </React.Fragment>
-                  );
-                })}
-                <tr style={{ borderTop: `2px solid ${C.line}`, background: C.panel2 }}>
-                  <td /><td className="px-3 py-2 font-bold" style={{ color: C.navy }}>Total do período</td>
-                  <td className="px-3 py-2 text-right font-bold" style={{ color: C.green }}>{moeda(r.entradas)}</td>
-                  <td className="px-3 py-2 text-right font-bold" style={{ color: C.red }}>{moeda(r.saidas)}</td>
-                  <td className="px-3 py-2 text-right font-bold" style={{ color: r.resultado < 0 ? C.red : C.green }}>{moeda(r.resultado)}</td>
-                  <td className="px-3 py-2 text-right font-bold" style={{ color: r.saldoFinal < 0 ? C.red : C.navy }}>{moeda(r.saldoFinal)}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+            {dias.map((x) => {
+              const itens = [...x.receber.map((t) => ({ ...t, e: true })), ...x.pagar];
+              const ab = aberto[x.data] ?? itens.length <= 12;   // dia com muitas contas começa fechado
+              const hoje = x.data === r.hoje;
+              return (
+                <div key={x.data} style={{ borderTop: `1px solid ${C.line}` }}>
+                  <button type="button" onClick={() => itens.length && setAberto((a) => ({ ...a, [x.data]: !ab }))}
+                    className="w-full flex flex-wrap items-center gap-x-4 gap-y-0.5 px-4 py-2.5 text-left" style={{ background: hoje ? C.accentSoft : C.panel2, cursor: itens.length ? "pointer" : "default" }}>
+                    <span className="flex items-center gap-1.5 font-bold" style={{ color: C.navy, minWidth: 150 }}>
+                      {itens.length ? (ab ? <ChevronDown size={14} style={{ color: C.sub }} /> : <ChevronRight size={14} style={{ color: C.sub }} />) : <span style={{ width: 14 }} />}
+                      {DSEM[new Date(`${x.data}T12:00:00`).getDay()]} {dBR(x.data).slice(0, 5)}{hoje && <span className="text-[11px] font-semibold" style={{ color: C.accent }}>hoje</span>}
+                    </span>
+                    <span className="text-xs" style={{ color: C.sub }}>{itens.length ? `${itens.length} conta(s)` : "sem movimento"}</span>
+                    <span className="flex-1" />
+                    {x.entradas > 0 && <span className="text-sm tabular-nums" style={{ color: C.green }}>+{moeda(x.entradas)}</span>}
+                    {x.saidas > 0 && <span className="text-sm tabular-nums" style={{ color: C.red }}>−{moeda(x.saidas)}</span>}
+                    <span className="text-sm tabular-nums font-bold text-right" style={{ color: x.saldo < 0 ? C.red : C.navy, minWidth: 150 }}>saldo {moeda(x.saldo)}</span>
+                  </button>
+                  {ab && itens.map((t) => (
+                    <div key={`${x.data}-${t.e ? "r" : "p"}-${t.id}`} className="flex items-center gap-3 px-4 py-1.5 text-sm" style={{ borderTop: `1px solid ${C.line}66` }}>
+                      <span className="w-4 text-center font-bold" style={{ color: t.e ? C.green : C.red }}>{t.e ? "+" : "−"}</span>
+                      <span className="flex-1 min-w-0 truncate"><span style={{ color: C.text }}>{t.titulo}</span> <span style={{ color: C.sub }}>· {t.parceiro}</span>
+                        {t.atrasado && <span className="text-xs" style={{ color: C.yellow }}> · venceu {dBR(t.vencimento)}</span>}{t.previsao && <span className="text-xs" style={{ color: C.sub }}> · previsão</span>}</span>
+                      <span className="tabular-nums whitespace-nowrap" style={{ color: t.e ? C.green : C.red }}>{t.e ? "" : "−"}{moeda(t.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+            {!dias.length && <div className="px-4 py-6 text-sm text-center" style={{ color: C.sub }}>Nada previsto no período.</div>}
           </div>
           <div className="text-[11px] mt-2" style={{ color: C.sub }}>
-            Regime de caixa: contas em aberto pelo vencimento. O saldo é projetado a partir de hoje com o caixa do Painel de previsão; um período futuro já começa com tudo que entra e sai até ele. Clique no dia para ver as contas.
+            Contas em aberto pelo vencimento, a partir do caixa {d.caixa.origem ? `do Painel de previsão (${dBR(d.caixa.origem.em)})` : "atual"}: {moeda(d.caixa.saldo)}. Clique no dia para abrir ou fechar as contas.
           </div>
         </>
       )}

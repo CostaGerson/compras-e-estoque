@@ -1,4 +1,5 @@
 "use client";
+import { createPortal } from "react-dom";   // v1140
 import { BuscaLista, THEAD } from "./listaPadrao";   // v994
 import { podeImportar, gerencial, tem, temAlguma } from "@/lib/acesso";
 import Dfc from "./dfc";
@@ -4638,19 +4639,21 @@ function NotasFin({ user }) {
 //   e ele só fecha clicando no N de novo.
 function NotasFlutuante({ user, aberto, setAberto }) {
   const [topo, setTopo] = useState(72);
+  const [montado, setMontado] = useState(false);   // v1140 — portal no body: um pai com transform/animação prendia o "fixed"
+  useEffect(() => setMontado(true), []);
   useEffect(() => {
     const medir = () => { const el = document.querySelector(".ce-conteudo"); if (el) setTopo(Math.max(8, Math.round(el.getBoundingClientRect().top) + 8)); };
     medir(); window.addEventListener("resize", medir);
     return () => window.removeEventListener("resize", medir);
   }, []);
-  return (
+  if (!montado) return null;
+  return createPortal(
     <>
       <button type="button" onClick={() => setAberto(!aberto)} title={aberto ? "Fechar o caderno de notas" : "Caderno de notas do financeiro"}
         className="fixed flex items-center justify-center rounded-full font-black shadow-md"
         style={{ top: topo, right: 14, width: 30, height: 30, zIndex: 65, fontSize: 15, background: aberto ? "#C08401" : "#F5C518", color: aberto ? "#fff" : "#5A4300", border: "2px solid #fff" }}>N</button>
       {aberto && <NotasBloco user={user} topo={topo} />}
-    </>
-  );
+    </>, document.body);
 }
 function NotasBloco({ user, topo }) {
   const { txt, st, mudar } = useNotasFin(user);
