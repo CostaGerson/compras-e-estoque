@@ -70,6 +70,10 @@ export default function Financeiro({ user, telaInicial, irMetas }) {
   // v170 — quem não é master/diretoria vê só o operacional (documentos financeiros e contas)
   const ger = gerencial(user);
   const [tela, setTela] = useState(telaInicial?.v ? { v: telaInicial.v } : { v: "dash" });
+  // v1136 — caderno flutuante: aberto/fechado lembrado neste navegador
+  const [notasAbertas, setNotasAbertas0] = useState(false);
+  useEffect(() => { try { if (localStorage.getItem("fin.notas.aberto") === "1") setNotasAbertas0(true); } catch {} }, []);
+  const setNotasAbertas = (v) => { setNotasAbertas0(v); try { localStorage.setItem("fin.notas.aberto", v ? "1" : "0"); } catch {} };
   const [ano, setAno] = useState(new Date().getFullYear());
   const ir = (t) => { setTela(t); if (typeof window !== "undefined") document.querySelector("main .overflow-auto")?.scrollTo({ top: 0 }); };
   const migalhas = [{ t: "Financeiro", go: () => ir({ v: "dash" }) }];
@@ -90,6 +94,7 @@ export default function Financeiro({ user, telaInicial, irMetas }) {
   if (tela.v === "transmissao") migalhas.push({ t: "Transmissão de arquivos" });
   return (
     <div>
+      {tela.v !== "dash" && <NotasFlutuante user={user} aberto={notasAbertas} setAberto={setNotasAbertas} />}   {/* v1136 */}
       {migalhas.length > 1 && (
         <div className="flex items-center gap-1 text-[13px] mb-2 flex-wrap">
           <button onClick={migalhas[migalhas.length - 2].go} className="flex items-center gap-1 mr-2 px-2 py-0.5 rounded" style={{ color: C.accent }}><ArrowLeft size={14} /> Voltar</button>
@@ -4599,7 +4604,8 @@ function CruzarIAModal({ user, dados, onClose, onAplicado }) {
 }
 
 // v1118 — caderno de notas do financeiro: salva sozinho ~1 s depois de parar de digitar
-function NotasFin({ user }) {
+// v1136 — o mesmo caderno flutua nas demais telas do financeiro (N amarelo no canto); useNotasFin é o estado comum
+function useNotasFin(user) {
   const [txt, setTxt] = useState(null);
   const [st, setSt] = useState("");
   const tm = useRef(null);
@@ -4612,6 +4618,10 @@ function NotasFin({ user }) {
       catch { setSt("não salvou: escreva de novo ou recarregue"); }
     }, 1000);
   };
+  return { txt, st, mudar };
+}
+function NotasFin({ user }) {
+  const { txt, st, mudar } = useNotasFin(user);
   return (
     <div className="rounded-2xl p-4 mb-5" style={{ background: "#FFFDF3", border: `1px solid #EADFAE` }}>
       <div className="flex items-center gap-2 mb-2"><span className="font-semibold" style={{ color: C.navy }}>Caderno de notas</span>
@@ -4619,6 +4629,41 @@ function NotasFin({ user }) {
       {txt == null ? <div className="text-sm" style={{ color: C.sub }}>Carregando…</div>
         : <textarea value={txt} onChange={(e) => mudar(e.target.value)} placeholder="Anotações do financeiro: lembretes, combinados com bancos e fornecedores, pendências… Salva sozinho."
             className="w-full rounded-lg p-3 text-sm outline-none" style={{ minHeight: 220, resize: "vertical", background: "#fff", border: `1px solid #EADFAE`, color: C.text, lineHeight: 1.55 }} />}
+    </div>
+  );
+}
+
+// v1136 — N amarelo fixo no canto superior direito das telas do financeiro (menos o início, onde o caderno já aparece).
+//   Clicar abre o caderno num bloco pequeno no canto: não cobre a tela, a página continua clicável e rolável,
+//   e ele só fecha clicando no N de novo.
+function NotasFlutuante({ user, aberto, setAberto }) {
+  const [topo, setTopo] = useState(72);
+  useEffect(() => {
+    const medir = () => { const el = document.querySelector(".ce-conteudo"); if (el) setTopo(Math.max(8, Math.round(el.getBoundingClientRect().top) + 8)); };
+    medir(); window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, []);
+  return (
+    <>
+      <button type="button" onClick={() => setAberto(!aberto)} title={aberto ? "Fechar o caderno de notas" : "Caderno de notas do financeiro"}
+        className="fixed flex items-center justify-center rounded-full font-black shadow-md"
+        style={{ top: topo, right: 14, width: 30, height: 30, zIndex: 65, fontSize: 15, background: aberto ? "#C08401" : "#F5C518", color: aberto ? "#fff" : "#5A4300", border: "2px solid #fff" }}>N</button>
+      {aberto && <NotasBloco user={user} topo={topo} />}
+    </>
+  );
+}
+function NotasBloco({ user, topo }) {
+  const { txt, st, mudar } = useNotasFin(user);
+  return (
+    <div className="fixed rounded-xl shadow-xl flex flex-col"
+      style={{ top: topo + 38, right: 14, width: "min(340px, calc(100vw - 28px))", height: "min(300px, 45vh)", zIndex: 65, background: "#FFFDF3", border: "1px solid #EADFAE", resize: "both", overflow: "hidden", minWidth: 220, minHeight: 140 }}>
+      <div className="flex items-center gap-2 px-3 pt-2 pb-1">
+        <span className="text-xs font-bold" style={{ color: C.navy }}>Caderno de notas</span>
+        <span className="text-[10px] ml-auto truncate" style={{ color: /não salvou/.test(st) ? C.red : C.sub }}>{st}</span>
+      </div>
+      {txt == null ? <div className="px-3 text-xs" style={{ color: C.sub }}>Carregando…</div>
+        : <textarea value={txt} onChange={(e) => mudar(e.target.value)} placeholder="Anotações do financeiro… Salva sozinho."
+            className="flex-1 mx-2 mb-2 rounded-lg p-2 text-[13px] outline-none" style={{ resize: "none", background: "#fff", border: "1px solid #EADFAE", color: C.text, lineHeight: 1.5 }} />}
     </div>
   );
 }
