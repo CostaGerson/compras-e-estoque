@@ -26,6 +26,7 @@ export async function PATCH(req, { params }) {
     else if (c === "telefones" || c === "preposto" || c === "obs") data[c] = b[c] ? String(b[c]).trim() : null;
     else data[c] = up(b[c]);
   }
+  if (b.aceitaAntecipacao !== undefined) data.aceitaAntecipacao = !!b.aceitaAntecipacao;   // v1147
   const cli = await prisma.cliente.update({ where: { id }, data });
   return NextResponse.json(cli);
 }

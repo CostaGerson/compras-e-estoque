@@ -3202,13 +3202,41 @@ function ValorPag({ valor, onChange, placeholder }) {
     </div>
   );
 }
+// v1147 — condições padrão (montam entrada e parcelas) e método de cobrança por parcela
+const FORMAS_COB = [["BOLETO", "Boleto"], ["PIX", "PIX"], ["CARTAO", "Cartão de crédito"], ["DINHEIRO", "Dinheiro"]];
+const CONDS_PADRAO = [
+  ["E50_ENT50", "Entrada 50% e 50% na entrega", { entrada: { valor: "50%" }, parcelas: [{ dias: "0", tipo: "CORRIDOS", base: "ENTREGA", valor: "%" }] }],
+  ["30DC", "30 dias corridos", { entrada: null, parcelas: [{ dias: "30", tipo: "CORRIDOS", base: "NF", valor: "%" }] }],
+  ["30_60_NF", "30/60 após a NF", { entrada: null, parcelas: [30, 60].map((d) => ({ dias: String(d), tipo: "CORRIDOS", base: "NF", valor: "%" })) }],
+  ["30_60_90_NF", "30/60/90 após a NF", { entrada: null, parcelas: [30, 60, 90].map((d) => ({ dias: String(d), tipo: "CORRIDOS", base: "NF", valor: "%" })) }],
+];
 function PagamentoFpp({ pag, onChange, total, fr }) {
   const p = pag || { entrada: null, parcelas: [] };
   const setP = (fn) => onChange(fn({ entrada: p.entrada || null, parcelas: p.parcelas || [] }));
+  // forma de cobrança: a 1ª linha (entrada, ou a 1ª parcela) escolhida pela primeira vez vale para todas; depois, cada uma muda sozinha
+  const primeira = p.entrada ? p.entrada.forma : p.parcelas?.[0]?.forma;
+  const mudarForma = (alvo, v) => setP((q) => {
+    const ehPrimeira = alvo === "ent" || (!q.entrada && alvo === 0);
+    const atual = alvo === "ent" ? q.entrada?.forma : q.parcelas[alvo]?.forma;
+    if (ehPrimeira && !atual) return { ...q, entrada: q.entrada ? { ...q.entrada, forma: v } : null, parcelas: q.parcelas.map((y) => ({ ...y, forma: v })) };
+    if (alvo === "ent") return { ...q, entrada: { ...q.entrada, forma: v } };
+    return { ...q, parcelas: q.parcelas.map((y, j) => (j === alvo ? { ...y, forma: v } : y)) };
+  });
+  const aplicarPadrao = (k) => {
+    const c = CONDS_PADRAO.find((x) => x[0] === k); if (!c) return;
+    const fm = primeira || "";
+    onChange({ padrao: k, entrada: c[2].entrada ? { ...c[2].entrada, ...(fm ? { forma: fm } : {}) } : null, parcelas: c[2].parcelas.map((x) => ({ ...x, ...(fm ? { forma: fm } : {}) })) });
+  };
+  const selForma = (valor, onCh) => (
+    <select value={valor || ""} onChange={(e) => onCh(e.target.value)} className="w-full h-full px-2 rounded text-sm" style={{ ...sel, borderColor: valor ? C.line : C.accent }}>
+      <option value="">Escolha…</option>
+      {FORMAS_COB.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+    </select>
+  );
   const sel = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
   const pc = (x) => `${((x || 0) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
   const BAS = { EMISSAO: "Emissão do pedido", NF: "Emissão da NF", ENTREGA: "Entrega" };
-  const cols = "70px minmax(70px,0.7fr) minmax(120px,1fr) minmax(140px,1.2fr) minmax(150px,1fr) minmax(90px,0.8fr)";
+  const cols = "70px minmax(70px,0.7fr) minmax(110px,1fr) minmax(130px,1.1fr) minmax(150px,1fr) minmax(120px,0.9fr) minmax(90px,0.8fr)";
   const res = (frac, valor) => <span className="text-sm font-semibold" style={{ color: C.text }}>{pc(frac)}{valor != null && <span className="font-normal text-xs ml-1" style={{ color: C.sub }}>{brl(valor)}</span>}</span>;
   // função (não componente) para os inputs não perderem o foco ao digitar
   const linha = (key, nome, onDel, children) => (
@@ -3222,10 +3250,19 @@ function PagamentoFpp({ pag, onChange, total, fr }) {
   );
   return (
     <div>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-[11px] font-semibold" style={{ color: C.sub }}>Condição padrão</span>
+        <select value={CONDS_PADRAO.some((x) => x[0] === p.padrao) ? p.padrao : ""} onChange={(e) => aplicarPadrao(e.target.value)} className="px-2 rounded text-sm" style={{ ...sel, height: 32, minWidth: 240 }}>
+          <option value="">Escolha para montar as parcelas…</option>
+          {CONDS_PADRAO.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
+        </select>
+        <span className="text-[11px]" style={{ color: C.sub }}>monta a entrada e as parcelas; dá para ajustar depois</span>
+      </div>
       {p.entrada && (
         linha("ent", "Entrada", () => setP((q) => ({ ...q, entrada: null })), <>
           <div /><div /><div />
           <CampoFin t="Valor"><ValorPag valor={p.entrada.valor} onChange={(v) => setP((q) => ({ ...q, entrada: { ...q.entrada, valor: v } }))} /></CampoFin>
+          <CampoFin t="Cobrança">{selForma(p.entrada.forma, (v) => mudarForma("ent", v))}</CampoFin>
           <CampoFin t="Do total">{fr ? res(fr.entrada, fr.entradaValor) : null}</CampoFin>
         </>)
       )}
@@ -3242,13 +3279,14 @@ function PagamentoFpp({ pag, onChange, total, fr }) {
               {Object.entries(BAS).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
             </select></CampoFin>
             <CampoFin t="Valor"><ValorPag valor={x.valor} onChange={(v) => up("valor", v)} placeholder="auto" /></CampoFin>
+            <CampoFin t="Cobrança">{selForma(x.forma, (v) => mudarForma(k, v))}</CampoFin>
             <CampoFin t="Do total">{c ? res(c.frac, c.valor) : null}</CampoFin>
           </>)
         );
       })}
       <div className="flex items-center gap-2 flex-wrap">
-        {!p.entrada && <button type="button" onClick={() => setP((q) => ({ ...q, entrada: { valor: "%" } }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Entrada</button>}
-        <button type="button" onClick={() => setP((q) => ({ ...q, parcelas: [...q.parcelas, { dias: "30", tipo: "CORRIDOS", base: "NF", valor: "%" }] }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Parcela</button>
+        {!p.entrada && <button type="button" onClick={() => setP((q) => ({ ...q, entrada: { valor: "%", ...(primeira ? { forma: primeira } : {}) } }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Entrada</button>}
+        <button type="button" onClick={() => setP((q) => ({ ...q, parcelas: [...q.parcelas, { dias: "30", tipo: "CORRIDOS", base: "NF", valor: "%", ...(primeira ? { forma: primeira } : {}) }] }))} className="px-3 py-1.5 rounded text-sm flex items-center gap-1" style={{ color: C.accent, border: `1px solid ${C.accent}` }}><Plus size={14} /> Parcela</button>
         <span className="ml-auto text-sm"><span style={{ color: C.sub }}>Condição: </span><b style={{ color: C.text }}>{textoPagFpp(p, total)}</b>
           {fr && !fr.ok && <span className="ml-2 text-xs font-semibold" style={{ color: C.red }}>soma {pc(fr.soma)}</span>}</span>
       </div>

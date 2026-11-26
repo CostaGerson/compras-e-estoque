@@ -4060,6 +4060,7 @@ function ClienteEditModal({ cliente, onClose, onSaved }) {
     logradouro: v(cliente.logradouro), numero: v(cliente.numero), complemento: v(cliente.complemento),
     bairro: v(cliente.bairro), municipio: v(cliente.municipio), uf: v(cliente.uf), cep: v(cliente.cep),
     preposto: v(cliente.preposto), telefones: v(cliente.telefones), emailNf: v(cliente.emailNf), obs: v(cliente.obs),
+    aceitaAntecipacao: !!cliente.aceitaAntecipacao,   // v1147
   });
   const set = (k, val) => setF((s) => ({ ...s, [k]: val }));
   const [salvando, setSalvando] = useState(false);
@@ -4109,6 +4110,15 @@ function ClienteEditModal({ cliente, onClose, onSaved }) {
             <In label="Telefone(s)" value={f.telefones} onChange={(e) => set("telefones", e.target.value)} placeholder="Separe vários por ;" />
             <div className="col-span-2"><In label="E-mail p/ NFs e Boletos" value={f.emailNf} onChange={(e) => set("emailNf", e.target.value)} /></div>
           </div>
+          {/* v1147 — aceita antecipação de recebíveis */}
+          <label className="flex items-center gap-3 cursor-pointer select-none py-1">
+            <button type="button" onClick={() => set("aceitaAntecipacao", !f.aceitaAntecipacao)} aria-pressed={!!f.aceitaAntecipacao}
+              style={{ width: 40, height: 22, borderRadius: 11, background: f.aceitaAntecipacao ? C.accent : C.line, position: "relative", flexShrink: 0, transition: "background .15s" }}>
+              <span style={{ position: "absolute", top: 3, left: f.aceitaAntecipacao ? 21 : 3, width: 16, height: 16, borderRadius: 8, background: "#fff", transition: "left .15s", boxShadow: "0 1px 2px rgba(0,0,0,.25)" }} />
+            </button>
+            <span className="text-sm" style={{ color: C.text }}>Aceita antecipação de recebíveis</span>
+            <span className="text-xs" style={{ color: C.sub }}>{f.aceitaAntecipacao ? "sim" : "não"}</span>
+          </label>
 
           <div>
             <div className="text-xs mb-1" style={{ color: C.sub }}>Observações</div>

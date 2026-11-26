@@ -30,6 +30,7 @@ export async function POST(req) {
     else if (c === "telefones" || c === "preposto" || c === "obs") { data[c] = b[c] ? String(b[c]).trim() : null; }
     else data[c] = up(b[c]);
   }
+  data.aceitaAntecipacao = !!b.aceitaAntecipacao;   // v1147
   const cli = await prisma.cliente.create({ data });
   return NextResponse.json(cli);
 }
