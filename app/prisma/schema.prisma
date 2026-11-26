@@ -1157,6 +1157,22 @@ model FinTitulo {
   @@index([antecipacaoId])
   semanaItens FinSemanaItem[]
   anexos      FinTituloAnexo[]
+  pedidosRateio FinTituloPedido[]
+}
+
+// v1131 — conta a pagar dividida entre pedidos: cada linha é a parte da despesa que pertence a um pedido (aparece no financeiro do pedido)
+model FinTituloPedido {
+  id            Int       @id @default(autoincrement())
+  tituloId      Int
+  titulo        FinTitulo @relation(fields: [tituloId], references: [id], onDelete: Cascade)
+  pedidoNumero  String
+  valor         Decimal   @db.Decimal(14, 2)
+  manual        Boolean   @default(false)   // valor digitado (false = dividido automaticamente)
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+
+  @@index([tituloId])
+  @@index([pedidoNumero])
 }
 
 // Arquivos anexados a uma conta a pagar/receber (boleto, NF, comprovante...) — base64 no Postgres

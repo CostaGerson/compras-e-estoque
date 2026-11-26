@@ -205,6 +205,7 @@ export async function detalhePedido(numero) {
   const nfs = Array.isArray(p.nfsFaturadas) && p.nfsFaturadas.length ? p.nfsFaturadas.map((n) => ({ numero: n.numero, emissao: n.emissao ? iso(n.emissao) : null, valor: r2(n.valor), pecas: n.pecas || null }))
     : Array.isArray(p.kmNfs) ? p.kmNfs.map((n) => ({ numero: n.numero, emissao: n.emissao ? String(n.emissao).slice(0, 10) : null, valor: r2(n.valor), pecas: n.pecas || null })) : [];
   let fin = null; try { fin = await (await import("@/lib/faturamentoCasamento")).financeiroPedido(p); } catch (e) { console.log("producao/financeiro:", e.message); }   // v555
+  let despesas = null; try { despesas = await (await import("@/lib/finTituloPedidos")).despesasDoPedido(p.numero); } catch (e) { console.log("producao/despesas:", e.message); }   // v1131
   const comentarios = await prisma.pedidoComentario.findMany({ where: { pedidoNumero: p.numero }, orderBy: { createdAt: "asc" } });
   const pecasTotal = itens.reduce((s, i) => s + (Number(i.qtd) || 0), 0);
   return {
@@ -219,5 +220,6 @@ export async function detalhePedido(numero) {
       valorPendente: p.vlEntregar != null ? r2(p.vlEntregar) : r2(p.total), pecasTotal, pecasConcluidas: r.pecasConcluidas, pecasFaturadas: r.pecasFaturadas,
       casadas: fin?.nfs || [], fretes: fin?.fretes || [], contasTotal: fin?.contasTotal || 0, recebido: fin?.recebido || 0, emAberto: fin?.emAberto || 0 },
     comentarios,
+    despesas: despesas || { itens: [], total: 0, pago: 0, emAberto: 0 },   // v1131 — contas a pagar lançadas para o pedido
   };
 }

@@ -2029,6 +2029,98 @@ function Anexos({ user, tituloId, pendentes, setPendentes }) {
 }
 
 /* ---------------- novo / editar ---------------- */
+// v1131 — despesa de pedido: a conta a pagar pergunta a qual pedido pertence e pode ser dividida entre vários.
+//   Cada pedido novo recebe a parte que falta, dividida por igual entre os que não foram digitados;
+//   ao digitar o valor de um pedido, os demais (automáticos) se ajustam para fechar o total da conta.
+const r2c = (n) => Math.round((Number(n) || 0) * 100) / 100;
+function redistribuirPedidos(l, total) {
+  const auto = l.filter((x) => !x.manual);
+  if (!auto.length) return l;
+  const resto = r2c(total - l.filter((x) => x.manual).reduce((s, x) => s + (Number(x.valor) || 0), 0));
+  const base = Math.max(0, resto);
+  const cada = Math.floor((base / auto.length) * 100) / 100;
+  const ultimo = r2c(base - cada * (auto.length - 1));
+  let k = 0;
+  return l.map((x) => (x.manual ? x : { ...x, valor: ++k === auto.length ? ultimo : cada }));
+}
+function PedidosDespesa({ user, total, resp, lista, onResp, onLista }) {
+  const [q, setQ] = useState("");
+  const [achados, setAchados] = useState([]);
+  const [aberto, setAberto] = useState(false);
+  const [buscando, setBuscando] = useState(false);
+  useEffect(() => {
+    if (resp !== "SIM" || !aberto) return;
+    const h = setTimeout(() => {
+      setBuscando(true);
+      api(`/api/fin/titulos/pedidos?u=${user.id}&q=${encodeURIComponent(q)}`).then((j) => setAchados(j.pedidos || [])).catch(() => setAchados([])).finally(() => setBuscando(false));
+    }, 250);
+    return () => clearTimeout(h);
+  }, [q, aberto, resp]);
+  const l = lista || [];
+  const add = (p) => { if (!l.some((x) => x.numero === p.numero)) onLista(redistribuirPedidos([...l, { numero: p.numero, cliente: p.cliente, valor: 0, manual: false }], total)); setQ(""); setAberto(false); };
+  const tirar = (i) => onLista(redistribuirPedidos(l.filter((_, j) => j !== i), total));
+  const digitar = (i, v) => onLista(redistribuirPedidos(l.map((x, j) => (j === i ? { ...x, valor: r2c(v), manual: true } : x)), total));
+  const auto = (i) => onLista(redistribuirPedidos(l.map((x, j) => (j === i ? { ...x, manual: false } : x)), total));
+  const soma = r2c(l.reduce((s, x) => s + (Number(x.valor) || 0), 0));
+  const dif = r2c(total - soma);
+  const btn = (on) => (on ? { background: C.accent, color: "#fff", border: `1px solid ${C.accent}` } : { border: `1px solid ${C.line}`, color: C.text, background: C.panel });
+  return (
+    <div className="mt-4 p-3 rounded-lg" style={{ background: C.panel2, border: resp ? "none" : `1px solid ${C.accent}` }}>
+      <div className="text-[11px] font-semibold mb-1.5" style={{ color: resp ? C.sub : C.accent }}>Esta despesa é de algum pedido?{!resp && " · obrigatório"}</div>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => onResp("SIM")} className="px-3 py-1.5 rounded-lg text-sm font-semibold" style={btn(resp === "SIM")}>Sim, de pedido(s)</button>
+        <button type="button" onClick={() => onResp("NAO")} className="px-3 py-1.5 rounded-lg text-sm font-semibold" style={btn(resp === "NAO")}>Não, despesa geral</button>
+      </div>
+      {resp === "SIM" && (
+        <div className="mt-3">
+          {l.map((x, i) => (
+            <div key={x.numero} className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <div className="flex-1 min-w-[160px] text-sm" style={{ color: C.text }}>
+                <b>{x.numero}</b>{x.cliente && <span className="text-xs" style={{ color: C.sub }}> · {x.cliente}</span>}
+              </div>
+              {total > 0 && <span className="text-[11px] tabular-nums w-12 text-right" style={{ color: C.sub }}>{((Number(x.valor) || 0) / total * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span>}
+              <Valor value={x.valor} onChange={(v) => digitar(i, v)} width={130} />
+              {x.manual
+                ? <button type="button" onClick={() => auto(i)} title="Voltar a dividir automaticamente" className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: C.yellowSoft, color: C.yellow }}>DIGITADO ↺</button>
+                : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: C.panel, color: C.sub }}>AUTO</span>}
+              <button type="button" onClick={() => tirar(i)} title="Tirar o pedido" style={{ color: C.red }}><X size={15} /></button>
+            </div>
+          ))}
+          <div className="relative">
+            <div className="flex items-center gap-2 rounded px-2" style={{ ...inpS, height: 34 }}>
+              <Search size={14} style={{ color: C.sub }} />
+              <input value={q} onChange={(e) => { setQ(e.target.value); setAberto(true); }} onFocus={() => setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 200)}
+                placeholder={l.length ? "adicionar outro pedido (número ou cliente)" : "buscar o pedido pelo número ou cliente"} className="flex-1 min-w-0 text-sm outline-none bg-transparent" />
+              {buscando && <Loader2 size={13} className="animate-spin" style={{ color: C.sub }} />}
+            </div>
+            {aberto && (
+              <div className="absolute z-30 left-0 right-0 mt-1 rounded-lg shadow-lg max-h-60 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+                {achados.filter((p) => !l.some((x) => x.numero === p.numero)).map((p) => (
+                  <button key={p.numero} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => add(p)}
+                    className="w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-gray-50" style={{ borderBottom: `1px solid ${C.line}` }}>
+                    <b style={{ color: C.text }}>{p.numero}</b><span className="flex-1 truncate text-xs" style={{ color: C.sub }}>{p.cliente}</span>
+                    <span className="text-[11px] tabular-nums" style={{ color: C.sub }}>{moeda(p.total)}{p.status === "FATURADO" ? " · faturado" : ""}</span>
+                  </button>
+                ))}
+                {!buscando && !achados.filter((p) => !l.some((x) => x.numero === p.numero)).length && <div className="px-3 py-2 text-xs" style={{ color: C.sub }}>Nenhum pedido encontrado.</div>}
+              </div>
+            )}
+          </div>
+          {l.length > 0 && (
+            <div className="text-xs mt-2 flex flex-wrap gap-x-3" style={{ color: C.sub }}>
+              <span>Conta: <b style={{ color: C.text }}>{moeda(total)}</b></span>
+              <span>Dividido: <b style={{ color: C.text }}>{moeda(soma)}</b></span>
+              {Math.abs(dif) >= 0.01
+                ? <b style={{ color: C.red }}>{dif > 0 ? `Faltam ${moeda(dif)}` : `Sobram ${moeda(-dif)}`} — ajuste os valores digitados</b>
+                : <b style={{ color: C.green }}>✓ fecha com o valor da conta</b>}
+            </div>
+          )}
+          {!l.length && <div className="text-[11px] mt-1.5" style={{ color: C.sub }}>Escolha um ou mais pedidos. O valor da conta é dividido entre eles e você pode digitar o de cada um.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
 function TituloModal({ user, tipo, item, d, onClose, onSalvo, recorrenteInicial = false }) {
   const P = tipo === "PAGAR";
   const novo = !item;
@@ -2037,6 +2129,17 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo, recorrenteInicial 
   const [erro, setErro] = useState("");
   const [pendentes, setPendentes] = useState([]);   // anexos escolhidos antes de a conta existir
   const s = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  // v1131 — pedidos da despesa (só conta a pagar comum): resp SIM/NAO + divisão
+  const [pedResp, setPedResp] = useState(null);
+  const [pedLista, setPedLista] = useState([]);
+  const pedCarregado = useRef(novo);
+  useEffect(() => {
+    if (!P || novo) return;
+    api(`/api/fin/titulos/pedidos?u=${user.id}&titulo=${item.id}`).then((j) => { const l = j.pedidos || []; setPedLista(l); setPedResp(l.length ? "SIM" : null); pedCarregado.current = true; }).catch(() => { pedCarregado.current = false; });
+  }, []);
+  const totalConta = lerNum(f.valor);
+  useEffect(() => { if (pedLista.length) setPedLista((l) => redistribuirPedidos(l, totalConta)); }, [totalConta]);
+  const temPedidos = P && !f.recorrente && !ehSemana(item || {});
   // "usar como regra": quando a conta-caixa muda, oferece levar a mesma conta para as demais contas do fornecedor
   const contaNova = (() => { const r = (f.rateio || []).filter((x) => x.contaId && Number(x.pct) > 0); return r.length === 1 ? r[0].contaId : null; })();
   const contaAntes = (item?.rateio || []).length === 1 ? item.rateio[0].contaId : null;
@@ -2091,15 +2194,27 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo, recorrenteInicial 
     }
   };
   const salvar = async () => {
-    setSalvando(true); setErro("");
+    setErro("");
+    let pedidos;   // v1131
+    if (temPedidos) {
+      if (novo && !pedResp) { setErro("Responda se esta despesa é de algum pedido (ou marque \"Não, despesa geral\")."); return; }
+      if (pedResp === "SIM") {
+        if (!pedLista.length) { setErro("Escolha o pedido desta despesa (ou marque \"Não, despesa geral\")."); return; }
+        const soma = r2c(pedLista.reduce((a0, x) => a0 + (Number(x.valor) || 0), 0));
+        if (Math.abs(soma - r2c(totalConta)) >= 0.01) { setErro(`A divisão entre os pedidos soma ${moeda(soma)}, mas a conta é de ${moeda(totalConta)}.`); return; }
+        pedidos = pedLista.map((x) => ({ numero: x.numero, valor: x.valor, manual: !!x.manual }));
+      } else if (pedResp === "NAO" || (!novo && pedCarregado.current && !pedResp)) pedidos = [];
+      if (!novo && !pedCarregado.current) pedidos = undefined;   // não conseguiu ler a divisão gravada: não mexe
+    }
+    setSalvando(true);
     try {
       if (novo) {
-        const r = await api("/api/fin/titulos", "POST", { usuarioId: user.id, tipo, ...f, formaPagamento: f.formaPagamento || (String(f.chavePix || "").trim() ? "PIX" : "") });
+        const r = await api("/api/fin/titulos", "POST", { usuarioId: user.id, tipo, ...f, ...(pedidos !== undefined ? { pedidos } : {}), formaPagamento: f.formaPagamento || (String(f.chavePix || "").trim() ? "PIX" : "") });
         if (r.id && pendentes.length) {
           for (const arq of pendentes) await api(`/api/fin/titulos/${r.id}/anexos`, "POST", { usuarioId: user.id, nome: arq.name, mime: arq.type, conteudo: await readB64(arq) });
         }
       }
-      else await api(`/api/fin/titulos/${item.id}`, "PATCH", { usuarioId: user.id, acao: "editar", titulo: f.titulo, parceiro: f.parceiro, documento: f.documento, numeroDoc: f.numeroDoc, valor: f.valor, vencimento: f.vencimento, previsao: f.previsao, rateio: f.rateio, observacao: f.observacao, chavePix: f.chavePix || "", formaPagamento: f.formaPagamento || (String(f.chavePix || "").trim() && !item.formaPagamento ? "PIX" : item.formaPagamento || ""), ...(f.reprogramado !== undefined ? { reprogramado: f.reprogramado || "" } : {}), ...(item?.critica && f.critica === null ? { critica: null } : {}) });
+      else await api(`/api/fin/titulos/${item.id}`, "PATCH", { usuarioId: user.id, acao: "editar", ...(pedidos !== undefined ? { pedidos } : {}), titulo: f.titulo, parceiro: f.parceiro, documento: f.documento, numeroDoc: f.numeroDoc, valor: f.valor, vencimento: f.vencimento, previsao: f.previsao, rateio: f.rateio, observacao: f.observacao, chavePix: f.chavePix || "", formaPagamento: f.formaPagamento || (String(f.chavePix || "").trim() && !item.formaPagamento ? "PIX" : item.formaPagamento || ""), ...(f.reprogramado !== undefined ? { reprogramado: f.reprogramado || "" } : {}), ...(item?.critica && f.critica === null ? { critica: null } : {}) });
       let extra = "";
       if (ofereceRegra && (regra.usar || regra.salvar) && termoRegra.trim()) {
         const r = await api("/api/fin/titulos/regra", "POST", { usuarioId: user.id, tipo, termo: termoRegra, contaId: contaNova, exceto: item?.id, salvarRegra: regra.salvar, dryRun: !regra.usar });
@@ -2246,6 +2361,7 @@ function TituloModal({ user, tipo, item, d, onClose, onSalvo, recorrenteInicial 
           {item.recorrenciaId && <div className="mt-1">Conta recorrente: alterar aqui muda só {nomeMes(item.competencia)}. Para mudar os próximos meses, altere na guia <b>Recorrentes</b>{item.recMatriz ? <> (ou na <b>Matriz de custos</b>, que vale sobre a recorrente)</> : null}.</div>}
         </div>
       )}
+      {temPedidos && <PedidosDespesa user={user} total={totalConta} resp={pedResp} lista={pedLista} onResp={(v) => { setPedResp(v); if (v === "NAO") setPedLista([]); }} onLista={setPedLista} />}
       {ofereceRegra && (
         <div className="mt-4 p-3 rounded-lg" style={{ border: `1px dashed ${C.accent}88`, background: C.accentSoft }}>
           <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">

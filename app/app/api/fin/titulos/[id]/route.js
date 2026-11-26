@@ -209,7 +209,20 @@ export async function PATCH(req, { params }) {
   // v192 — mexeu numa conta de recorrência pelo contas a pagar: ajuste pontual (a Matriz não sobrescreve este mês)
   if (t.recorrenciaId && (b.acao === "editar" || b.acao === undefined || (b.acao === "confirmar" && data.valor !== undefined && Math.abs(Number(data.valor) - Number(t.valor)) > 0.009))
       && ["titulo", "parceiro", "valor", "vencimento", "rateio", "documento", "numeroDoc"].some((k) => data[k] !== undefined && JSON.stringify(data[k]) !== JSON.stringify(t[k]))) data.pontual = true;
+  // v1131 — divisão da despesa entre pedidos: nova lista (vazia = desliga) ou, se só o valor mudou, as partes acompanham
+  const PD = t.tipo === "PAGAR" && (b.acao === "editar" || b.acao === undefined) ? await import("@/lib/finTituloPedidos") : null;
+  let vp = { itens: null };
+  if (PD && Array.isArray(b.pedidos)) {
+    vp = PD.validarPedidos(b.pedidos, data.valor !== undefined ? data.valor : t.valor);
+    if (vp.erro) return Response.json({ error: vp.erro }, { status: 400 });
+    const falta = await PD.conferirPedidosExistem(vp.itens);
+    if (falta) return Response.json({ error: falta }, { status: 400 });
+  }
   const n = await prisma.finTitulo.update({ where: { id }, data: { ...data, ...quem } });
+  if (PD) {
+    if (Array.isArray(b.pedidos)) await PD.gravarPedidosTitulo(id, vp.itens || [], quem.atualizadoPorNome);
+    else if (data.valor !== undefined) await PD.reescalarPedidosTitulo(id, Number(data.valor));
+  }
   // INSS/FGTS: o último valor lançado vira o valor da recorrência (e dos meses seguintes)
   if (data.valor !== undefined || b.acao === "baixar") { const { registrarValorGuia } = await import("@/lib/finGuias"); await registrarValorGuia(id, quem.atualizadoPorNome).catch(() => null); }
   // v186 — cobrança de antecipação: pagar/estornar baixa/volta o título original

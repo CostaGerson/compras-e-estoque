@@ -137,6 +137,11 @@ export async function POST(req) {
   if (!b.vencimento) return Response.json({ error: "Informe o vencimento." }, { status: 400 });
   const rt = validarRateio(b.rateio);
   if (rt.erro) return Response.json({ error: rt.erro }, { status: 400 });
+  // v1131 — despesa dividida entre pedidos (só conta a pagar comum)
+  const PD = tipo === "PAGAR" && !b.recorrente && Array.isArray(b.pedidos) ? await import("@/lib/finTituloPedidos") : null;
+  const vp = PD ? PD.validarPedidos(b.pedidos, valor) : { itens: null };
+  if (vp.erro) return Response.json({ error: vp.erro }, { status: 400 });
+  if (PD && vp.itens?.length) { const falta = await PD.conferirPedidosExistem(vp.itens); if (falta) return Response.json({ error: falta }, { status: 400 }); }
   if (tipo === "PAGAR" && b.chavePix) { const { lembrarPix } = await import("@/lib/finPix"); await lembrarPix(parceiro, b.documento, b.chavePix); }   // v698
   const base = { tipo, titulo, parceiro, documento: so(b.documento) || null, rateio: rt.rateio, observacao: b.observacao || null, formaPagamento: b.formaPagamento ? String(b.formaPagamento).toUpperCase() : null, chavePix: String(b.chavePix || "").trim() || null };
 
@@ -158,5 +163,6 @@ export async function POST(req) {
   const t = await prisma.finTitulo.create({
     data: { ...base, numeroDoc: b.numeroDoc || null, valor, vencimento: dataUTC(b.vencimento), competencia: mesDe(b.vencimento), previsao: !!b.previsao, forma: "MANUAL", criadoPorId: u.id, criadoPorNome: nomeU(u) },
   });
+  if (PD && vp.itens?.length) await PD.gravarPedidosTitulo(t.id, vp.itens, nomeU(u));
   return Response.json(tituloOut(t));
 }

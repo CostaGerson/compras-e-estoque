@@ -519,6 +519,22 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
                   </div>
                 )) : <div className="text-xs" style={{ color: C.sub }}>Nenhuma NF casada com o pedido.{p.faturamento.nfs.length ? ` NFs do KM: ${p.faturamento.nfs.map((x) => x.numero).join(", ")}.` : ""}</div>}
               </div>
+              {/* v1131 — despesas: contas a pagar lançadas para este pedido (inteiras ou a parte da divisão entre pedidos) */}
+              <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <div className="text-sm font-bold flex-1" style={{ color: C.navy }}>Despesas do pedido (contas a pagar)</div>
+                  {(p.despesas?.itens || []).length > 0 && <span className="text-xs" style={{ color: C.sub }}>total <b style={{ color: C.text }}>{brl(p.despesas.total)}</b> · pago <b style={{ color: C.green }}>{brl(p.despesas.pago)}</b> · em aberto <b style={{ color: C.accent }}>{brl(p.despesas.emAberto)}</b>{Number(p.total) > 0 ? ` · ${(p.despesas.total / Number(p.total) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% do pedido` : ""}</span>}
+                </div>
+                {(p.despesas?.itens || []).length ? p.despesas.itens.map((x) => (
+                  <div key={x.tituloId} className="py-1.5 text-xs flex flex-wrap items-center gap-x-3 gap-y-0.5" style={{ borderTop: `1px solid ${C.line}` }}>
+                    <span style={{ color: C.sub }}>venc. {dOnly(x.vencimento)}</span>
+                    <span className="font-semibold" style={{ color: C.text }}>{x.titulo}</span>
+                    <span style={{ color: C.sub }}>{x.parceiro}{x.numeroDoc ? ` · doc ${x.numeroDoc}` : ""}</span>
+                    {x.dividida && <span className="px-1.5 rounded font-semibold" style={{ background: C.yellowSoft, color: C.yellow }} title={`Conta de ${brl(x.valorConta)} dividida entre pedidos`}>parte de {brl(x.valorConta)}</span>}
+                    <span className="ml-auto font-semibold" style={{ color: x.status === "PAGO" ? C.green : C.text }}>{brl(x.valor)} · {x.status === "PAGO" ? `paga ${dOnly(x.dataPagamento)}` : "em aberto"}</span>
+                  </div>
+                )) : <div className="text-xs" style={{ color: C.sub }}>Nenhuma conta a pagar lançada para este pedido.</div>}
+              </div>
               {/* v1034 — conteúdo de importação dos materiais (RET: acima de 40% perde o recolhimento de 2%) */}
               <ConteudoImportacao numero={numero} veVal={veVal} />
               {/* v557 — fretes (CT-e): entrega pelas NFs casadas · compra pelas OCs com itens do pedido */}
