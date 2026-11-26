@@ -1,7 +1,7 @@
 "use client";
 // v420 — Produção › Gestão: indicadores do PCP (a cada 1 min), lista por fase do processo e o pedido em tela grande
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2, Link2, FileCode2, Truck, Printer, Paperclip, Factory, Filter, CalendarRange, ExternalLink } from "lucide-react";
+import { Loader2, Search, X, ChevronUp, ChevronDown, FileText, Pencil, MessageSquare, Send, RefreshCw, AlertTriangle, Trash2, Undo2, Link2, FileCode2, Truck, Printer, Paperclip, Factory, Filter, CalendarRange, ExternalLink, BarChart3 } from "lucide-react";
 import { FppResumo } from "./compras";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 import { ImportarNfs } from "./adm";
@@ -36,17 +36,57 @@ function Pizza({ p, cor, tam = 92 }) {
     </svg>
   );
 }
-function CardKpi({ rotulo, n, total, cor, ativo, onClick, sub, pecas }) {
+// v1141 — destaques (setinha): lista curta dentro do card, sem mudar o filtro
+function CardKpi({ rotulo, n, total, cor, ativo, onClick, sub, pecas, destaques, tituloDestaque, onPedido }) {
+  const [ab, setAb] = useState(false);
   return (
-    <button onClick={onClick} className="rounded-xl p-4 flex items-center gap-4 text-left w-full" style={{ background: C.panel, border: `1px solid ${ativo ? cor : C.line}`, borderTop: `3px solid ${cor}`, boxShadow: ativo ? `0 0 0 2px ${cor}33` : "none" }}>
-      <Pizza p={total ? n / total : 0} cor={cor} />
-      <div>
-        <div className="text-xs font-semibold" style={{ color: C.sub }}>{rotulo}</div>
-        <div className="font-semibold" style={{ fontSize: 28, lineHeight: 1.1, color: C.text }}>{n}</div>
-        <div className="text-[11px]" style={{ color: C.sub }}>{sub || `de ${total} pedido(s)`}</div>
-        {pecas != null && <div className="text-xs font-semibold mt-0.5" style={{ color: C.text }}>{Number(pecas).toLocaleString("pt-BR")} peças</div>}
+    <div role="button" tabIndex={0} onClick={onClick} onKeyDown={(e) => e.key === "Enter" && onClick?.()} className="rounded-xl p-4 text-left w-full cursor-pointer" style={{ background: C.panel, border: `1px solid ${ativo ? cor : C.line}`, borderTop: `3px solid ${cor}`, boxShadow: ativo ? `0 0 0 2px ${cor}33` : "none" }}>
+      <div className="flex items-center gap-4">
+        <Pizza p={total ? n / total : 0} cor={cor} />
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-semibold" style={{ color: C.sub }}>{rotulo}</div>
+          <div className="font-semibold" style={{ fontSize: 28, lineHeight: 1.1, color: C.text }}>{n}</div>
+          <div className="text-[11px]" style={{ color: C.sub }}>{sub || `de ${total} pedido(s)`}</div>
+          {pecas != null && <div className="text-xs font-semibold mt-0.5" style={{ color: C.text }}>{Number(pecas).toLocaleString("pt-BR")} peças</div>}
+        </div>
+        {destaques && destaques.length > 0 && <button type="button" onClick={(e) => { e.stopPropagation(); setAb(!ab); }} title={tituloDestaque} className="self-start p-1 rounded" style={{ color: ab ? cor : C.sub }}>{ab ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>}
       </div>
-    </button>
+      {ab && destaques?.length > 0 && (
+        <div className="mt-3 pt-2" style={{ borderTop: `1px solid ${C.line}` }} onClick={(e) => e.stopPropagation()}>
+          <div className="text-[10px] font-bold uppercase mb-1" style={{ color: C.sub }}>{tituloDestaque}</div>
+          {destaques.map((x) => (
+            <button key={x.numero} type="button" onClick={() => onPedido?.(x.numero)} className="w-full flex items-center gap-2 py-1 text-xs text-left hover:bg-gray-50 rounded">
+              <b style={{ color: C.navy }}>{x.numero}</b><span className="flex-1 truncate" style={{ color: C.sub }}>{x.cliente}</span>
+              <span className="font-semibold whitespace-nowrap" style={{ color: x.cor || C.text }}>{x.lado}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+// v1141 — caderno de notas da Operação: salva sozinho ~1 s depois de parar de digitar
+function NotasOperacao({ user }) {
+  const [txt, setTxt] = useState(null);
+  const [st, setSt] = useState("");
+  const tm = useRef(null);
+  useEffect(() => { fetch(`/api/fin/notas?u=${user.id}&area=OPERACAO`).then((r) => r.json()).then((x) => { setTxt(x.texto || ""); if (x.em) setSt(`salvo ${new Date(x.em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}${x.por ? ` · ${x.por}` : ""}`); }).catch(() => setTxt("")); }, [user.id]);
+  const mudar = (v) => {
+    setTxt(v); setSt("…"); clearTimeout(tm.current);
+    tm.current = setTimeout(async () => {
+      setSt("salvando…");
+      try { const r = await fetch("/api/fin/notas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, area: "OPERACAO", texto: v }) }); const x = await r.json(); if (!r.ok) throw new Error(x.error); setSt(`✓ salvo ${new Date(x.em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`); }
+      catch { setSt("não salvou: escreva de novo ou recarregue"); }
+    }, 1000);
+  };
+  return (
+    <div className="rounded-xl p-4 mb-4" style={{ background: "#FFFDF3", border: "1px solid #EADFAE" }}>
+      <div className="flex items-center gap-2 mb-2"><span className="font-semibold" style={{ color: C.navy }}>Caderno de notas</span>
+        <span className="text-xs ml-auto" style={{ color: /não salvou/.test(st) ? C.red : C.sub }}>{st}</span></div>
+      {txt == null ? <div className="text-sm" style={{ color: C.sub }}>Carregando…</div>
+        : <textarea value={txt} onChange={(e) => mudar(e.target.value)} placeholder="Anotações da operação: combinados, pendências, lembretes… Salva sozinho."
+            className="w-full rounded-lg p-3 text-sm outline-none" style={{ minHeight: 140, resize: "vertical", background: "#fff", border: "1px solid #EADFAE", color: C.text, lineHeight: 1.55 }} />}
+    </div>
   );
 }
 const Chip = ({ cor, fundo, children }) => <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ color: cor, background: fundo || C.panel2 }}>{children}</span>;
@@ -69,6 +109,7 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
   const [d, setD] = useState(null);
   // v729 — lançamento pela Produção (a guia Lançar pedido saiu) e pedidos do portal liberados que não entraram sozinhos
   const podeLancar = lancaPP(user);
+  const [gestaoAb, setGestaoAb] = useState(false);   // v1141 — indicadores recolhidos até clicar em Gestão operacional
   const [portalPend, setPortalPend] = useState([]);
   const [rascunhos, setRascunhos] = useState([]);   // v777 — #62: pedidos em elaboração (fora da produção e dos indicadores)
   const lerPortalPend = () => podeLancar && fetch("/api/pp", { cache: "no-store", headers: { "x-usuario-id": String(user?.id || "") } }).then((r) => r.json())
@@ -196,28 +237,42 @@ export default function ProducaoGestao({ user, atalhos, ir, abrirPedido, compone
       </div>}
       {/* v618 — atalhos em cards grandes, acima dos indicadores */}
       {/* v618 — atalhos em cards grandes, acima dos indicadores · v927 — todos em branco; ao lado de Compras, o PCP do Maycon (abre em outra guia) */}
-      {(atalhos || []).length > 0 && <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      {(atalhos || []).length > 0 && <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
         {[...atalhos.slice(0, 1), { key: "__pcp", label: "PCP · Cronograma", desc: "Sistema do Maycon: programação de corte, costura, personalização e expedição", url: "https://pcp.meridianpro.com.br", icon: CalendarRange }, ...atalhos.slice(1)].map((a) => {
           const Ico = a.icon;
           return <button key={a.key} onClick={() => (a.url ? window.open(a.url, "_blank", "noopener") : ir(a.key))} title={a.url ? `Abrir ${a.url}` : a.desc} className="card-asana flex items-center gap-3 px-4 py-4 rounded-xl text-left"
             style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.text }}>
-            {Ico && <span className="flex items-center justify-center rounded-lg shrink-0" style={{ width: 44, height: 44, background: a.url ? "#EAF2FF" : C.panel2, color: a.url ? "#3B82F6" : C.navy }}><Ico size={22} /></span>}
-            <span className="min-w-0"><span className="flex items-center gap-1.5 text-base font-bold leading-tight">{a.label}{a.url && <ExternalLink size={13} style={{ color: C.sub }} />}</span>
+            {Ico && <Ico size={24} className="shrink-0" style={{ color: C.accent }} />}   {/* v1141 — ícone laranja e título azul, como os demais cards */}
+            <span className="min-w-0"><span className="flex items-center gap-1.5 text-base font-bold leading-tight" style={{ color: C.navy }}>{a.label}{a.url && <ExternalLink size={13} style={{ color: C.sub }} />}</span>
               {a.desc && <span className="block text-[11px] mt-0.5 leading-snug line-clamp-2" style={{ color: C.sub }}>{a.desc}</span>}</span>
           </button>;
         })}
+        {/* v1141 — Gestão operacional: abre/recolhe os indicadores com gráficos */}
+        <button onClick={() => { if (gestaoAb) setFiltro(null); setGestaoAb(!gestaoAb); }} className="card-asana flex items-center gap-3 px-4 py-4 rounded-xl text-left"
+          style={{ background: C.panel, border: `1px solid ${gestaoAb ? C.accent : C.line}`, color: C.text, boxShadow: gestaoAb ? `0 0 0 2px ${C.accent}22` : "none" }}>
+          <BarChart3 size={24} className="shrink-0" style={{ color: C.accent }} />
+          <span className="min-w-0 flex-1"><span className="block text-base font-bold leading-tight" style={{ color: C.navy }}>Gestão operacional</span>
+            <span className="block text-[11px] mt-0.5 leading-snug" style={{ color: C.sub }}>Pedidos em andamento, em dia, atrasados, entrega na semana e a faturar</span></span>
+          {gestaoAb ? <ChevronUp size={16} style={{ color: C.sub }} /> : <ChevronDown size={16} style={{ color: C.sub }} />}
+        </button>
       </div>}
       {erro && <div className="text-sm mb-3" style={{ color: C.red }}>{erro}</div>}
       {!d && !erro && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Lendo o PCP…</div>}
       {d && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
-            <CardKpi rotulo="Pedidos em andamento" n={k.andamento} total={k.andamento} cor={C.navy} ativo={!filtro} onClick={() => setFiltro(null)} sub="total" pecas={pc(() => true)} />
+          {(gestaoAb || !(atalhos || []).length) && <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+            <CardKpi rotulo="Pedidos em andamento" n={k.andamento} total={k.andamento} cor={C.navy} ativo={!filtro} onClick={() => setFiltro(null)} sub="total" pecas={pc(() => true)}
+              tituloDestaque="5 maiores pedidos (peças)" onPedido={setAberto}
+              destaques={[...d.pedidos].sort((a, b) => (Number(b.pecas) || 0) - (Number(a.pecas) || 0)).slice(0, 5).map((p) => ({ numero: p.numero, cliente: p.cliente, lado: `${Number(p.pecas || 0).toLocaleString("pt-BR")} pç` }))} />
             <CardKpi rotulo="Em dia" n={k.emDia} total={k.andamento} cor={C.green} ativo={filtro === "emDia"} onClick={() => setFiltro(filtro === "emDia" ? null : "emDia")} pecas={pc((p) => p.status === "EM DIA")} />
-            <CardKpi rotulo="Atrasados" n={k.atrasados} total={k.andamento} cor={C.red} ativo={filtro === "atrasados"} onClick={() => setFiltro(filtro === "atrasados" ? null : "atrasados")} pecas={pc((p) => p.status === "ATRASADO")} />
+            <CardKpi rotulo="Atrasados" n={k.atrasados} total={k.andamento} cor={C.red} ativo={filtro === "atrasados"} onClick={() => setFiltro(filtro === "atrasados" ? null : "atrasados")} pecas={pc((p) => p.status === "ATRASADO")}
+              tituloDestaque="5 mais atrasados" onPedido={setAberto}
+              destaques={d.pedidos.filter((p) => p.status === "ATRASADO" && p.prazo).sort((a, b) => String(a.prazo).localeCompare(String(b.prazo))).slice(0, 5).map((p) => { const dias = Math.max(0, Math.round((Date.now() - new Date(`${String(p.prazo).slice(0, 10)}T12:00:00`).getTime()) / 86400000)); return { numero: p.numero, cliente: p.cliente, lado: `${dias} dia(s)`, cor: C.red }; })} />
             <CardKpi rotulo="Entrega na semana" n={k.semana} total={k.andamento} cor={C.accent} ativo={filtro === "semana"} onClick={() => setFiltro(filtro === "semana" ? null : "semana")} sub={`de ${k.andamento} · próximos 7 dias`} pecas={pc((p) => p.semana)} />
             <CardKpi rotulo="A faturar" n={k.faturar || 0} total={k.andamento} cor={C.accent} ativo={filtro === "faturar"} onClick={() => setFiltro(filtro === "faturar" ? null : "faturar")} sub={k.criticas ? `${k.criticas} com crítica` : "concluídos no PCP"} pecas={pc((p) => p.faturar === "A_FATURAR")} />
-          </div>
+          </div>}
+          {/* v1141 — caderno de notas da operação, acima da lista de pedidos */}
+          <NotasOperacao user={user} />
           <div className="flex items-center gap-2 mb-2">
             <div className="flex items-center gap-2 px-2 rounded" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
               <Search size={14} style={{ color: C.sub }} />
