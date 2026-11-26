@@ -882,7 +882,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
                   </div>
                 )}
                 <div style={{ flex: "1 1 160px", minWidth: 0 }}>
-                  <AvComDet valor={f.faixa} det={f.aviamentosDet?.FAIXA} onDet={(d) => setAvDet("FAIXA", d)}><Combo label="Faixa refletiva (aplicação)" value={f.faixa} onChange={(v) => set("faixa", v)} options={faixas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
+                  <AvComDet semCor valor={f.faixa} det={f.aviamentosDet?.FAIXA} onDet={(d) => setAvDet("FAIXA", d)}><Combo label="Faixa refletiva (aplicação)" value={f.faixa} onChange={(v) => set("faixa", v)} options={faixas.map((g) => g.chave)} placeholder="Digite…" /></AvComDet>
                   {!semAv(f.faixa) && (
                     <div className="flex gap-2 mt-2">
                       <SelAv label="Tipo de faixa" value={f.faixaTipo} onChange={(v) => setF((s0) => ({ ...s0, faixaTipo: v, faixaCor: faixaPedeCor(v) ? (s0.faixaCor || "") : "" }))} options={faixaTipos.map((g) => g.chave)} />
@@ -2729,14 +2729,14 @@ function VariarCoresModal({ membros, marcados, onClose, onOk }) {
   );
 }
 // aviamento escolhido no combo + "+" (só aparece com um aviamento escolhido)
-function AvComDet({ children, valor, det, onDet, botao }) {
+function AvComDet({ children, valor, det, onDet, botao, semCor }) {
   // v522 — gola viés sai do tecido da peça: não é aviamento, sem detalhe de compra
   const tem = valor && !/^SEM\b/i.test(String(valor).trim()) && !/\bVI[EÉ]S\b/i.test(String(valor)) && !/PR[OÓ]PRIA MALHA|\bBAINHA\b/i.test(String(valor)) && (!botao || Number(String(valor).replace(",", ".")) > 0);
   return (
     <div>
       <div className="flex gap-1 items-end"><div className="flex-1 min-w-0">{children}</div>{tem && <DetBotao det={det} categoria="AVIAMENTO" nome={botao ? "BOTÃO" : valor} onDet={onDet} botao={botao} />}</div>
       {tem && <ResumoDet det={det} categoria="AVIAMENTO" botao={botao} />}
-      {tem && !det?.cor && !temCorAv(valor) && <div className="text-[11px] font-semibold mt-0.5" style={{ color: C.red }}>Falta a cor (no +): obrigatória para a compra</div>}
+      {tem && !semCor && !det?.cor && !temCorAv(valor) && <div className="text-[11px] font-semibold mt-0.5" style={{ color: C.red }}>Falta a cor (no +): obrigatória para a compra</div>}
     </div>
   );
 }
@@ -2944,7 +2944,8 @@ function Card({ title, children }) {
 const temAv = (v, botao) => v && !/^SEM\b/i.test(String(v).trim()) && !/\bVI[EÉ]S\b/i.test(String(v)) && !/PR[OÓ]PRIA MALHA|\bBAINHA\b/i.test(String(v)) && (!botao || Number(String(v).replace(",", ".")) > 0);
 function avSemCor(f) {
   const D = f.aviamentosDet || {}, out = [];
-  for (const [k, v, rot, botao] of [["GOLA", f.gola, "Gola"], ["PUNHO", f.punho, "Punho"], ["ELASTICO", f.elastico, "Elástico"], ["FAIXA", f.faixa, "Faixa"], ["BOTAO", f.botaoQtd, "Botão", true]])
+  // v1142 — faixa: a cor vem do tipo de faixa (gorgurão/tactel) nos campos de baixo, não do +
+  for (const [k, v, rot, botao] of [["GOLA", f.gola, "Gola"], ["PUNHO", f.punho, "Punho"], ["ELASTICO", f.elastico, "Elástico"], ["BOTAO", f.botaoQtd, "Botão", true]])
     if (temAv(v, botao) && !D[k]?.cor && !((k === "GOLA" || k === "PUNHO") && temCorAv(v))) out.push(rot);   // gola/punho de ribana/polo sem cor = cor da malha
   for (const x of Array.isArray(f.extrasAviamentos) ? f.extrasAviamentos : []) if (String(x?.desc || "").trim() && !x?.det?.cor) out.push(String(x.desc).trim());
   return out;
