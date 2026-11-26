@@ -16,6 +16,8 @@ export async function register() {
     // v1038 — layouts/artes em base64 no banco vão para o disco (um por vez), 20 s após subir; repete de hora em hora
     const migrar = async () => { try { const { migrarTarefaArquivos } = await import("./lib/arquivos"); await migrarTarefaArquivos(); } catch (e) { console.error("[v1038]", e.message); } };
     setTimeout(migrar, 20 * 1000); setInterval(migrar, 60 * 60 * 1000);
+    const { agendarPendenciasClientes } = await import("./lib/clientePendencias");   // v1148 — vendedor avisado dos cadastros incompletos
+    agendarPendenciasClientes();
     const { agendarArtes } = await import("./lib/artesDrive");   // v1003 — artes e layouts vão para o Google Drive (a cada 5 min)
     agendarArtes();
     // v972 — layouts aprovados com a gravação nos itens pela metade: retoma 1 min após subir e a cada 10 min

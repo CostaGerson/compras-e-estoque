@@ -768,6 +768,7 @@ model Cliente {
   telefones         String?
   emailNf           String?
   obs               String?
+  vendedor          String?                    // v1148 — vendedor que atende: IGOR | PEDRO | MAYCON | GERSON
   aceitaAntecipacao Boolean  @default(false)   // v1147 — cliente aceita antecipação de recebíveis (desconto dos boletos)
   ativo             Boolean  @default(true)
   // v521 — cadastro vindo do KM (solclien): id interno, código, linha crua e hash do último envio

@@ -4061,6 +4061,7 @@ function ClienteEditModal({ cliente, onClose, onSaved }) {
     bairro: v(cliente.bairro), municipio: v(cliente.municipio), uf: v(cliente.uf), cep: v(cliente.cep),
     preposto: v(cliente.preposto), telefones: v(cliente.telefones), emailNf: v(cliente.emailNf), obs: v(cliente.obs),
     aceitaAntecipacao: !!cliente.aceitaAntecipacao,   // v1147
+    vendedor: v(cliente.vendedor),   // v1148
   });
   const set = (k, val) => setF((s) => ({ ...s, [k]: val }));
   const [salvando, setSalvando] = useState(false);
@@ -4109,6 +4110,16 @@ function ClienteEditModal({ cliente, onClose, onSaved }) {
             <In label="Preposto (contato)" value={f.preposto} onChange={(e) => set("preposto", e.target.value)} />
             <In label="Telefone(s)" value={f.telefones} onChange={(e) => set("telefones", e.target.value)} placeholder="Separe vários por ;" />
             <div className="col-span-2"><In label="E-mail p/ NFs e Boletos" value={f.emailNf} onChange={(e) => set("emailNf", e.target.value)} /></div>
+          </div>
+          {/* v1148 — vendedor que atende o cliente */}
+          <div>
+            <div className="text-xs mb-1" style={{ color: C.sub }}>Vendedor que atende</div>
+            <div className="flex gap-1 flex-wrap">
+              {["IGOR", "PEDRO", "MAYCON", "GERSON"].map((n) => (
+                <button key={n} type="button" onClick={() => set("vendedor", f.vendedor === n ? "" : n)} className="px-3 py-1.5 rounded text-sm font-semibold"
+                  style={f.vendedor === n ? { background: C.accent, color: "#fff", border: `1px solid ${C.accent}` } : { background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>{n.charAt(0) + n.slice(1).toLowerCase()}</button>
+              ))}
+            </div>
           </div>
           {/* v1147 — aceita antecipação de recebíveis */}
           <label className="flex items-center gap-3 cursor-pointer select-none py-1">

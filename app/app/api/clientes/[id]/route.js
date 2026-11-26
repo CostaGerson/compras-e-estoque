@@ -27,7 +27,9 @@ export async function PATCH(req, { params }) {
     else data[c] = up(b[c]);
   }
   if (b.aceitaAntecipacao !== undefined) data.aceitaAntecipacao = !!b.aceitaAntecipacao;   // v1147
+  if (b.vendedor !== undefined) data.vendedor = String(b.vendedor || "").trim().toUpperCase() || null;   // v1148
   const cli = await prisma.cliente.update({ where: { id }, data });
+  if (b.vendedor !== undefined) await (await import("@/lib/clientePendencias")).avisarPendenciasCliente(cli, b.usuarioId);   // v1148
   return NextResponse.json(cli);
 }
 

@@ -31,6 +31,8 @@ export async function POST(req) {
     else data[c] = up(b[c]);
   }
   data.aceitaAntecipacao = !!b.aceitaAntecipacao;   // v1147
+  data.vendedor = String(b.vendedor || "").trim().toUpperCase() || null;   // v1148
   const cli = await prisma.cliente.create({ data });
+  await (await import("@/lib/clientePendencias")).avisarPendenciasCliente(cli, b.usuarioId);   // v1148
   return NextResponse.json(cli);
 }
