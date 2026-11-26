@@ -655,6 +655,8 @@ export default function ContasPagarReceber({ user, inicial = null }) {
               <Search size={14} className="absolute left-2.5 top-2.5" style={{ color: C.sub }} />
               <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar título, fornecedor, nº da NF ou valor…" className="rounded-lg pl-8 pr-3 py-2 text-sm outline-none" style={{ ...inpS, width: 230 }} />
             </div>
+            {/* v1137 — dia único */}
+            <label className="text-xs" style={{ color: C.sub }} title="Dia único: De e Até no mesmo dia">Dia<input type="date" value={dIni && dIni === dFim ? dIni : ""} onChange={(e) => { const v = e.target.value; if (v) { setDIni(v); setDFim(v); } }} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={{ ...inpS, ...(dIni && dIni === dFim ? { borderColor: C.accent } : {}) }} /></label>
             <label className="text-xs" style={{ color: C.sub }}>De
               <input type="date" value={dIni} onChange={(e) => e.target.value && setDIni(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} />
             </label>
@@ -4030,6 +4032,8 @@ export function AnaliseTitulosModal({ user, tipo, dIni, dFim, contas, contasPorI
   return (
     <Modal titulo={`Analisar com IA — contas ${P ? "a pagar" : "a receber"}`} icone={Wand2} onClose={onClose} largura={980}>
       <div className="flex flex-wrap items-end gap-2 mb-4">
+        {/* v1137 — dia único */}
+        <label className="text-xs" style={{ color: C.sub }} title="Dia único: De e Até no mesmo dia">Dia<input type="date" value={ini && ini === fim ? ini : ""} onChange={(e) => { const v = e.target.value; if (v) { setIni(v); setFim(v); } }} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={{ ...inpS, ...(ini && ini === fim ? { borderColor: C.accent } : {}) }} /></label>
         <label className="text-xs" style={{ color: C.sub }}>De<input type="date" value={ini} onChange={(e) => e.target.value && setIni(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}` }} /></label>
         <label className="text-xs" style={{ color: C.sub }}>Até<input type="date" value={fim} min={ini} onChange={(e) => e.target.value && setFim(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm" style={{ border: `1px solid ${C.line}` }} /></label>
         <BtnP onClick={rodar} disabled={rodando}>{rodando ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />} {rodando ? "Analisando…" : r ? "Analisar de novo" : "Analisar"}</BtnP>

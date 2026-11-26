@@ -110,6 +110,8 @@ export default function Uploads({ user }) {
           <option value="TODAS">Todas as origens</option>
           {d && Object.entries(d.origens).filter(([k]) => qtdOrigem(k)).map(([k, t]) => <option key={k} value={k}>{t} ({qtdOrigem(k)})</option>)}
         </select>
+        {/* v1137 — dia único */}
+        <label className="text-[11px]" style={{ color: C.sub }} title="Dia único: De e Até no mesmo dia">Dia<input type="date" value={de && de === ate ? de : ""} onChange={(e) => { const v = e.target.value; if (v) { setDe(v); setAte(v); } }} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={{ ...inpS, ...(de && de === ate ? { borderColor: C.accent } : {}) }} /></label>
         <label className="text-[11px]" style={{ color: C.sub }}>De<input type="date" value={de} onChange={(e) => setDe(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} /></label>
         <label className="text-[11px]" style={{ color: C.sub }}>Até<input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} /></label>
         <div className="flex-1" />

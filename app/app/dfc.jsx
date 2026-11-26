@@ -48,6 +48,8 @@ export default function Dfc({ user }) {
   return (
     <div>
       <div className="flex flex-wrap items-end gap-2 mb-4">
+        {/* v1137 — dia único */}
+        <label className="text-xs" style={{ color: C.sub }} title="Dia único: De e Até no mesmo dia">Dia<input type="date" value={dIni && dIni === dFim ? dIni : ""} onChange={(e) => { const v = e.target.value; if (v) { setDIni(v); setDFim(v); } }} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={{ ...inpS, ...(dIni && dIni === dFim ? { borderColor: C.accent } : {}) }} /></label>
         <label className="text-xs" style={{ color: C.sub }}>De<input type="date" value={dIni} onChange={(e) => e.target.value && setDIni(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} /></label>
         <label className="text-xs" style={{ color: C.sub }}>Até<input type="date" value={dFim} min={dIni} onChange={(e) => e.target.value && setDFim(e.target.value)} className="block rounded-lg px-2 py-1.5 text-sm outline-none" style={inpS} /></label>
         <div className="flex gap-1 pb-0.5">
