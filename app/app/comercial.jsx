@@ -1,5 +1,4 @@
 "use client";
-import CatalogoCard from "./catalogoCard";   // v1165
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Acompanhamento from "./acompanhamento";   // v381
 import { fornecedoresParecidos } from "@/lib/artigoPadrao";   // v1143
@@ -7,6 +6,7 @@ import { elasticoCalc, faixaCalc, botaoUnit, faixaPedeCor, FAIXA_CORES, semAv, f
 import {
   Briefcase, Calculator, Database, ExternalLink, Save, History, Lock, Unlock,
   Pencil, RotateCcw, ChevronDown, ChevronRight, X, FileText, Send, Search, Printer, SlidersHorizontal, Copy, ArrowLeft, Layers, Users, Shirt, Handshake, Plus, Trash2, Paperclip, Upload, Star, Store, ShoppingCart,
+  BookOpen,   // v1167
 } from "lucide-react";
 import FrenteCaixa from "./frenteCaixa";   // v1084
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
@@ -165,9 +165,10 @@ export default function Comercial({ user, master, fppInicial, componentes = {} }
           ["fpp", Calculator, "Orçamentação (FPP)", "Fichas de precificação, negociações e propostas", () => setView("fpp")],
           ["acomp", Layers, "Acompanhamento", "Seus pedidos e a situação de cada peça no PCP", () => setView("acomp")],
           ["crm", Briefcase, "CRM", "Abre o CRM Meridian em uma nova aba", () => window.open(CRM_URL, "_blank", "noopener")],
+          ["catalogo", BookOpen, "Catálogo Meridian", "Artigos de todos os fornecedores (Drive), em nova aba", () => window.open("/api/catalogo-meridian", "_blank", "noopener")],   // v1167
         ].map(([k, Ico, t, sub, go]) => (
           <button key={k} onClick={go} className="text-left rounded-2xl p-4 transition-shadow hover:shadow-lg min-w-0" style={k === "solic" ? { background: C.accent, border: `1px solid ${C.accent}`, color: "#fff" } : { background: C.panel, border: `1px solid ${C.line}`, color: C.navy }}>
-            <div className="flex items-center gap-2"><Ico size={22} className="shrink-0" style={{ color: k === "solic" ? "#fff" : C.accent }} /><span className="text-base font-bold leading-tight flex-1">{t}</span>{k === "crm" && <ExternalLink size={14} className="shrink-0" style={{ color: C.sub }} />}</div>
+            <div className="flex items-center gap-2"><Ico size={22} className="shrink-0" style={{ color: k === "solic" ? "#fff" : C.accent }} /><span className="text-base font-bold leading-tight flex-1">{t}</span>{(k === "crm" || k === "catalogo") && <ExternalLink size={14} className="shrink-0" style={{ color: C.sub }} />}</div>
             <div className="text-xs mt-1" style={{ color: k === "solic" ? "rgba(255,255,255,0.85)" : C.sub }}>{sub}</div>
           </button>
         ))}
@@ -771,7 +772,6 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
 
       {aba === "banco" && <BancoParams params={params} master={master} user={user} onReload={() => fetch("/api/fpp/params").then((x) => x.json()).then(setParams)} />}
 
-      {aba === "salvas" && <div className="mb-4" style={{ maxWidth: 560 }}><CatalogoCard compacto /></div>}   {/* v1165 */}
       {aba === "salvas" && <FichasSalvas master={master} onEditar={(x) => carregarFicha(x, { aba: "salvas" })} onClonar={clonarSalva} voltarRef={voltarSalvas} onItemPadrao={(x) => tornarPadrao(x.id, x.numero)} />}
       {itemPadrao && <ItemPadraoModal id={itemPadrao.id || null} fppInicialId={itemPadrao.fppId || null} user={user} componentes={componentes}
         onClose={() => setItemPadrao(null)} onSaved={() => { setItemPadrao(null); alerta("Item padrão salvo. Ele já aparece no lançamento do pedido para o cliente (e no portal, se o cliente tiver)."); }} />}
