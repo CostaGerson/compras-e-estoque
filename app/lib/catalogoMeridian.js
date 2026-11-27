@@ -1,6 +1,8 @@
 // v1165 — Catálogo Meridian: todos os artigos de todas as cartelas (origem CARTELA) num HTML único, com guias por fornecedor
 //   e por artigo. O arquivo fica na pasta do Google Drive (não pesa o banco); o sistema guarda só o id e serve uma cópia em disco.
 import crypto from "crypto";
+import { readFileSync } from "fs";
+import path from "path";
 import { prisma } from "@/lib/prisma";
 import { driveEnviar, driveLer, driveExcluir, gravarCacheDrive, caminhoCacheDrive } from "@/lib/artesDrive";
 import { corHex } from "@/lib/coresCatalogo";   // v1175 — bolinha da cor
@@ -78,6 +80,12 @@ async function ultimasCompras(famDe) {
   }
 }
 
+// v1177 — logo do ERP embutida (o arquivo também abre pelo Drive, fora do sistema)
+let LOGO = null;
+function logoMeridian() {
+  if (LOGO === null) { try { LOGO = "data:image/svg+xml;base64," + readFileSync(path.join(process.cwd(), "public", "meridian-logo.svg")).toString("base64"); } catch { LOGO = ""; } }
+  return LOGO;
+}
 export function htmlCatalogo(dados, geradoEm = new Date()) {
   const nA = dados.reduce((s, x) => s + x.a.length, 0), nC = dados.reduce((s, x) => s + x.a.reduce((t, a) => t + a.k.length, 0), 0);
   const quando = geradoEm.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
@@ -92,9 +100,9 @@ export function htmlCatalogo(dados, geradoEm = new Date()) {
 :root{--navy:#001E41;--navyL:#0C2C52;--navyS:#9FB0C7;--or:#FF6B1A;--orS:#FFF0E6;--bg:#F5F6F8;--pn:#fff;--pn2:#F1F3F5;--ln:#E4E7EC;--tx:#1F2733;--sub:#667085;--gr:#12A150;--grS:#E7F6EE;--bl:#2E7CD6;--blS:#EAF2FC;--ye:#C08401;--yeS:#FFF7E0}
 *{box-sizing:border-box}body{margin:0;font-family:Montserrat,system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:13px}
 button,input{font-family:inherit}
-header{background:var(--navy);color:#fff;padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:6}
+header{background:var(--navy);color:#fff;padding:0 24px;min-height:68px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:6}
 .logo{display:flex;align-items:center;gap:12px}.logo .ic{width:40px;height:40px;border-radius:12px;background:rgba(255,107,26,.15);display:grid;place-items:center;color:var(--or);font-weight:800;font-size:18px}
-header h1{margin:0;font-size:17px;font-weight:800;letter-spacing:.2px}header h1 b{color:var(--or)}header .meta{font-size:11px;color:var(--navyS);margin-top:2px}
+header h1{margin:0;font-size:15px;font-weight:700;letter-spacing:.2px}.logo .sep{width:1px;height:30px;background:var(--navyL)}header h1 b{color:var(--or)}header .meta{font-size:11px;color:var(--navyS);margin-top:2px}
 .tabs{display:flex;gap:4px;margin-left:auto;background:var(--navyL);padding:4px;border-radius:10px}.tabs button{background:transparent;border:0;color:var(--navyS);padding:7px 14px;border-radius:7px;cursor:pointer;font-weight:700;font-size:12px}
 .tabs button.on{background:var(--or);color:#fff}
 .bar{display:flex;gap:8px;align-items:center;padding:10px 24px;background:var(--pn);border-bottom:1px solid var(--ln);flex-wrap:wrap;position:sticky;top:68px;z-index:5}
@@ -143,7 +151,7 @@ h2{font-size:15px;color:var(--navy);font-weight:800;margin:6px 0 12px;display:fl
 @media(max-width:800px){nav.side{display:none}.row{grid-template-columns:1fr 1fr}.bar,header{position:static}.det{grid-template-columns:1fr}.det .sw{width:100%;height:120px}}
 @media print{header,.bar,nav.side{position:static}nav.side{display:none}}
 </style></head><body>
-<header><div class="logo"><div class="ic">◆</div><div><h1>CATÁLOGO <b>MERIDIAN</b></h1><div class="meta">${dados.length} fornecedores · ${nA} artigos · ${nC} cores · atualizado em ${esc(quando)}</div></div></div>
+<header><div class="logo">${logoMeridian() ? `<img src="${logoMeridian()}" alt="MERIDIAN" style="height:24px;width:auto">` : "<h1>MERIDIAN</h1>"}<div class="sep"></div><div><h1>Catálogo</h1><div class="meta">${dados.length} fornecedores · ${nA} artigos · ${nC} cores · atualizado em ${esc(quando)}</div></div></div>
 <div class="tabs"><button id="tF" class="on">Por fornecedor</button><button id="tA">Por artigo</button></div></header>
 <div class="bar"><input id="q" placeholder="Buscar artigo, referência, composição, cor, fornecedor ou artigo interno…" autocomplete="off">
 <button class="chip on" data-c="">Todos</button><button class="chip" data-c="MALHA">Malha</button><button class="chip" data-c="TECIDO">Tecido</button><button class="chip" data-c="AVIAMENTO">Aviamento</button><button class="chip" data-c="OUTROS">Outros</button></div>
