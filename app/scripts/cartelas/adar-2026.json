@@ -1,0 +1,3361 @@
+{
+ "flag": "SEED|CARTELA|ADAR|2026-11-27",
+ "fornecedor": {
+  "nome": "ADAR",
+  "nomeFantasia": "ADAR TECIDOS",
+  "obs": "CADASTRADO PELO BOOK VIRTUAL COR ADAR (27/11/2026). COR DA BOLINHA = AMOSTRA DO BOOK",
+  "busca": "ADAR"
+ },
+ "tiposNovos": [],
+ "artigos": [
+  {
+   "categoria": "TECIDO",
+   "ref": "155.Y04",
+   "nome": "TECNOLOGY WR",
+   "interno": "WR REPELENTE",
+   "composicao": "100% POLIAMIDA",
+   "gramatura": 64,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "011 BRANCO OPTICO",
+     null,
+     "#FFFFFF"
+    ],
+    [
+     "420 RUBI",
+     "PANTONE 18-1660 TCX",
+     "#CD2A3E"
+    ],
+    [
+     "H77 NEON GREEN",
+     null,
+     "#6FFF14"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "NB5 ARUBA BLUE",
+     "PANTONE 18-4525 TCX",
+     "#0084A2"
+    ],
+    [
+     "PBX PINK VIBRANTE",
+     null,
+     "#FF5A78"
+    ],
+    [
+     "W40 SOL",
+     "PANTONE 14-0852 TCX",
+     "#F6C324"
+    ],
+    [
+     "XT4 SPEED ORANGE",
+     "PANTONE 18-1561 TCX",
+     "#D5392C"
+    ],
+    [
+     "XVA NEON ORANGE",
+     null,
+     "#FF8848"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "155.Y17",
+   "nome": "POLY TAFFETA",
+   "interno": null,
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 46,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "010 BRANCO",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "420 RUBI",
+     "PANTONE 18-1660 TCX",
+     "#CD2A3E"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "A70 OFF WHITE",
+     "PANTONE 11-0602 TCX",
+     "#F0EDED"
+    ],
+    [
+     "C73 AREIA LUNAR",
+     "PANTONE 15-1116 TCX",
+     "#C1AE94"
+    ],
+    [
+     "F50 TAIPA",
+     "PANTONE 18-0617 TCX",
+     "#7D735E"
+    ],
+    [
+     "H90 AMAZONAS",
+     "PANTONE 19-5917 TCX",
+     "#294238"
+    ],
+    [
+     "HMZ VERDE BRASIL",
+     "PANTONE 18-6031 TCX",
+     "#007C4C"
+    ],
+    [
+     "HP5 VERDE BANDEIRA MN",
+     "PANTONE 17-6153 TCX",
+     "#009353"
+    ],
+    [
+     "K60 VIDRO",
+     "PANTONE 13-4308 TCX",
+     "#B5C9D9"
+    ],
+    [
+     "L17 CERAMIC",
+     "PANTONE 17-4435 TCX",
+     "#5B97C5"
+    ],
+    [
+     "M2O MARITIMO",
+     "PANTONE 19-4024 TCX",
+     "#2A3244"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "M50 MARINHO ESCURO",
+     "PANTONE 19-4013 TCX",
+     "#33363D"
+    ],
+    [
+     "MLN ROYAL",
+     "PANTONE 19-3953 TCX",
+     "#384478"
+    ],
+    [
+     "P31 SORVETE",
+     "PANTONE 13-1906 TCX",
+     "#F7C4D4"
+    ],
+    [
+     "P5B ROSA BEBE MN",
+     "PANTONE 12-2906 TCX",
+     "#F1D7DD"
+    ],
+    [
+     "P61 FLUO PINK",
+     null,
+     "#E0457A"
+    ],
+    [
+     "T34 ROXO NEW",
+     "PANTONE 18-3840 TCX",
+     "#695FA2"
+    ],
+    [
+     "T37 ROXO ORQUIDEA",
+     "PANTONE 16-3617 TCX",
+     "#BB97C6"
+    ],
+    [
+     "U20 ESCARLATE",
+     "PANTONE 18-1664 TCX",
+     "#D12630"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "W02 AMARELO LIMÄO",
+     null,
+     "#CCFF33"
+    ],
+    [
+     "W21 REFLEXO",
+     "PANTONE 12-0643 TCX",
+     "#F7E82B"
+    ],
+    [
+     "W24 FLUO GIALLO",
+     null,
+     "#CFFF75"
+    ],
+    [
+     "W61 AMARELO LIGHT",
+     "PANTONE 11-0620 TCX",
+     "#F0ED96"
+    ],
+    [
+     "W99 AMARELO BANDEIRA",
+     "PANTONE 13-0751 TCX",
+     "#F5CB00"
+    ],
+    [
+     "X49 FLUO ORANGE",
+     null,
+     "#FF5E00"
+    ],
+    [
+     "Y20 GAIVOTA",
+     "PANTONE 17-4405 TCX",
+     "#7A8587"
+    ],
+    [
+     "Y65 CINZA SMOKE",
+     "PANTONE 14-4201 TCX",
+     "#C9C9CC"
+    ],
+    [
+     "YZM VINHEDO",
+     "PANTONE 19-2024 TCX",
+     "#7A404F"
+    ],
+    [
+     "Z30 CACAU",
+     "PANTONE 19-0910 TCX",
+     "#504846"
+    ],
+    [
+     "ZU5 ITTA",
+     "PANTONE 18-5206 TCX",
+     "#605F60"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "225.099",
+   "nome": "OXFORD STRETCH",
+   "interno": "OXFORD",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 150,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "010 BRANCO",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "020 MARFIM",
+     "PANTONE 11-0104 TCX",
+     "#F1ECDC"
+    ],
+    [
+     "420 RUBI",
+     "PANTONE 18-1660 TCX",
+     "#CD2A3E"
+    ],
+    [
+     "450 BORDO",
+     "PANTONE 19-1656 TCX",
+     "#8E3841"
+    ],
+    [
+     "630 KAKI",
+     "PANTONE 18-0627 TCX",
+     "#6C5F3E"
+    ],
+    [
+     "640 MILITAR",
+     "PANTONE 19-0509 TCX",
+     "#363B30"
+    ],
+    [
+     "980 GRAFITE",
+     "PANTONE 18-0201 TCX",
+     "#5F6367"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "A30 BLANC",
+     "PANTONE 11-4300 TCX",
+     "#EFEDE2"
+    ],
+    [
+     "CLW SKIN",
+     "PANTONE 13-1011 TCX",
+     "#DFC5AC"
+    ],
+    [
+     "CLX NATURAL",
+     "PANTONE 16-1315 TCX",
+     "#AC987D"
+    ],
+    [
+     "E10 CAPUCCINO",
+     "PANTONE 19-1420 TCX",
+     "#543B38"
+    ],
+    [
+     "H90 AMAZONAS",
+     "PANTONE 19-5917 TCX",
+     "#294238"
+    ],
+    [
+     "HMZ VERDE BRASIL",
+     "PANTONE 18-6031 TCX",
+     "#007C4C"
+    ],
+    [
+     "J46 VENETA",
+     "PANTONE 14-0452 TCX",
+     "#A1C42B"
+    ],
+    [
+     "K50 BABY",
+     "PANTONE 15-4020 TCX",
+     "#ADC0DC"
+    ],
+    [
+     "K80 AZUL ALVORADA",
+     "PANTONE 18-4039 TCX",
+     "#4D7DBD"
+    ],
+    [
+     "L0F CANCUN",
+     "PANTONE 16-5127 TCX",
+     "#00AFAC"
+    ],
+    [
+     "L17 CERAMIC",
+     "PANTONE 17-4435 TCX",
+     "#5B97C5"
+    ],
+    [
+     "L59 COLUMBIA",
+     "PANTONE 17-5130 TCX",
+     "#00948A"
+    ],
+    [
+     "M10 NAUTICO",
+     "PANTONE 19-4024 TCX",
+     "#263347"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "M50 MARINHO ESCURO",
+     "PANTONE 19-4013 TCX",
+     "#33363D"
+    ],
+    [
+     "MLN ROYAL",
+     "PANTONE 19-3953 TCX",
+     "#384478"
+    ],
+    [
+     "N98 BABY GREEN",
+     "PANTONE 13-5313 TCX",
+     "#85DBD6"
+    ],
+    [
+     "P31 SORVETE",
+     "PANTONE 13-1906 TCX",
+     "#F7C4D4"
+    ],
+    [
+     "PGY CRAYON",
+     "PANTONE 18-2143 TCX",
+     "#CA4273"
+    ],
+    [
+     "T31 MORGAN",
+     "PANTONE 19-3542 TCX",
+     "#6A457D"
+    ],
+    [
+     "T32 MISS",
+     "PANTONE 19-3217 TCX",
+     "#322136"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "W11 AMARELO BRASIL",
+     "PANTONE 14-0957 TCX",
+     "#FFC72C"
+    ],
+    [
+     "W1B BRANCO HIFI",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "X19 LARANJA FANTA",
+     "PANTONE 17-1464 TCX",
+     "#F25E35"
+    ],
+    [
+     "Y17 ACO",
+     "PANTONE 17-0000 TCX",
+     "#858587"
+    ],
+    [
+     "Y19 NEW GRAY",
+     "PANTONE 16-4402 TCX",
+     "#A4A29E"
+    ],
+    [
+     "Y80 CINZA NEVOA",
+     "PANTONE 14-4501 TCX",
+     "#BFBAAD"
+    ],
+    [
+     "YEH FUSIL",
+     "PANTONE 19-3910 TCX",
+     "#575B5F"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "225.795",
+   "nome": "TWO-WAY STRETCH",
+   "interno": "TWO WAY",
+   "composicao": "96% POLIÉSTER 4% ELASTANO",
+   "gramatura": 210,
+   "largura": 1.48,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "010 BRANCO",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "450 BORDO",
+     "PANTONE 19-1656 TCX",
+     "#8E3841"
+    ],
+    [
+     "490 LILAS",
+     "PANTONE 14-3710 TCX",
+     "#BFB3D0"
+    ],
+    [
+     "890 GELO",
+     "PANTONE 15-4503 TCX",
+     "#BDB2AA"
+    ],
+    [
+     "999 JET BLACK",
+     null,
+     "#323232"
+    ],
+    [
+     "A30 BLANC",
+     "PANTONE 11-4300 TCX",
+     "#EFEDE2"
+    ],
+    [
+     "C73 AREIA LUNAR",
+     "PANTONE 15-1116 TCX",
+     "#C1AE94"
+    ],
+    [
+     "C91 ARMANY",
+     "PANTONE 16-1107 TCX",
+     "#9C9688"
+    ],
+    [
+     "G12 SALVIA",
+     "PANTONE 13-6108 TCX",
+     "#B5CCB8"
+    ],
+    [
+     "H90 AMAZONAS",
+     "PANTONE 19-5917 TCX",
+     "#294238"
+    ],
+    [
+     "HMZ VERDE BRASIL",
+     "PANTONE 18-6031 TCX",
+     "#007C4C"
+    ],
+    [
+     "I13 ARMY",
+     "PANTONE 19-0312 TCX",
+     "#595E52"
+    ],
+    [
+     "K50 BABY",
+     "PANTONE 15-4020 TCX",
+     "#ADC0DC"
+    ],
+    [
+     "K80 AZUL ALVORADA",
+     "PANTONE 18-4039 TCX",
+     "#4D7DBD"
+    ],
+    [
+     "L17 CERAMIC",
+     "PANTONE 17-4435 TCX",
+     "#5B97C5"
+    ],
+    [
+     "L59 COLUMBIA",
+     "PANTONE 17-5130 TCX",
+     "#00948A"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "M50 MARINHO ESCURO",
+     "PANTONE 19-4013 TCX",
+     "#33363D"
+    ],
+    [
+     "MLN ROYAL",
+     "PANTONE 19-3953 TCX",
+     "#384478"
+    ],
+    [
+     "N35 PARADISE",
+     "PANTONE 17-4728 TCX",
+     "#00879F"
+    ],
+    [
+     "P93 ROSA",
+     "PANTONE 14-1506 TCX",
+     "#DFC5C0"
+    ],
+    [
+     "PFJ PICNIC",
+     "PANTONE 17-2033 TCX",
+     "#DE5285"
+    ],
+    [
+     "PXQ NICE",
+     "PANTONE 16-1632 TCX",
+     "#F88085"
+    ],
+    [
+     "QT9 BURGANDY",
+     "PANTONE 19-2024 TCX",
+     "#722B3F"
+    ],
+    [
+     "S34 FLAMBOYA",
+     "PANTONE 16-1707 TCX",
+     "#BE9A90"
+    ],
+    [
+     "T32 MISS",
+     "PANTONE 19-3217 TCX",
+     "#322136"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "W11 AMARELO BRASIL",
+     "PANTONE 14-0957 TCX",
+     "#FFC72C"
+    ],
+    [
+     "X19 LARANJA FANTA",
+     "PANTONE 17-1464 TCX",
+     "#F25E35"
+    ],
+    [
+     "Y13 GAROA",
+     "PANTONE 12-0404 TCX",
+     "#DAD7CB"
+    ],
+    [
+     "Y57 ESTANHO",
+     "PANTONE 16-4402 TCX",
+     "#A4A29F"
+    ],
+    [
+     "Y65 CINZA SMOKE",
+     "PANTONE 14-4201 TCX",
+     "#C9C9CC"
+    ],
+    [
+     "YEH FUSIL",
+     "PANTONE 19-3910 TCX",
+     "#575B5F"
+    ],
+    [
+     "Z30 CACAU",
+     "PANTONE 19-0910 TCX",
+     "#504846"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "225.A35",
+   "nome": "TECNOSPORT PREMIUM",
+   "interno": "POLIESTER ESPORTIVO",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 105,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "010 BRANCO",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "420 RUBI",
+     "PANTONE 18-1660 TCX",
+     "#CD2A3E"
+    ],
+    [
+     "M26 SKYPE",
+     "PANTONE 19-4324 TCX",
+     "#264F63"
+    ],
+    [
+     "PAQ PINK FLUOR",
+     null,
+     "#F2106B"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "Y60 SILVER",
+     "PANTONE 14-4203 TCX",
+     "#BDBFBF"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "225.B07",
+   "nome": "ADAR BRIM LEVE",
+   "interno": "BRIM MISTO ALGODAO E POLIESTER",
+   "composicao": "80% POLIÉSTER 20% ALGODÃO",
+   "gramatura": 190,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "011 BRANCO OPTICO",
+     null,
+     "#FFFFFF"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "CPD AREIA WORK",
+     "PANTONE 15-1215 TCX",
+     "#BBA68C"
+    ],
+    [
+     "EQ7 CAQUI WORK",
+     "PANTONE 17-1022 TCX",
+     "#9A8A68"
+    ],
+    [
+     "HF4 VERDE BANDEIRA WORK",
+     "PANTONE 19-6026 TCX",
+     "#236952"
+    ],
+    [
+     "HT8 VERDE ESCURO WORK",
+     "PANTONE 19-5513 TCX",
+     "#335045"
+    ],
+    [
+     "HT9 VERDE MEDIO WORK",
+     "PANTONE 17-5528 TCX",
+     "#00806C"
+    ],
+    [
+     "HW2 VERDE CLARO WORK",
+     "PANTONE 14-5420 TCX",
+     "#5AD0BA"
+    ],
+    [
+     "M5B AZUL MEDIO WORK",
+     "PANTONE 18-3945 TCX",
+     "#465FAE"
+    ],
+    [
+     "MFL MARINHO WORK",
+     "PANTONE 19-3920 TCX",
+     "#2F3349"
+    ],
+    [
+     "MFM ROYAL WORK",
+     "PANTONE 19-3952 TCX",
+     "#2F3E88"
+    ],
+    [
+     "UT4 VERMELHO WORK",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "WNH AMARELO GEMA WORK",
+     "PANTONE 15-1058 TCX",
+     "#FB9D18"
+    ],
+    [
+     "WNJ AMARELO WORK",
+     "PANTONE 13-0858 TCX",
+     "#FFDC01"
+    ],
+    [
+     "XHM LARANJA WORK",
+     "PANTONE 16-1362 TCX",
+     "#FC6336"
+    ],
+    [
+     "YGG CIMENTO WORK",
+     "PANTONE 17-1506 TCX",
+     "#887C77"
+    ],
+    [
+     "YGK CINZA WORK",
+     "PANTONE 17-1502 TCX",
+     "#868486"
+    ],
+    [
+     "YGN CHUMBO WORK",
+     "PANTONE 19-4220 TCX",
+     "#44535B"
+    ],
+    [
+     "YKA GRAFITE WORK",
+     "PANTONE 19-3908 TCX",
+     "#3F3E47"
+    ],
+    [
+     "YKB CINZA PETRO WORK",
+     "PANTONE 19-3930 TCX",
+     "#4F4F5C"
+    ],
+    [
+     "YLD CINZA PRATA WORK",
+     "PANTONE 13-4303 TCX",
+     "#C8CCCA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "225.B10",
+   "nome": "ADAR BRIM PESADO",
+   "interno": "BRIM MISTO ALGODAO E POLIESTER",
+   "composicao": "80% POLIÉSTER 20% ALGODÃO",
+   "gramatura": 240,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "011 BRANCO OPTICO",
+     null,
+     "#FFFFFF"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "CPD AREIA WORK",
+     "PANTONE 15-1215 TCX",
+     "#BBA68C"
+    ],
+    [
+     "EEP MARROM WORK",
+     "PANTONE 19-1218 TCX",
+     "#584239"
+    ],
+    [
+     "EQ7 CAQUI WORK",
+     "PANTONE 17-1022 TCX",
+     "#9A8A68"
+    ],
+    [
+     "HF4 VERDE BANDEIRA WORK",
+     "PANTONE 19-6026 TCX",
+     "#236952"
+    ],
+    [
+     "HT8 VERDE ESCURO WORK",
+     "PANTONE 19-5513 TCX",
+     "#335045"
+    ],
+    [
+     "HT9 VERDE MEDIO WORK",
+     "PANTONE 17-5528 TCX",
+     "#00806C"
+    ],
+    [
+     "HW2 VERDE CLARO WORK",
+     "PANTONE 14-5420 TCX",
+     "#5AD0BA"
+    ],
+    [
+     "M5B AZUL MEDIO WORK",
+     "PANTONE 18-3945 TCX",
+     "#465FAE"
+    ],
+    [
+     "MFL MARINHO WORK",
+     "PANTONE 19-3920 TCX",
+     "#2F3349"
+    ],
+    [
+     "MFM ROYAL WORK",
+     "PANTONE 19-3952 TCX",
+     "#2F3E88"
+    ],
+    [
+     "UDA VINHO WORK",
+     "PANTONE 19-1934 TCX",
+     "#7D3443"
+    ],
+    [
+     "UT4 VERMELHO WORK",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "WNH AMARELO GEMA WORK",
+     "PANTONE 15-1058 TCX",
+     "#FB9D18"
+    ],
+    [
+     "WNJ AMARELO WORK",
+     "PANTONE 13-0858 TCX",
+     "#FFDC01"
+    ],
+    [
+     "XHM LARANJA WORK",
+     "PANTONE 16-1362 TCX",
+     "#FC6336"
+    ],
+    [
+     "YGG CIMENTO WORK",
+     "PANTONE 17-1506 TCX",
+     "#887C77"
+    ],
+    [
+     "YGK CINZA WORK",
+     "PANTONE 17-1502 TCX",
+     "#868486"
+    ],
+    [
+     "YGN CHUMBO WORK",
+     "PANTONE 19-4220 TCX",
+     "#44535B"
+    ],
+    [
+     "YKA GRAFITE WORK",
+     "PANTONE 19-3908 TCX",
+     "#3F3E47"
+    ],
+    [
+     "YKB CINZA PETRO WORK",
+     "PANTONE 19-3930 TCX",
+     "#4F4F5C"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "225.D12",
+   "nome": "OXFORD STRETCH SUPER",
+   "interno": "OXFORD",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 140,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "010 BRANCO",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "020 MARFIM",
+     "PANTONE 11-0104 TCX",
+     "#F1ECDC"
+    ],
+    [
+     "420 RUBI",
+     "PANTONE 18-1660 TCX",
+     "#CD2A3E"
+    ],
+    [
+     "450 BORDO",
+     "PANTONE 19-1656 TCX",
+     "#8E3841"
+    ],
+    [
+     "630 KAKI",
+     "PANTONE 18-0627 TCX",
+     "#6C5F3E"
+    ],
+    [
+     "640 MILITAR",
+     "PANTONE 19-0509 TCX",
+     "#363B30"
+    ],
+    [
+     "850 MUSGO",
+     "PANTONE 19-0512 TCX",
+     "#584E2C"
+    ],
+    [
+     "890 GELO",
+     "PANTONE 15-4503 TCX",
+     "#BDB2AA"
+    ],
+    [
+     "960 CINZA MEDIO",
+     "PANTONE 18-5105 TCX",
+     "#72766B"
+    ],
+    [
+     "980 GRAFITE",
+     "PANTONE 18-0201 TCX",
+     "#5F6367"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "A30 BLANC",
+     "PANTONE 11-4300 TCX",
+     "#EFEDE2"
+    ],
+    [
+     "C0F CAFE COM LEITE",
+     "PANTONE 16-1212 TCX",
+     "#BAA48F"
+    ],
+    [
+     "C16 CANHAMO",
+     "PANTONE 14-1014 TCX",
+     "#C9C2A1"
+    ],
+    [
+     "CLW SKIN",
+     "PANTONE 13-1011 TCX",
+     "#DFC5AC"
+    ],
+    [
+     "CLX NATURAL",
+     "PANTONE 16-1315 TCX",
+     "#AC987D"
+    ],
+    [
+     "E10 CAPUCCINO",
+     "PANTONE 19-1420 TCX",
+     "#543B38"
+    ],
+    [
+     "EMX AMARETTO",
+     "PANTONE 19-1333 TCX",
+     "#825246"
+    ],
+    [
+     "G29 VERDE ERVA",
+     "PANTONE 13-0215 TCX",
+     "#C2D6A6"
+    ],
+    [
+     "H90 AMAZONAS",
+     "PANTONE 19-5917 TCX",
+     "#294238"
+    ],
+    [
+     "HMZ VERDE BRASIL",
+     "PANTONE 18-6031 TCX",
+     "#007C4C"
+    ],
+    [
+     "J46 VENETA",
+     "PANTONE 14-0452 TCX",
+     "#A1C42B"
+    ],
+    [
+     "K50 BABY",
+     "PANTONE 15-4020 TCX",
+     "#ADC0DC"
+    ],
+    [
+     "K80 AZUL ALVORADA",
+     "PANTONE 18-4039 TCX",
+     "#4D7DBD"
+    ],
+    [
+     "L0F CANCUN",
+     "PANTONE 16-5127 TCX",
+     "#00AFAC"
+    ],
+    [
+     "L17 CERAMIC",
+     "PANTONE 17-4435 TCX",
+     "#5B97C5"
+    ],
+    [
+     "L59 COLUMBIA",
+     "PANTONE 17-5130 TCX",
+     "#00948A"
+    ],
+    [
+     "M10 NAUTICO",
+     "PANTONE 19-4024 TCX",
+     "#263347"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "M50 MARINHO ESCURO",
+     "PANTONE 19-4013 TCX",
+     "#33363D"
+    ],
+    [
+     "MLN ROYAL",
+     "PANTONE 19-3953 TCX",
+     "#384478"
+    ],
+    [
+     "N35 PARADISE",
+     "PANTONE 17-4728 TCX",
+     "#00879F"
+    ],
+    [
+     "N98 BABY GREEN",
+     "PANTONE 13-5313 TCX",
+     "#85DBD6"
+    ],
+    [
+     "P31 SORVETE",
+     "PANTONE 13-1906 TCX",
+     "#F7C4D4"
+    ],
+    [
+     "P70 CANDY",
+     "PANTONE 16-2124 TCX",
+     "#ED78A6"
+    ],
+    [
+     "PB2 KIRA",
+     "PANTONE 16-1708 TCX",
+     "#C8909A"
+    ],
+    [
+     "PGY CRAYON",
+     "PANTONE 18-2143 TCX",
+     "#CA4273"
+    ],
+    [
+     "R40 AMETISTA",
+     "PANTONE 17-3619 TCX",
+     "#8F69A6"
+    ],
+    [
+     "S12 HIBISCUS",
+     "PANTONE 14-3612 TCX",
+     "#C4AED0"
+    ],
+    [
+     "T31 MORGAN",
+     "PANTONE 19-3542 TCX",
+     "#6A457D"
+    ],
+    [
+     "T32 MISS",
+     "PANTONE 19-3217 TCX",
+     "#322136"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "UBP BETERRABA",
+     "PANTONE 19-1627 TCX",
+     "#5E3E45"
+    ],
+    [
+     "W11 AMARELO BRASIL",
+     "PANTONE 14-0957 TCX",
+     "#FFC72C"
+    ],
+    [
+     "W13 AMARELO GEMA",
+     "PANTONE 14-1159 TCX",
+     "#E1A638"
+    ],
+    [
+     "W1B BRANCO HIFI",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "W21 REFLEXO",
+     "PANTONE 12-0643 TCX",
+     "#F7E82B"
+    ],
+    [
+     "W27 COOL",
+     "PANTONE 12-0722 TCX",
+     "#F0E0A6"
+    ],
+    [
+     "W50 TOPAZIO",
+     "PANTONE 15-1050 TCX",
+     "#DE9E36"
+    ],
+    [
+     "X19 LARANJA FANTA",
+     "PANTONE 17-1464 TCX",
+     "#F25E35"
+    ],
+    [
+     "X34 LIGHT CORAL",
+     "PANTONE 15-1433 TCX",
+     "#FFA187"
+    ],
+    [
+     "XEN STREET INDIE",
+     "PANTONE 18-1355 TCX",
+     "#AB4D3A"
+    ],
+    [
+     "Y17 ACO",
+     "PANTONE 17-0000 TCX",
+     "#858587"
+    ],
+    [
+     "Y19 NEW GRAY",
+     "PANTONE 16-4402 TCX",
+     "#A4A29E"
+    ],
+    [
+     "Y60 SILVER",
+     "PANTONE 14-4203 TCX",
+     "#BDBFBF"
+    ],
+    [
+     "Y80 CINZA NEVOA",
+     "PANTONE 14-4501 TCX",
+     "#BFBAAD"
+    ],
+    [
+     "YEH FUSIL",
+     "PANTONE 19-3910 TCX",
+     "#575B5F"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "225.U32",
+   "nome": "ALFAIATARIA TWILL",
+   "interno": "ALFAIATARIA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 170,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "490 LILAS",
+     "PANTONE 14-3710 TCX",
+     "#BFB3D0"
+    ],
+    [
+     "740 ROYAL II",
+     "PANTONE 19-4050 TCX",
+     "#315592"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "A30 BLANC",
+     "PANTONE 11-4300 TCX",
+     "#EFEDE2"
+    ],
+    [
+     "CAN AREIA TWILL",
+     "PANTONE 15-1306 TCX",
+     "#BCAD9E"
+    ],
+    [
+     "CTG BEGE BAMBU",
+     "PANTONE 15-1304 TCX",
+     "#BDAD9A"
+    ],
+    [
+     "E10 CAPUCCINO",
+     "PANTONE 19-1420 TCX",
+     "#543B38"
+    ],
+    [
+     "EE2 BITTER COFFEE",
+     "PANTONE 19-0840 TCX",
+     "#4C4441"
+    ],
+    [
+     "EL2 CAQUI MEDIO",
+     "PANTONE 17-1109 TCX",
+     "#9B9078"
+    ],
+    [
+     "FZD PATRIOT BLUE",
+     "PANTONE 19-3920 TCX",
+     "#303347"
+    ],
+    [
+     "G12 SALVIA",
+     "PANTONE 13-6108 TCX",
+     "#B5CCB8"
+    ],
+    [
+     "K50 BABY",
+     "PANTONE 15-4020 TCX",
+     "#ADC0DC"
+    ],
+    [
+     "L12 AZUL ITALIA",
+     "PANTONE 16-4032 TCX",
+     "#638CC7"
+    ],
+    [
+     "M10 NAUTICO",
+     "PANTONE 19-4024 TCX",
+     "#263347"
+    ],
+    [
+     "M26 SKYPE",
+     "PANTONE 19-4324 TCX",
+     "#264F63"
+    ],
+    [
+     "M53 MARINHO TWILL",
+     "PANTONE 19-4012 TCX",
+     "#3B3F48"
+    ],
+    [
+     "N98 BABY GREEN",
+     "PANTONE 13-5313 TCX",
+     "#85DBD6"
+    ],
+    [
+     "P19 CRAYON II",
+     "PANTONE 18-1951 TCX",
+     "#BE3360"
+    ],
+    [
+     "P68 SO PRETTY",
+     "PANTONE 12-2905 TCX",
+     "#ECD6D6"
+    ],
+    [
+     "QAJ JESS",
+     "PANTONE 19-1650 TCX",
+     "#7D303D"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "UFB DARK GRENA",
+     "PANTONE 19-1725 TCX",
+     "#672E3B"
+    ],
+    [
+     "W1B BRANCO HIFI",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "Y17 ACO",
+     "PANTONE 17-0000 TCX",
+     "#858587"
+    ],
+    [
+     "Y60 SILVER",
+     "PANTONE 14-4203 TCX",
+     "#BDBFBF"
+    ],
+    [
+     "Y98 SHADE",
+     "PANTONE 15-4305 TCX",
+     "#96948A"
+    ],
+    [
+     "YB8 CINZA TWILL",
+     null,
+     "#575557"
+    ],
+    [
+     "YC2 CIMENTO TWILL",
+     null,
+     "#716E54"
+    ],
+    [
+     "YEB CINZA CLARO TWILL",
+     "PANTONE 18-4006 TCX",
+     "#66676D"
+    ],
+    [
+     "YKH LIGHT BONE",
+     "PANTONE 13-4403 TCX",
+     "#CECDC1"
+    ],
+    [
+     "YLK CINZA BRITA",
+     "PANTONE 17-4405 TCX",
+     "#7A8387"
+    ],
+    [
+     "YLM PRATA II",
+     "PANTONE 14-4105 TCX",
+     "#C4C5CA"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "225.U78",
+   "nome": "TECNOSPORT REVERSIVEL PLUS",
+   "interno": "POLIESTER ESPORTIVO",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 140,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "011 BRANCO OPTICO",
+     null,
+     "#FFFFFF"
+    ],
+    [
+     "450 BORDO",
+     "PANTONE 19-1656 TCX",
+     "#8E3841"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "B80 KENZO",
+     "PANTONE 13-0401 TCX",
+     "#CCC4B5"
+    ],
+    [
+     "I18 CARGO",
+     "PANTONE 19-5920 TCX",
+     "#384F45"
+    ],
+    [
+     "L59 COLUMBIA",
+     "PANTONE 17-5130 TCX",
+     "#00948A"
+    ],
+    [
+     "M26 SKYPE",
+     "PANTONE 19-4324 TCX",
+     "#264F63"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "MLN ROYAL",
+     "PANTONE 19-3953 TCX",
+     "#384478"
+    ],
+    [
+     "W40 SOL",
+     "PANTONE 14-0852 TCX",
+     "#F6C324"
+    ],
+    [
+     "Y60 SILVER",
+     "PANTONE 14-4203 TCX",
+     "#BDBFBF"
+    ],
+    [
+     "YEH FUSIL",
+     "PANTONE 19-3910 TCX",
+     "#575B5F"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "225.V86",
+   "nome": "TWO-WAY STRETCH AIR JET",
+   "interno": "TWO WAY",
+   "composicao": "94% POLIÉSTER 6% ELASTANO",
+   "gramatura": 230,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "010 BRANCO",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "450 BORDO",
+     "PANTONE 19-1656 TCX",
+     "#8E3841"
+    ],
+    [
+     "490 LILAS",
+     "PANTONE 14-3710 TCX",
+     "#BFB3D0"
+    ],
+    [
+     "890 GELO",
+     "PANTONE 15-4503 TCX",
+     "#BDB2AA"
+    ],
+    [
+     "960 CINZA MEDIO",
+     "PANTONE 18-5105 TCX",
+     "#72766B"
+    ],
+    [
+     "999 JET BLACK",
+     null,
+     "#323232"
+    ],
+    [
+     "A30 BLANC",
+     "PANTONE 11-4300 TCX",
+     "#EFEDE2"
+    ],
+    [
+     "C73 AREIA LUNAR",
+     "PANTONE 15-1116 TCX",
+     "#C1AE94"
+    ],
+    [
+     "C91 ARMANY",
+     "PANTONE 16-1107 TCX",
+     "#9C9688"
+    ],
+    [
+     "EEB JOB BROWN",
+     "PANTONE 18-1163 TCX",
+     "#A6652E"
+    ],
+    [
+     "EVS SOFT ROUSSE",
+     "PANTONE 18-1441 TCX",
+     "#A05747"
+    ],
+    [
+     "G12 SALVIA",
+     "PANTONE 13-6108 TCX",
+     "#B5CCB8"
+    ],
+    [
+     "H90 AMAZONAS",
+     "PANTONE 19-5917 TCX",
+     "#294238"
+    ],
+    [
+     "HMZ VERDE BRASIL",
+     "PANTONE 18-6031 TCX",
+     "#007C4C"
+    ],
+    [
+     "I13 ARMY",
+     "PANTONE 19-0312 TCX",
+     "#595E52"
+    ],
+    [
+     "K50 BABY",
+     "PANTONE 15-4020 TCX",
+     "#ADC0DC"
+    ],
+    [
+     "K80 AZUL ALVORADA",
+     "PANTONE 18-4039 TCX",
+     "#4D7DBD"
+    ],
+    [
+     "L17 CERAMIC",
+     "PANTONE 17-4435 TCX",
+     "#5B97C5"
+    ],
+    [
+     "L59 COLUMBIA",
+     "PANTONE 17-5130 TCX",
+     "#00948A"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "M50 MARINHO ESCURO",
+     "PANTONE 19-4013 TCX",
+     "#33363D"
+    ],
+    [
+     "MLN ROYAL",
+     "PANTONE 19-3953 TCX",
+     "#384478"
+    ],
+    [
+     "N35 PARADISE",
+     "PANTONE 17-4728 TCX",
+     "#00879F"
+    ],
+    [
+     "P31 SORVETE",
+     "PANTONE 13-1906 TCX",
+     "#F7C4D4"
+    ],
+    [
+     "P93 ROSA",
+     "PANTONE 14-1506 TCX",
+     "#DFC5C0"
+    ],
+    [
+     "S34 FLAMBOYA",
+     "PANTONE 16-1707 TCX",
+     "#BE9A90"
+    ],
+    [
+     "T31 MORGAN",
+     "PANTONE 19-3542 TCX",
+     "#6A457D"
+    ],
+    [
+     "T32 MISS",
+     "PANTONE 19-3217 TCX",
+     "#322136"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "U9A NEO MARSALA",
+     "PANTONE 18-1547 TCX",
+     "#93302C"
+    ],
+    [
+     "W11 AMARELO BRASIL",
+     "PANTONE 14-0957 TCX",
+     "#FFC72C"
+    ],
+    [
+     "WEY STELLAR",
+     "PANTONE 16-0953 TCX",
+     "#C4941F"
+    ],
+    [
+     "X19 LARANJA FANTA",
+     "PANTONE 17-1464 TCX",
+     "#F25E35"
+    ],
+    [
+     "Y13 GAROA",
+     "PANTONE 12-0404 TCX",
+     "#DAD7CB"
+    ],
+    [
+     "Y57 ESTANHO",
+     "PANTONE 16-4402 TCX",
+     "#A4A29F"
+    ],
+    [
+     "Y65 CINZA SMOKE",
+     "PANTONE 14-4201 TCX",
+     "#C9C9CC"
+    ],
+    [
+     "YEH FUSIL",
+     "PANTONE 19-3910 TCX",
+     "#575B5F"
+    ],
+    [
+     "Z30 CACAU",
+     "PANTONE 19-0910 TCX",
+     "#504846"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "225.W82",
+   "nome": "OXFORDINE MATTE PLUS",
+   "interno": "OXFORD",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 110,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "011 BRANCO OPTICO",
+     null,
+     "#FFFFFF"
+    ],
+    [
+     "420 RUBI",
+     "PANTONE 18-1660 TCX",
+     "#CD2A3E"
+    ],
+    [
+     "450 BORDO",
+     "PANTONE 19-1656 TCX",
+     "#8E3841"
+    ],
+    [
+     "630 KAKI",
+     "PANTONE 18-0627 TCX",
+     "#6C5F3E"
+    ],
+    [
+     "740 ROYAL II",
+     "PANTONE 19-4050 TCX",
+     "#315592"
+    ],
+    [
+     "960 CINZA MEDIO",
+     "PANTONE 18-5105 TCX",
+     "#72766B"
+    ],
+    [
+     "999 JET BLACK",
+     null,
+     "#323232"
+    ],
+    [
+     "A90 JIL",
+     "PANTONE 11-4300 TCX",
+     "#EDEDE5"
+    ],
+    [
+     "B17 MAMUT",
+     "PANTONE 14-1106 TCX",
+     "#C3BCAD"
+    ],
+    [
+     "B80 KENZO",
+     "PANTONE 13-0401 TCX",
+     "#CCC4B5"
+    ],
+    [
+     "E10 CAPUCCINO",
+     "PANTONE 19-1420 TCX",
+     "#543B38"
+    ],
+    [
+     "H80 VERDE BRASIL II",
+     "PANTONE 17-6153 TCX",
+     "#009353"
+    ],
+    [
+     "H90 AMAZONAS",
+     "PANTONE 19-5917 TCX",
+     "#294238"
+    ],
+    [
+     "HAK VERDE COMFREI",
+     "PANTONE 18-6216 TCX",
+     "#777D68"
+    ],
+    [
+     "HZZ TRAMALES",
+     "PANTONE 19-4125 TCX",
+     "#264257"
+    ],
+    [
+     "J0S AMARELO MATTE",
+     null,
+     "#FFFAEE"
+    ],
+    [
+     "K16 AZUL PLATA",
+     "PANTONE 15-4309 TCX",
+     "#A1BDC7"
+    ],
+    [
+     "K39 POLLINI",
+     "PANTONE 14-4809 TCX",
+     "#9ECCC7"
+    ],
+    [
+     "K50 BABY",
+     "PANTONE 15-4020 TCX",
+     "#ADC0DC"
+    ],
+    [
+     "L0I AZUL CLARO MATTE",
+     null,
+     "#7C91D2"
+    ],
+    [
+     "L79 BLUE JEANS",
+     "PANTONE 18-3916 TCX",
+     "#637382"
+    ],
+    [
+     "M1S AZUL TREVI",
+     "PANTONE 14-3949 TCX",
+     "#CAD4EE"
+    ],
+    [
+     "M9E MARINHO MATTE",
+     null,
+     "#161933"
+    ],
+    [
+     "M9F AZUL MATTE",
+     null,
+     "#2F2C73"
+    ],
+    [
+     "N90 BISCAY",
+     "PANTONE 16-4728 TCX",
+     "#4D9495"
+    ],
+    [
+     "NZ6 CORAL REEF",
+     "PANTONE 15-1331 TCX",
+     "#FCA382"
+    ],
+    [
+     "P19 CRAYON II",
+     "PANTONE 18-1951 TCX",
+     "#BE3360"
+    ],
+    [
+     "P68 SO PRETTY",
+     "PANTONE 12-2905 TCX",
+     "#ECD6D6"
+    ],
+    [
+     "PB2 KIRA",
+     "PANTONE 16-1708 TCX",
+     "#C8909A"
+    ],
+    [
+     "R11 LILAC",
+     "PANTONE 14-3911 TCX",
+     "#BABAD9"
+    ],
+    [
+     "S07 OLIVIA MATTE",
+     null,
+     "#E0E9DB"
+    ],
+    [
+     "T32 MISS",
+     "PANTONE 19-3217 TCX",
+     "#322136"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "W40 SOL",
+     "PANTONE 14-0852 TCX",
+     "#F6C324"
+    ],
+    [
+     "W41 MELLOW",
+     "PANTONE 12-0736 TCX",
+     "#F7D975"
+    ],
+    [
+     "X19 LARANJA FANTA",
+     "PANTONE 17-1464 TCX",
+     "#F25E35"
+    ],
+    [
+     "Y12 FUSIL II",
+     "PANTONE 18-0000 TCX",
+     "#6B6C6E"
+    ],
+    [
+     "Y48 CINZA CLARO",
+     "PANTONE 14-4102 TCX",
+     "#C7CCCC"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "225.Z32",
+   "nome": "TECNOSPORT PLUS",
+   "interno": "POLIESTER ESPORTIVO",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 93,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "010 BRANCO",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "011 BRANCO OPTICO",
+     null,
+     "#FFFFFF"
+    ],
+    [
+     "420 RUBI",
+     "PANTONE 18-1660 TCX",
+     "#CD2A3E"
+    ],
+    [
+     "450 BORDO",
+     "PANTONE 19-1656 TCX",
+     "#8E3841"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "A30 BLANC",
+     "PANTONE 11-4300 TCX",
+     "#EFEDE2"
+    ],
+    [
+     "B80 KENZO",
+     "PANTONE 13-0401 TCX",
+     "#CCC4B5"
+    ],
+    [
+     "C54 CASTANHA",
+     "PANTONE 17-1312 TCX",
+     "#998A75"
+    ],
+    [
+     "E10 CAPUCCINO",
+     "PANTONE 19-1420 TCX",
+     "#543B38"
+    ],
+    [
+     "EHL GANACHE",
+     "PANTONE 19-1016 TCX",
+     "#4C413E"
+    ],
+    [
+     "F50 TAIPA",
+     "PANTONE 18-0617 TCX",
+     "#7D735E"
+    ],
+    [
+     "I18 CARGO",
+     "PANTONE 19-5920 TCX",
+     "#384F45"
+    ],
+    [
+     "I22 VERDE FOLHA ESCURO",
+     "PANTONE 18-0316 TCX",
+     "#666E57"
+    ],
+    [
+     "J11 ILHA",
+     "PANTONE 15-6437 TCX",
+     "#7AB566"
+    ],
+    [
+     "K50 BABY",
+     "PANTONE 15-4020 TCX",
+     "#ADC0DC"
+    ],
+    [
+     "L0D PACIFIC BLUE",
+     "PANTONE 18-4252 TCX",
+     "#0079BE"
+    ],
+    [
+     "L17 CERAMIC",
+     "PANTONE 17-4435 TCX",
+     "#5B97C5"
+    ],
+    [
+     "L18 SEA BLUE",
+     "PANTONE 16-5127 TCX",
+     "#00AFAC"
+    ],
+    [
+     "L59 COLUMBIA",
+     "PANTONE 17-5130 TCX",
+     "#00948A"
+    ],
+    [
+     "L72 FEDERAL BLUE",
+     "PANTONE 18-4029 TCX",
+     "#385E8A"
+    ],
+    [
+     "LIL LILIE",
+     "PANTONE 19-3920 TCX",
+     "#2F3349"
+    ],
+    [
+     "M26 SKYPE",
+     "PANTONE 19-4324 TCX",
+     "#264F63"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "MLN ROYAL",
+     "PANTONE 19-3953 TCX",
+     "#384478"
+    ],
+    [
+     "N27 GAME",
+     "PANTONE 17-4328 TCX",
+     "#3387A6"
+    ],
+    [
+     "N40 TAHITI",
+     "PANTONE 16-5422 TCX",
+     "#3AA6A1"
+    ],
+    [
+     "N69 DENIM MEDIO",
+     "PANTONE 17-4111 TCX",
+     "#738A96"
+    ],
+    [
+     "N80 ANGEL",
+     "PANTONE 14-4522 TCX",
+     "#43BCD8"
+    ],
+    [
+     "P22 CHICLETE",
+     "PANTONE 15-2217 TCX",
+     "#E680AA"
+    ],
+    [
+     "P31 SORVETE",
+     "PANTONE 13-1906 TCX",
+     "#F7C4D4"
+    ],
+    [
+     "PAQ PINK FLUOR",
+     null,
+     "#F2106B"
+    ],
+    [
+     "PGY CRAYON",
+     "PANTONE 18-2143 TCX",
+     "#CA4273"
+    ],
+    [
+     "R27 POLLY",
+     "PANTONE 15-3817 TCX",
+     "#B3A3D4"
+    ],
+    [
+     "RZ8 ULTRAMARINE GREEN",
+     "PANTONE 18-5338 TCX",
+     "#007357"
+    ],
+    [
+     "T27 CARNABY",
+     "PANTONE 18-3737 TCX",
+     "#6E5799"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "W02 AMARELO LIMÄO",
+     null,
+     "#CCFF33"
+    ],
+    [
+     "W21 REFLEXO",
+     "PANTONE 12-0643 TCX",
+     "#F7E82B"
+    ],
+    [
+     "W24 FLUO GIALLO",
+     null,
+     "#CFFF75"
+    ],
+    [
+     "W40 SOL",
+     "PANTONE 14-0852 TCX",
+     "#F6C324"
+    ],
+    [
+     "W50 TOPAZIO",
+     "PANTONE 15-1050 TCX",
+     "#DE9E36"
+    ],
+    [
+     "X25 VITAMINA",
+     "PANTONE 16-1459 TCX",
+     "#E8693D"
+    ],
+    [
+     "X27 CARROT",
+     "PANTONE 15-1263 TCX",
+     "#FF8500"
+    ],
+    [
+     "X49 FLUO ORANGE",
+     null,
+     "#FF5E00"
+    ],
+    [
+     "Y28 CALISSON",
+     "PANTONE 13-0000 TCX",
+     "#D6D1C9"
+    ],
+    [
+     "Y49 CEZANNE",
+     "PANTONE 17-4405 TCX",
+     "#7A8587"
+    ],
+    [
+     "Y60 SILVER",
+     "PANTONE 14-4203 TCX",
+     "#BDBFBF"
+    ],
+    [
+     "YEH FUSIL",
+     "PANTONE 19-3910 TCX",
+     "#575B5F"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "225.Z69",
+   "nome": "TECHNO REVERSIVEL WR",
+   "interno": "WR REPELENTE",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 140,
+   "largura": 1.6,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "011 BRANCO OPTICO",
+     null,
+     "#FFFFFF"
+    ],
+    [
+     "060 AREIA",
+     "PANTONE 15-1305 TCX",
+     "#BAB0A1"
+    ],
+    [
+     "420 RUBI",
+     "PANTONE 18-1660 TCX",
+     "#CD2A3E"
+    ],
+    [
+     "740 ROYAL II",
+     "PANTONE 19-4050 TCX",
+     "#315592"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "C4W LILY WHITE",
+     "PANTONE 11-4301 TCX",
+     "#E3E3DC"
+    ],
+    [
+     "C5P KHAKI",
+     "PANTONE 17-1038 TCX",
+     "#9D8268"
+    ],
+    [
+     "EG4 MONTERREY",
+     "PANTONE 19-1020 TCX",
+     "#5C4939"
+    ],
+    [
+     "H2L AVOCADO",
+     "PANTONE 18-0430 TCX",
+     "#6A6946"
+    ],
+    [
+     "H77 NEON GREEN",
+     null,
+     "#6FFF14"
+    ],
+    [
+     "HF9 VERDE ESCARAVELHO",
+     "PANTONE 19-5350 TCX",
+     "#3B4443"
+    ],
+    [
+     "HH8 MILITAR DRY",
+     "PANTONE 17-0517 TCX",
+     "#7D7465"
+    ],
+    [
+     "HKW GREEN EDEN",
+     "PANTONE 19-6050 TCX",
+     "#2C533C"
+    ],
+    [
+     "L0D PACIFIC BLUE",
+     "PANTONE 18-4252 TCX",
+     "#0079BE"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "MQT SAILOR",
+     "PANTONE 19-4034 TCX",
+     "#2E4A61"
+    ],
+    [
+     "N1R GREEN STONE",
+     "PANTONE 17-0210 TCX",
+     "#738C72"
+    ],
+    [
+     "P68 SO PRETTY",
+     "PANTONE 12-2905 TCX",
+     "#ECD6D6"
+    ],
+    [
+     "PBX PINK VIBRANTE",
+     null,
+     "#FF5A78"
+    ],
+    [
+     "QB9 VIOLETA MILLENIAL",
+     "PANTONE 17-3930 TCX",
+     "#8690CB"
+    ],
+    [
+     "RZ8 ULTRAMARINE GREEN",
+     "PANTONE 18-5338 TCX",
+     "#007357"
+    ],
+    [
+     "UAH MERLOT",
+     "PANTONE 19-1534 TCX",
+     "#79393E"
+    ],
+    [
+     "W40 SOL",
+     "PANTONE 14-0852 TCX",
+     "#F6C324"
+    ],
+    [
+     "WTU NEON YELLOW",
+     null,
+     "#EDFF71"
+    ],
+    [
+     "X25 VITAMINA",
+     "PANTONE 16-1459 TCX",
+     "#E8693D"
+    ],
+    [
+     "XVA NEON ORANGE",
+     null,
+     "#FF8848"
+    ],
+    [
+     "Y12 FUSIL II",
+     "PANTONE 18-0000 TCX",
+     "#6B6C6E"
+    ],
+    [
+     "Y60 SILVER",
+     "PANTONE 14-4203 TCX",
+     "#BDBFBF"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "275.550",
+   "nome": "HELANCA POLIESTER",
+   "interno": "HELANCA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 217,
+   "largura": 1.7,
+   "unidade": "KG",
+   "especificacao": null,
+   "cores": [
+    [
+     "010 BRANCO",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "01P BRANCO",
+     null,
+     "#FFFFFF"
+    ],
+    [
+     "450 BORDO",
+     "PANTONE 19-1656 TCX",
+     "#8E3841"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "ATY NEW OFF",
+     null,
+     "#EFEDE2"
+    ],
+    [
+     "B12 ST. LAURENT",
+     "PANTONE 15-1308 TCX",
+     "#BEAE9A"
+    ],
+    [
+     "C11 SKIN II",
+     "PANTONE 14-1209 TCX",
+     "#CBB7A2"
+    ],
+    [
+     "C6X CHOCOLATE ALMOND",
+     "PANTONE 14-1213 TCX",
+     "#D1B099"
+    ],
+    [
+     "E10 CAPUCCINO",
+     "PANTONE 19-1420 TCX",
+     "#543B38"
+    ],
+    [
+     "E30 CHOCOLATE",
+     "PANTONE 19-1235 TCX",
+     "#61423B"
+    ],
+    [
+     "H42 SWIN",
+     "PANTONE 19-5320 TCX",
+     "#324D4D"
+    ],
+    [
+     "H60 COLLEGE",
+     "PANTONE 18-6024 TCX",
+     "#1C734A"
+    ],
+    [
+     "HJ2 DEEP DEPTHS",
+     "PANTONE 19-0413 TCX",
+     "#53554C"
+    ],
+    [
+     "I33 VERDE TREVO",
+     "PANTONE 19-6027 TCX",
+     "#054F1E"
+    ],
+    [
+     "I42 ASHY",
+     "PANTONE 16-6340 TCX",
+     "#21C500"
+    ],
+    [
+     "I70 MOSS",
+     "PANTONE 18-5718 TCX",
+     "#162E1D"
+    ],
+    [
+     "J13 CIDRA",
+     "PANTONE 14-0244 TCX",
+     "#A3C963"
+    ],
+    [
+     "J20 LIMA",
+     "PANTONE 12-0633 TCX",
+     "#E0DE7D"
+    ],
+    [
+     "J22 HARRODS",
+     null,
+     "#B8BD6B"
+    ],
+    [
+     "L17 CERAMIC",
+     "PANTONE 17-4435 TCX",
+     "#5B97C5"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "M5C HIGH TIDE",
+     "PANTONE 18-4022 TCX",
+     "#3E6490"
+    ],
+    [
+     "M70 INDIANO",
+     "PANTONE 19-3932 TCX",
+     "#3D4053"
+    ],
+    [
+     "Q32 BORDO NEW",
+     "PANTONE 19-1627 TCX",
+     "#58333E"
+    ],
+    [
+     "S22 LILAS MEDIO",
+     "PANTONE 14-3812 TCX",
+     "#BFB3D6"
+    ],
+    [
+     "U21 VERMELHO MACA",
+     "PANTONE 18-1663 TCX",
+     "#BE132D"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "WCJ ROYAL LIGHT",
+     "PANTONE 19-4053 TCX",
+     "#255498"
+    ],
+    [
+     "X13 ZUCCA",
+     "PANTONE 16-1349 TCX",
+     "#FE7D31"
+    ],
+    [
+     "XAL LARANJA VIBRANTE",
+     "PANTONE 16-1364 TCX",
+     "#FF7338"
+    ],
+    [
+     "XCE HYPER ORANGE",
+     "PANTONE 17-1462 TCX",
+     "#F75B3B"
+    ],
+    [
+     "Y12 FUSIL II",
+     "PANTONE 18-0000 TCX",
+     "#6B6C6E"
+    ],
+    [
+     "Y19 NEW GRAY",
+     "PANTONE 16-4402 TCX",
+     "#A4A29E"
+    ],
+    [
+     "Y43 SEARCH",
+     "PANTONE 17-1502 TCX",
+     "#878585"
+    ],
+    [
+     "Y80 CINZA NEVOA",
+     "PANTONE 14-4501 TCX",
+     "#BFBAAD"
+    ],
+    [
+     "Z5V BERRY",
+     null,
+     "#94000F"
+    ],
+    [
+     "Z5Z LYONS",
+     null,
+     "#000026"
+    ]
+   ],
+   "rendimento": 2.7
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "275.W20",
+   "nome": "MALHA ADIS SPORT PLUS",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 245,
+   "largura": 1.6,
+   "unidade": "KG",
+   "especificacao": null,
+   "cores": [
+    [
+     "010 BRANCO",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "090 MOKA",
+     "PANTONE 19-1314 TCX",
+     "#403633"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "H60 COLLEGE",
+     "PANTONE 18-6024 TCX",
+     "#1C734A"
+    ],
+    [
+     "L59 COLUMBIA",
+     "PANTONE 17-5130 TCX",
+     "#00948A"
+    ],
+    [
+     "M10 NAUTICO",
+     "PANTONE 19-4024 TCX",
+     "#263347"
+    ],
+    [
+     "M26 SKYPE",
+     "PANTONE 19-4324 TCX",
+     "#264F63"
+    ],
+    [
+     "MLN ROYAL",
+     "PANTONE 19-3953 TCX",
+     "#384478"
+    ],
+    [
+     "MM6 BLUE LAGOON",
+     "PANTONE 13-4720 TCX",
+     "#95DBE5"
+    ],
+    [
+     "PAQ PINK FLUOR",
+     null,
+     "#F2106B"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "UY5 MADRI",
+     "PANTONE 19-1725 TCX",
+     "#5C2C35"
+    ],
+    [
+     "W02 AMARELO LIMÄO",
+     null,
+     "#CCFF33"
+    ],
+    [
+     "W24 FLUO GIALLO",
+     null,
+     "#CFFF75"
+    ],
+    [
+     "W40 SOL",
+     "PANTONE 14-0852 TCX",
+     "#F6C324"
+    ],
+    [
+     "Y1R CINZA ADIS",
+     null,
+     "#96989A"
+    ],
+    [
+     "YEH FUSIL",
+     "PANTONE 19-3910 TCX",
+     "#575B5F"
+    ]
+   ],
+   "rendimento": 2.55
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "275.Y52",
+   "nome": "MALHA CHIMPA SPORT",
+   "interno": "DRY FIT POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 215,
+   "largura": 1.6,
+   "unidade": "KG",
+   "especificacao": null,
+   "cores": [
+    [
+     "010 BRANCO",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "090 MOKA",
+     "PANTONE 19-1314 TCX",
+     "#403633"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "B12 ST. LAURENT",
+     "PANTONE 15-1308 TCX",
+     "#BEAE9A"
+    ],
+    [
+     "CLW SKIN",
+     "PANTONE 13-1011 TCX",
+     "#DFC5AC"
+    ],
+    [
+     "F11 MYRTHO",
+     "PANTONE 18-0420 TCX",
+     "#5C634F"
+    ],
+    [
+     "H60 COLLEGE",
+     "PANTONE 18-6024 TCX",
+     "#1C734A"
+    ],
+    [
+     "H90 AMAZONAS",
+     "PANTONE 19-5917 TCX",
+     "#294238"
+    ],
+    [
+     "K50 BABY",
+     "PANTONE 15-4020 TCX",
+     "#ADC0DC"
+    ],
+    [
+     "L17 CERAMIC",
+     "PANTONE 17-4435 TCX",
+     "#5B97C5"
+    ],
+    [
+     "L59 COLUMBIA",
+     "PANTONE 17-5130 TCX",
+     "#00948A"
+    ],
+    [
+     "M10 NAUTICO",
+     "PANTONE 19-4024 TCX",
+     "#263347"
+    ],
+    [
+     "M26 SKYPE",
+     "PANTONE 19-4324 TCX",
+     "#264F63"
+    ],
+    [
+     "MEG AZUL ESCOLAR",
+     null,
+     "#2B2D44"
+    ],
+    [
+     "MLN ROYAL",
+     "PANTONE 19-3953 TCX",
+     "#384478"
+    ],
+    [
+     "MM6 BLUE LAGOON",
+     "PANTONE 13-4720 TCX",
+     "#95DBE5"
+    ],
+    [
+     "P22 CHICLETE",
+     "PANTONE 15-2217 TCX",
+     "#E680AA"
+    ],
+    [
+     "PAQ PINK FLUOR",
+     null,
+     "#F2106B"
+    ],
+    [
+     "PGY CRAYON",
+     "PANTONE 18-2143 TCX",
+     "#CA4273"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "UY5 MADRI",
+     "PANTONE 19-1725 TCX",
+     "#5C2C35"
+    ],
+    [
+     "W02 AMARELO LIMÄO",
+     null,
+     "#CCFF33"
+    ],
+    [
+     "W24 FLUO GIALLO",
+     null,
+     "#CFFF75"
+    ],
+    [
+     "W40 SOL",
+     "PANTONE 14-0852 TCX",
+     "#F6C324"
+    ],
+    [
+     "Y1R CINZA ADIS",
+     null,
+     "#96989A"
+    ],
+    [
+     "YEH FUSIL",
+     "PANTONE 19-3910 TCX",
+     "#575B5F"
+    ]
+   ],
+   "rendimento": 2.91
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "355.V29",
+   "nome": "TRICOLINE OFFICE",
+   "interno": null,
+   "composicao": "65% POLIÉSTER 35% ALGODÃO",
+   "gramatura": 115,
+   "largura": 1.5,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "011 BRANCO OPTICO",
+     null,
+     "#FFFFFF"
+    ],
+    [
+     "490 LILAS",
+     "PANTONE 14-3710 TCX",
+     "#BFB3D0"
+    ],
+    [
+     "999 JET BLACK",
+     null,
+     "#323232"
+    ],
+    [
+     "C75 ROOT",
+     "PANTONE 14-0000 TCX",
+     "#C7BFB8"
+    ],
+    [
+     "EM3 OFFICE KHAKI",
+     "PANTONE 16-1212 TCX",
+     "#B19F87"
+    ],
+    [
+     "G20 ANIS",
+     "PANTONE 12-0313 TCX",
+     "#CCDEB5"
+    ],
+    [
+     "HF9 VERDE ESCARAVELHO",
+     "PANTONE 19-5350 TCX",
+     "#3B4443"
+    ],
+    [
+     "I13 ARMY",
+     "PANTONE 19-0312 TCX",
+     "#595E52"
+    ],
+    [
+     "L12 AZUL ITALIA",
+     "PANTONE 16-4032 TCX",
+     "#638CC7"
+    ],
+    [
+     "LA4 AZUL SAGRES",
+     "PANTONE 15-3915 TCX",
+     "#A5B3CC"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "M59 INDI BLUE",
+     "PANTONE 18-3949 TCX",
+     "#2E4DA6"
+    ],
+    [
+     "N79 ULTRAMAR",
+     "PANTONE 17-5122 TCX",
+     "#339491"
+    ],
+    [
+     "NR4 GREEN MINT",
+     "PANTONE 12-5507 TCX",
+     "#BAE5D6"
+    ],
+    [
+     "P68 SO PRETTY",
+     "PANTONE 12-2905 TCX",
+     "#ECD6D6"
+    ],
+    [
+     "QC2 VIOLETA SILVESTRE",
+     "PANTONE 18-3834 TCX",
+     "#706A99"
+    ],
+    [
+     "RZ8 ULTRAMARINE GREEN",
+     "PANTONE 18-5338 TCX",
+     "#007357"
+    ],
+    [
+     "RZJ SLATE GREEN",
+     "PANTONE 16-0713 TCX",
+     "#9E947A"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "U9P BORDEAUX",
+     "PANTONE 19-1725 TCX",
+     "#6B3B44"
+    ],
+    [
+     "W43 JAUNE",
+     "PANTONE 12-0815 TCX",
+     "#F2E5BD"
+    ],
+    [
+     "XA4 FABBRICA",
+     "PANTONE 17-1461 TCX",
+     "#F66A00"
+    ],
+    [
+     "Y12 FUSIL II",
+     "PANTONE 18-0000 TCX",
+     "#6B6C6E"
+    ],
+    [
+     "YQE CINZA NEUTRO",
+     "PANTONE 15-4101 TCX",
+     "#AAB1B3"
+    ]
+   ]
+  },
+  {
+   "categoria": "TECIDO",
+   "ref": "355.Z91",
+   "nome": "TRICOLINE OFFICE COM ELASTANO",
+   "interno": null,
+   "composicao": "75% POLIÉSTER 22% ALGODÃO 3% ELASTANO",
+   "gramatura": 110,
+   "largura": 1.46,
+   "unidade": "M",
+   "especificacao": null,
+   "cores": [
+    [
+     "011 BRANCO OPTICO",
+     null,
+     "#FFFFFF"
+    ],
+    [
+     "490 LILAS",
+     "PANTONE 14-3710 TCX",
+     "#BFB3D0"
+    ],
+    [
+     "999 JET BLACK",
+     null,
+     "#323232"
+    ],
+    [
+     "C75 ROOT",
+     "PANTONE 14-0000 TCX",
+     "#C7BFB8"
+    ],
+    [
+     "CAE DALLAS",
+     "PANTONE 18-1163 TCX",
+     "#A6652E"
+    ],
+    [
+     "H0H ZEPPELIN",
+     "PANTONE 18-0523 TCX",
+     "#444C38"
+    ],
+    [
+     "H95 BOSQUE",
+     "PANTONE 19-6311 TCX",
+     "#37503D"
+    ],
+    [
+     "L12 AZUL ITALIA",
+     "PANTONE 16-4032 TCX",
+     "#638CC7"
+    ],
+    [
+     "LA4 AZUL SAGRES",
+     "PANTONE 15-3915 TCX",
+     "#A5B3CC"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "M59 INDI BLUE",
+     "PANTONE 18-3949 TCX",
+     "#2E4DA6"
+    ],
+    [
+     "ML5 BLUE OPAL",
+     "PANTONE 19-4120 TCX",
+     "#103B58"
+    ],
+    [
+     "NR4 GREEN MINT",
+     "PANTONE 12-5507 TCX",
+     "#BAE5D6"
+    ],
+    [
+     "P68 SO PRETTY",
+     "PANTONE 12-2905 TCX",
+     "#ECD6D6"
+    ],
+    [
+     "RZ8 ULTRAMARINE GREEN",
+     "PANTONE 18-5338 TCX",
+     "#007357"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "U9P BORDEAUX",
+     "PANTONE 19-1725 TCX",
+     "#6B3B44"
+    ],
+    [
+     "W11 AMARELO BRASIL",
+     "PANTONE 14-0957 TCX",
+     "#FFC72C"
+    ],
+    [
+     "W43 JAUNE",
+     "PANTONE 12-0815 TCX",
+     "#F2E5BD"
+    ],
+    [
+     "XAB AMALFI",
+     "PANTONE 15-1717 TCX",
+     "#EEA0A6"
+    ],
+    [
+     "Y12 FUSIL II",
+     "PANTONE 18-0000 TCX",
+     "#6B6C6E"
+    ],
+    [
+     "YQE CINZA NEUTRO",
+     "PANTONE 15-4101 TCX",
+     "#AAB1B3"
+    ]
+   ]
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "385.B41",
+   "nome": "HELANCA UNIFORME ESCOLAR TUBULAR",
+   "interno": "HELANCA POLIESTER",
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 249,
+   "largura": 1.03,
+   "unidade": "KG",
+   "especificacao": null,
+   "cores": [
+    [
+     "010 BRANCO",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "340 CORAL",
+     "PANTONE 18-1445 TCX",
+     "#BC4D02"
+    ],
+    [
+     "450 BORDO",
+     "PANTONE 19-1656 TCX",
+     "#8E3841"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "E10 CAPUCCINO",
+     "PANTONE 19-1420 TCX",
+     "#543B38"
+    ],
+    [
+     "F11 MYRTHO",
+     "PANTONE 18-0420 TCX",
+     "#5C634F"
+    ],
+    [
+     "H60 COLLEGE",
+     "PANTONE 18-6024 TCX",
+     "#1C734A"
+    ],
+    [
+     "HQN VERDE FORMIGA",
+     "PANTONE 19-6027 TCX",
+     "#20664E"
+    ],
+    [
+     "HQZ TAMBOURINE GREEN",
+     "PANTONE 18-6033 TCX",
+     "#007E57"
+    ],
+    [
+     "I70 MOSS",
+     "PANTONE 18-5718 TCX",
+     "#162E1D"
+    ],
+    [
+     "J13 CIDRA",
+     "PANTONE 14-0244 TCX",
+     "#A3C963"
+    ],
+    [
+     "J41 VITORIA REGIA",
+     "PANTONE 18-5841 TCX",
+     "#008563"
+    ],
+    [
+     "L17 CERAMIC",
+     "PANTONE 17-4435 TCX",
+     "#5B97C5"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "M9H BLUE JAZZ",
+     null,
+     "#263145"
+    ],
+    [
+     "N98 BABY GREEN",
+     "PANTONE 13-5313 TCX",
+     "#85DBD6"
+    ],
+    [
+     "P19 CRAYON II",
+     "PANTONE 18-1951 TCX",
+     "#BE3360"
+    ],
+    [
+     "P22 CHICLETE",
+     "PANTONE 15-2217 TCX",
+     "#E680AA"
+    ],
+    [
+     "P31 SORVETE",
+     "PANTONE 13-1906 TCX",
+     "#F7C4D4"
+    ],
+    [
+     "Q32 BORDO NEW",
+     "PANTONE 19-1627 TCX",
+     "#58333E"
+    ],
+    [
+     "QBM FAIR ORCHID",
+     "PANTONE 15-3508 TCX",
+     "#C0ABC2"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "W40 SOL",
+     "PANTONE 14-0852 TCX",
+     "#F6C324"
+    ],
+    [
+     "W5S CAMEL TEX",
+     null,
+     "#B5895B"
+    ],
+    [
+     "WCJ ROYAL LIGHT",
+     "PANTONE 19-4053 TCX",
+     "#255498"
+    ],
+    [
+     "WTU NEON YELLOW",
+     null,
+     "#EDFF71"
+    ],
+    [
+     "X19 LARANJA FANTA",
+     "PANTONE 17-1464 TCX",
+     "#F25E35"
+    ],
+    [
+     "XJZ MANDARIN ORANGE",
+     "PANTONE 16-1459 TCX",
+     "#EA6F46"
+    ],
+    [
+     "Y12 FUSIL II",
+     "PANTONE 18-0000 TCX",
+     "#6B6C6E"
+    ],
+    [
+     "Y43 SEARCH",
+     "PANTONE 17-1502 TCX",
+     "#878585"
+    ]
+   ],
+   "tipoMalha": "TUBULAR",
+   "rendimento": 1.95
+  },
+  {
+   "categoria": "MALHA",
+   "ref": "385.G97",
+   "nome": "MOLETOM FLANELADO",
+   "interno": null,
+   "composicao": "100% POLIÉSTER",
+   "gramatura": 239,
+   "largura": 1.55,
+   "unidade": "KG",
+   "especificacao": null,
+   "cores": [
+    [
+     "010 BRANCO",
+     null,
+     "#F3F4F5"
+    ],
+    [
+     "450 BORDO",
+     "PANTONE 19-1656 TCX",
+     "#8E3841"
+    ],
+    [
+     "990 PRETO",
+     null,
+     "#292A2D"
+    ],
+    [
+     "A30 BLANC",
+     "PANTONE 11-4300 TCX",
+     "#EFEDE2"
+    ],
+    [
+     "B12 ST. LAURENT",
+     "PANTONE 15-1308 TCX",
+     "#BEAE9A"
+    ],
+    [
+     "C11 SKIN II",
+     "PANTONE 14-1209 TCX",
+     "#CBB7A2"
+    ],
+    [
+     "C45 POEIRA",
+     "PANTONE 12-0304 TCX",
+     "#E3D9C9"
+    ],
+    [
+     "C5L KHAKI WATER",
+     "PANTONE 13-1008 TCX",
+     "#DECDB5"
+    ],
+    [
+     "D50 COURO",
+     "PANTONE 17-1436 TCX",
+     "#B86E54"
+    ],
+    [
+     "E10 CAPUCCINO",
+     "PANTONE 19-1420 TCX",
+     "#543B38"
+    ],
+    [
+     "EGT MOCHA LIFE",
+     "PANTONE 17-1137 TCX",
+     "#A67651"
+    ],
+    [
+     "EMY ACORN BROWN",
+     "PANTONE 18-1314 TCX",
+     "#7F665C"
+    ],
+    [
+     "ENE CASTANHO OASIS",
+     "PANTONE 18-1163 TCX",
+     "#A96838"
+    ],
+    [
+     "F50 TAIPA",
+     "PANTONE 18-0617 TCX",
+     "#7D735E"
+    ],
+    [
+     "H60 COLLEGE",
+     "PANTONE 18-6024 TCX",
+     "#1C734A"
+    ],
+    [
+     "H77 NEON GREEN",
+     null,
+     "#6FFF14"
+    ],
+    [
+     "HAH RIVER MILITAR",
+     "PANTONE 19-0419 TCX",
+     "#444C38"
+    ],
+    [
+     "HMZ VERDE BRASIL",
+     "PANTONE 18-6031 TCX",
+     "#007C4C"
+    ],
+    [
+     "HNX MENTA FRESH",
+     "PANTONE 14-4807 TCX",
+     "#ABC4C0"
+    ],
+    [
+     "HRH BRIGHT AQUA",
+     "PANTONE 16-5422 TCX",
+     "#3AA6A1"
+    ],
+    [
+     "I70 MOSS",
+     "PANTONE 18-5718 TCX",
+     "#162E1D"
+    ],
+    [
+     "L17 CERAMIC",
+     "PANTONE 17-4435 TCX",
+     "#5B97C5"
+    ],
+    [
+     "M30 PIRATA",
+     "PANTONE 19-3921 TCX",
+     "#26313D"
+    ],
+    [
+     "M32 MARINHO PROFUNDO",
+     "PANTONE 19-4128 TCX",
+     "#35465A"
+    ],
+    [
+     "MB3 LITORAL",
+     "PANTONE 19-3952 TCX",
+     "#323E86"
+    ],
+    [
+     "P19 CRAYON II",
+     "PANTONE 18-1951 TCX",
+     "#BE3360"
+    ],
+    [
+     "P22 CHICLETE",
+     "PANTONE 15-2217 TCX",
+     "#E680AA"
+    ],
+    [
+     "P31 SORVETE",
+     "PANTONE 13-1906 TCX",
+     "#F7C4D4"
+    ],
+    [
+     "P5A PALE MAUVE",
+     "PANTONE 15-1607 TCX",
+     "#C4A4A3"
+    ],
+    [
+     "P85 ROMA",
+     "PANTONE 16-1516 TCX",
+     "#BF8A82"
+    ],
+    [
+     "PBX PINK VIBRANTE",
+     null,
+     "#FF5A78"
+    ],
+    [
+     "PNW SUNNY FLOWER",
+     "PANTONE 14-1513 TCX",
+     "#ECAEAB"
+    ],
+    [
+     "T20 PRUNE",
+     "PANTONE 19-3528 TCX",
+     "#593663"
+    ],
+    [
+     "U60 FENDI",
+     "PANTONE 19-1663 TCX",
+     "#B8283D"
+    ],
+    [
+     "WCJ ROYAL LIGHT",
+     "PANTONE 19-4053 TCX",
+     "#255498"
+    ],
+    [
+     "WM5 GOLDEN WEAR",
+     "PANTONE 15-0953 TCX",
+     "#CF942E"
+    ],
+    [
+     "WPM LIMAO SICILIANO",
+     "PANTONE 12-0825 TCX",
+     "#F7E08E"
+    ],
+    [
+     "WPN BOSSA NOVA",
+     "PANTONE 14-0760 TCX",
+     "#FDD20E"
+    ],
+    [
+     "WTU NEON YELLOW",
+     null,
+     "#EDFF71"
+    ],
+    [
+     "X13 ZUCCA",
+     "PANTONE 16-1349 TCX",
+     "#FE7D31"
+    ],
+    [
+     "XAL LARANJA VIBRANTE",
+     "PANTONE 16-1364 TCX",
+     "#FF7338"
+    ],
+    [
+     "Y12 FUSIL II",
+     "PANTONE 18-0000 TCX",
+     "#6B6C6E"
+    ],
+    [
+     "Y43 SEARCH",
+     "PANTONE 17-1502 TCX",
+     "#878585"
+    ]
+   ],
+   "rendimento": 2.7
+  }
+ ]
+}
