@@ -19,6 +19,9 @@ export async function register() {
     // v1165 — Catálogo Meridian no Drive: republica se as cartelas mudaram (depois das cargas de cartela do início)
     const catalogo = async () => { try { const { publicarCatalogo } = await import("./lib/catalogoMeridian"); const r = await publicarCatalogo(); if (!r.igual) console.log(`[v1165] catálogo publicado: ${r.artigos} artigos`); } catch (e) { console.error("[v1165] catálogo:", e.message); } };
     setTimeout(catalogo, 120 * 1000); setInterval(catalogo, 6 * 60 * 60 * 1000);
+    // v1178 — 13º salário: recorrências anuais previstas (30/11 e 15/12) pela folha da Matriz
+    const decimo = async () => { try { const { sincronizarDecimo } = await import("./lib/finMatrizRecDb"); const r = await sincronizarDecimo(); if (r?.criadas || r?.atualizadas) console.log(`[v1178] 13º: ${r.criadas} criada(s), ${r.atualizadas} atualizada(s)`); } catch (e) { console.error("[v1178] 13º:", e.message); } };
+    setTimeout(decimo, 100 * 1000); setInterval(decimo, 24 * 60 * 60 * 1000);
     setTimeout(async () => { try { const { zerarEstoqueInventario } = await import("./lib/estoqueZerar"); await zerarEstoqueInventario(); } catch (e) { console.error("[v1156]", e.message); } }, 45 * 1000);   // v1156 — estoque zerado (inventário 27/11)
     const { agendarPendenciasClientes } = await import("./lib/clientePendencias");   // v1148 — vendedor avisado dos cadastros incompletos
     agendarPendenciasClientes();

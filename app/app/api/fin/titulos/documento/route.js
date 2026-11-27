@@ -19,7 +19,7 @@ export async function POST(req) {
   if (!u) return negado();
   try {
     if (b.acao === "analisar") {
-      if (!Array.isArray(b.arquivos) || !b.arquivos.length) return Response.json({ error: "Envie ao menos um PDF." }, { status: 400 });
+      if (!Array.isArray(b.arquivos) || !b.arquivos.length) return Response.json({ error: "Envie ao menos um PDF (ou o TXT do PIX)." }, { status: 400 });
       await gerarRecorrencias("PAGAR");   // a conta do salário do mês precisa existir
       const docs = [], hashDe = {}, vistos = new Set(), repetidos = [], comps = [], analise = [], protegidos = [];
       const master = gerencial(u) || tem(u, "docsFinanceiros");
@@ -28,6 +28,15 @@ export async function POST(req) {
         if (vistos.has(h)) { repetidos.push(a.nome); continue; }   // o mesmo arquivo duas vezes no envio
         vistos.add(h); hashDe[a.nome] = h;
         const buf = Buffer.from(String(a.conteudo || ""), "base64");
+        // v1178 — TXT com o PIX copia e cola (recargas do iFood): o código vai para a chave PIX da conta
+        const txt = /\.txt$/i.test(a.nome) || buf.slice(0, 6).toString("latin1") === "000201" ? buf.toString("utf8").replace(/^\uFEFF/, "").trim() : null;
+        if (txt !== null) {
+          const pix = (txt.match(/000201\S+/) || [])[0] || null;
+          const nomeN = String(a.nome).toUpperCase();
+          if (pix) docs.push({ arquivo: a.nome, tipo: "PIX", pix, empresa: /NORT/.test(nomeN) ? "NORT" : "MERIDIAN", empresaNoNome: /NORT|MERIDIAN/.test(nomeN) });
+          else docs.push({ arquivo: a.nome, tipo: "DESCONHECIDO", texto: [txt.slice(0, 200)], erro: "TXT sem código PIX copia e cola." });
+          continue;
+        }
         // abre com a senha digitada ou com as cadastradas em Senhas de PDF
         const ab = await abrirComSenhas(buf, a.senha);
         if (!ab.ok && ab.precisaSenha) { protegidos.push({ nome: a.nome, senhaErrada: !!a.senha }); continue; }

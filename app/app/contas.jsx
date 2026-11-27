@@ -943,7 +943,7 @@ function Tabela({ titulo, cor, itens: itens0, contasPorId, P, user, onMudou, onE
 }
 
 /* ---------------- importar documento (folha de pagamento, resumo de líquidos, recibo…) ---------------- */
-const TIPO_DOC = { JA: ["Já importado", C.red, C.redSoft], FOLHA: ["Folha de pagamento", C.blue, C.blueSoft], RECIBO: ["Recibo", C.roxo, C.roxoSoft], GUIA: ["Guia", C.yellow, C.yellowSoft], OUTRO: ["Outro documento", C.sub, C.panel2], IFOOD: ["iFood · recarga", C.red, C.redSoft] };
+const TIPO_DOC = { JA: ["Já importado", C.red, C.redSoft], FOLHA: ["Folha de pagamento", C.blue, C.blueSoft], RECIBO: ["Recibo", C.roxo, C.roxoSoft], GUIA: ["Guia", C.yellow, C.yellowSoft], OUTRO: ["Outro documento", C.sub, C.panel2], IFOOD: ["iFood · recarga", C.red, C.redSoft], COLAB: ["Colab+ · boleto", C.red, C.redSoft] };
 export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
   const [arqs, setArqs] = useState([]);       // [{ nome, conteudo }]
   const [r, setR] = useState(null);           // { itens, naoReconhecidos }
@@ -954,8 +954,8 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
   const ref = useRef(null);
   const contasPorId = useMemo(() => Object.fromEntries(contas.map((c) => [c.id, c])), [contas]);
   const ler = async (files) => {
-    const pdfs = [...files].filter((f) => /\.pdf$/i.test(f.name));
-    if (!pdfs.length) return setErro("Escolha arquivos PDF.");
+    const pdfs = [...files].filter((f) => /\.(pdf|txt)$/i.test(f.name));   // v1178 — + TXT do PIX copia e cola
+    if (!pdfs.length) return setErro("Escolha arquivos PDF (ou o TXT do PIX).");
     setErro(""); setSt("Lendo os documentos…");
     try {
       const lista = [];
@@ -1000,8 +1000,8 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
       setAn(Object.fromEntries((j.analise || []).map((x) => [x.nome, { ok: !x.jaEnviado, competencia: x.competencia }])));
       const ja = (j.analise || []).map((x) => x.arquivoId).filter(Boolean);
       if (ja.length) setBaixaIds((v) => [...new Set([...v, ...ja])]);
-      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.jaImportado ? "IGNORAR" : it.alvo ? it.alvo.id : ["RECIBO", "GUIA", "BORDERO"].includes(it.tipo) || (it.tipo === "FOLHA" && it.novo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
-        valor: it.valor, atualizarValor: !!it.atualizarValor, vencimento: it.vencimento || "", pix: "" }])));
+      setEsc(Object.fromEntries(j.itens.map((it) => [it.chave, { destino: it.jaImportado ? "IGNORAR" : it.alvo ? it.alvo.id : ["RECIBO", "GUIA", "BORDERO", "COLAB"].includes(it.tipo) || (it.tipo === "FOLHA" && it.novo) ? "CRIAR" : "IGNORAR", criar: it.novo || { titulo: it.descricao, parceiro: "", vencimento: "", contaId: null },
+        valor: it.valor, atualizarValor: !!it.atualizarValor, vencimento: it.vencimento || "", pix: it.pix || "" }])));
       return j;
     }
   }
@@ -1033,7 +1033,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
       const itens = usados.map((it) => {
         const e = esc[it.chave];
         return { tipo: it.tipo, valor: it.tipo === "OUTRO" ? Number(e.valor) || 0 : it.valor, comp: it.comp, descricao: it.descricao, arquivos: it.arquivos,
-          rateio: it.rateio || null, vencimento: (it.tipo === "IFOOD" ? e.vencimento : it.vencimento) || null, pix: e.pix || "", boleto: it.boleto || null, empresa: it.empresa, guia: it.guia, atualizarValor: !!e.atualizarValor, hashes: it.hashes || [],
+          rateio: it.rateio || null, vencimento: (it.tipo === "IFOOD" || it.tipo === "COLAB" ? e.vencimento : it.vencimento) || null, pix: e.pix || "", boleto: it.boleto || null, empresa: it.empresa, guia: it.guia, atualizarValor: !!e.atualizarValor, hashes: it.hashes || [],
           ...(it.tipo === "FOLHA" ? { funcionarios: it.funcionarios, adiantamento: !!it.adiantamento, refTexto: it.refTexto } : {}),   // v1079 — um lançamento por pessoa
           ...(e.destino === "CRIAR" ? { criar: e.criar } : { alvoId: Number(e.destino) }) };
       });
@@ -1067,7 +1067,7 @@ export function DocumentoModal({ user, contas, onClose, onSalvo, iniciais }) {
           <div className="text-sm mb-1" style={{ color: C.text }}>Envie os PDFs: <b>folha de pagamento</b> e <b>resumo de líquidos</b> (Meridian ou NORT), <b>recibos</b>, guias, <b>comprovantes do banco</b> (baixa das contas), e também <b>extratos, faturas de cartão e relatórios do banco</b> da análise mensal…</div>
           <div className="text-xs mb-4" style={{ color: C.sub }}>O sistema reconhece cada documento, acha a conta certa, atualiza o valor e anexa o arquivo. Nada é gravado antes de você confirmar.</div>
           <BtnP onClick={() => ref.current?.click()} disabled={!!st}>{st ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} {st || "Escolher PDFs"}</BtnP>
-          <input ref={ref} type="file" accept=".pdf" multiple className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
+          <input ref={ref} type="file" accept=".pdf,.txt" multiple className="hidden" onChange={(e) => { ler(e.target.files); e.target.value = ""; }} />
           <div className="text-[11px] mt-2" style={{ color: C.sub }}>ou arraste os PDFs para cá</div>
         </Soltar>
       )}

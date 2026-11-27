@@ -91,8 +91,26 @@ export function propostasDaMatriz(dados) {
   const estagios = []; // estagiário: recibo próprio (bolsa + passagem), mesmo vencimento do salário
   // NORT: o pessoal do setor NORT vai para as contas da loja (folha 5º dia útil, adiantamento, benefícios, INSS/FGTS)
   const nort = { folha: 0, adi: 0, benef: 0, inss: 0, fgts: 0, n: 0 };
+  // v1178 — 13º salário pela folha: 1ª parcela (30/11) = 50% do salário · 2ª (15/12) = o resto − INSS do funcionário
+  //   proporcional aos meses do ano (avos: mês de admissão conta se entrou até o dia 15)
+  const agora = new Date(), anoA = agora.getUTCFullYear();
+  const ano13 = anoA;   // em dezembro a 1ª parcela do ano já passou: a recorrência anual segue para o próximo ano
+  const avos = (p) => {
+    const a = String(p.admissao || "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(a) || Number(a.slice(0, 4)) < ano13) return 12;
+    if (Number(a.slice(0, 4)) > ano13) return 0;
+    return Math.max(0, Math.min(12, 12 - Number(a.slice(5, 7)) + (Number(a.slice(8, 10)) <= 15 ? 1 : 0)));
+  };
+  const d1 = {}, d2 = {}, nort13 = { p1: 0, p2: 0, n: 0 };
+  let n13 = 0;
   for (const p of calc.pessoas) {
     const c = p.c;
+    if (p.regime !== "ESTAGIO" && p.regime !== "DIRETOR" && p.depto !== "DIR" && c.F > 0) {
+      const fat = avos(p) / 12;
+      const p1 = r2(c.F * 0.5 * fat), p2 = r2(c.F * fat - c.F * 0.5 * fat - c.inssFunc * fat);
+      if (p.depto === "NORT") { nort13.p1 += p1; nort13.p2 += p2; if (fat) nort13.n++; }
+      else { const k = CONTA_DEPTO[p.depto] || "2128200"; soma(d1, k, p1); soma(d2, k, p2); if (fat) n13++; }
+    }
     if (p.depto === "NORT") {
       const adiant = p.adiantamento ? r2(c.F * PCT_ADIANTAMENTO) : 0;
       nort.n++; nort.adi += adiant;
@@ -155,6 +173,16 @@ export function propostasDaMatriz(dados) {
   if (tot(fgts)) add({ chave: "MATRIZ|pessoal|FGTS", grupo: "Pessoal", titulo: "FGTS", parceiro: "CAIXA ECONÔMICA FEDERAL", valor: tot(fgts), dia: 20, rateio: rateioDe(fgts) });
   if (tot(ifood)) add({ chave: "MATRIZ|pessoal|IFOOD", grupo: "Pessoal", titulo: "IFOOD", parceiro: "IFOOD BENEFÍCIOS", valor: tot(ifood), dia: 29, rateio: rateioDe(ifood),
     obs: "Vale-transporte já líquido do desconto de 6%, vale-alimentação e saldo livre" });
+  // v1178 — 13º: contas anuais previstas (30/11 e 15/12); a folha do 13º enviada pelo RH atualiza valor e lança por pessoa com o PIX
+  const obs13 = (n, p) => `13º salário ${p}ª parcela pela folha da Matriz: ${n} funcionário(s), proporcional aos meses do ano · ${p === 1 ? "50% do salário" : "restante − INSS do funcionário"} · a fopag do 13º enviada pelo RH atualiza o valor`;
+  if (tot(d1)) {
+    add({ chave: "MATRIZ|pessoal|DECIMO13|1", grupo: "Pessoal", titulo: "13º SALÁRIO — 1ª PARCELA", parceiro: "FOLHA DE PAGAMENTO", valor: tot(d1), dia: 30, periodicidade: 12, inicio: `${ano13}-11`, rateio: rateioDe(d1), obs: obs13(n13, 1) });
+    add({ chave: "MATRIZ|pessoal|DECIMO13|2", grupo: "Pessoal", titulo: "13º SALÁRIO — 2ª PARCELA", parceiro: "FOLHA DE PAGAMENTO", valor: tot(d2), dia: 15, periodicidade: 12, inicio: `${ano13}-12`, rateio: rateioDe(d2), obs: obs13(n13, 2) });
+  }
+  if (nort13.p1) {
+    add({ chave: "NORT|DECIMO13|1", grupo: "Pessoal", titulo: "NORT - 13º SALÁRIO — 1ª PARCELA", parceiro: "FOLHA DE PAGAMENTO NORT", valor: nort13.p1, dia: 30, periodicidade: 12, inicio: `${ano13}-11`, rateio: [{ codigo: "2154000", pct: 100 }], obs: obs13(nort13.n, 1) });
+    add({ chave: "NORT|DECIMO13|2", grupo: "Pessoal", titulo: "NORT - 13º SALÁRIO — 2ª PARCELA", parceiro: "FOLHA DE PAGAMENTO NORT", valor: nort13.p2, dia: 15, periodicidade: 12, inicio: `${ano13}-12`, rateio: [{ codigo: "2154000", pct: 100 }], obs: obs13(nort13.n, 2) });
+  }
   if (tot(ps)) add({ chave: "MATRIZ|pessoal|PS", grupo: "Pessoal", titulo: "PLANO DE SAÚDE", valor: tot(ps), dia: 10, rateio: rateioDe(ps) });
 
   // provisão geral (CDB)

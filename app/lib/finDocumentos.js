@@ -186,6 +186,23 @@ DETECTORES.push(
     },
   },
   {
+    // v1178 — boleto Colab+ (programa de benefícios do iFood, cobrado por vida): vence dia 25
+    tipo: "COLAB",
+    casa: (L) => L.some((l) => /COLAB\+/i.test(l)) && L.some((l) => /IFOOD/i.test(l)) && L.some((l) => /vencimento/i.test(l)),
+    ler(L) {
+      const t = L.join("\n");
+      const venc = t.match(/vencimento[^\d]{0,60}(\d{2}\/\d{2}\/\d{4})/i) || t.match(/(\d{2}\/\d{2}\/\d{4})/);
+      const valor = t.match(/valor (?:do documento|cobrado)[^\d]{0,80}([\d.]+,\d{2})/i);
+      const linha = t.match(/\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}/);
+      const vidas = t.match(/QUANTIDADE DE VIDAS\s*(\d+)/i), porVida = t.match(/VALOR POR VIDAS?\s*([\d.]*\d,\d{2})/i);
+      // valor: os 10 últimos dígitos da linha digitável (em centavos); senão o "Valor do Documento"
+      const vLinha = linha ? Number(linha[0].replace(/\D/g, "").slice(-10)) / 100 : 0;
+      const vDoc = (t.match(/R\$\s*([\d.]+,\d{2})/) || [])[1];
+      return { vencimento: venc ? dataBR(venc[1]) : null, valor: vLinha || (vDoc ? num(vDoc) : valor ? num(valor[1]) : 0), linha: linha?.[0] || null, empresa: empresaCnpj(t),
+        vidas: vidas ? Number(vidas[1]) : null, porVida: porVida ? num(porVida[1]) : null };
+    },
+  },
+  {
     tipo: "BOLETO",
     casa: (L) => L.some((l) => /linha digit[aá]vel|benefici[aá]rio/i.test(l)) && L.some((l) => /vencimento/i.test(l)),
     ler(L) {
@@ -353,17 +370,21 @@ export async function analisarDocumentos(docs) {
   // iFood: relatório de recarga → conta do iFood do mês (Meridian: IFOOD da Matriz; NORT: NORT - VT / VA / BENEFÍCIOS)
   const boletos = docs.filter((x) => x.tipo === "BOLETO");
   const boletoUsado = new Set();
+  const pixes = docs.filter((x) => x.tipo === "PIX"), pixUsado = new Set();   // v1178
   for (const d of docs.filter((x) => x.tipo === "IFOOD")) {
     const nort = d.empresa === "NORT";
     const comp = d.data ? mesDe(d.data) : new Date().toISOString().slice(0, 7);
     const opcoes = [...(await contasDoMes(comp)), ...(await contasDoMes(somaMes(comp, 1)))];
     const rec = await prisma.finRecorrencia.findUnique({ where: { chaveOrigem: nort ? "NORT|BENEFICIOS" : "MATRIZ|pessoal|IFOOD" }, select: { id: true } });
     const doMes = (c) => opcoes.find((t) => rec && t.recorrenciaId === rec.id && mesDe(t.vencimento) === c && t.status === "ABERTO")
-      || opcoes.find((t) => /IFOOD|BENEF/.test(normRegra(t.titulo)) && nort === /NORT/.test(normRegra(t.titulo)) && mesDe(t.vencimento) === c && t.status === "ABERTO");
+      || opcoes.find((t) => /IFOOD|BENEF/.test(normRegra(t.titulo)) && !/COLAB/.test(normRegra(t.titulo)) && nort === /NORT/.test(normRegra(t.titulo)) && mesDe(t.vencimento) === c && t.status === "ABERTO");
     const alvo = doMes(comp) || doMes(somaMes(comp, 1)) || null;
     // boleto do mesmo envio: do iFood ou com o mesmo valor
     const bol = boletos.find((b) => !boletoUsado.has(b.arquivo) && (b.ifood || Math.abs(b.valor - d.valor) <= 0.01));
     if (bol) boletoUsado.add(bol.arquivo);
+    // v1178 — PIX copia e cola em TXT no mesmo envio (prefere o da mesma empresa pelo nome do arquivo)
+    const pixD = bol ? null : pixes.find((p) => !pixUsado.has(p.arquivo) && p.empresa === d.empresa) || pixes.find((p) => !pixUsado.has(p.arquivo) && !p.empresaNoNome) || null;
+    if (pixD) pixUsado.add(pixD.arquivo);
     const avisos = [];
     const soma = r2(d.colaboradores.reduce((a, c) => a + c.total, 0));
     if (d.colaboradores.length && Math.abs(soma - d.valor) > 0.01) avisos.push(`A soma dos colaboradores (${soma.toFixed(2)}) difere do total (${d.valor.toFixed(2)}).`);
@@ -394,11 +415,33 @@ export async function analisarDocumentos(docs) {
     itens.push({
       chave: `IFOOD|${d.recarga || d.arquivo}`, tipo: "IFOOD", empresa: d.empresa, comp, refTexto: nomeMes(comp),
       descricao: `iFood — recarga #${d.recarga || "?"} de ${d.data ? dBR(d.data) : "?"} — ${d.empresa} · ${d.colaboradores.length} colaborador(es)`,
-      valor: r2(d.valor), arquivos: [d.arquivo, ...(bol ? [bol.arquivo] : [])], avisos, rateio,
+      valor: r2(d.valor), arquivos: [d.arquivo, ...(bol ? [bol.arquivo] : []), ...(pixD ? [pixD.arquivo] : [])], avisos, rateio, pix: pixD?.pix || null,
       vencimento: bol?.vencimento || null, boleto: bol ? { arquivo: bol.arquivo, linha: bol.linha, vencimento: bol.vencimento, valor: bol.valor } : null,
       colaboradores: d.colaboradores.map((c) => ({ codigo: c.cpf, nome: c.nome, liquido: c.total })),
       alvo: saida(alvo), opcoes: opcoes.map(saida),
       novo: { titulo: nort ? "NORT - IFOOD RECARGAS" : "IFOOD — RECARGAS", parceiro: "IFOOD BENEFÍCIOS", vencimento: bol?.vencimento || null, contaId: rateio?.[0]?.contaId || null },
+    });
+  }
+  // v1178 — PIX copia e cola solto (TXT sem relatório no envio): vai para a conta do iFood do mês, copiável no contas a pagar
+  for (const p of pixes.filter((x) => !pixUsado.has(x.arquivo))) docs.push({ arquivo: p.arquivo, tipo: "DESCONHECIDO", texto: ["IFOOD", p.empresa === "NORT" ? "NORT" : ""], pix: p.pix });
+  // v1178 — boleto Colab+ (iFood benefícios): conta do mês (COLAB) ou conta nova com o boleto em anexo
+  const contasC = await prisma.finConta.findMany({ select: { id: true, codigo: true } });
+  const idC = Object.fromEntries(contasC.map((c) => [c.codigo, c.id]));
+  for (const d of docs.filter((x) => x.tipo === "COLAB")) {
+    const nort = d.empresa === "NORT";
+    const comp = d.vencimento ? mesDe(d.vencimento) : new Date().toISOString().slice(0, 7);
+    const opcoes = await contasDoMes(comp);
+    const alvo = opcoes.find((t) => /COLAB/.test(normRegra(t.titulo)) && nort === /NORT/.test(normRegra(t.titulo)) && t.status === "ABERTO") || null;
+    const conta = nort ? idC["2156000"] : idC["2128100"];
+    const ant = await prisma.finTitulo.findFirst({ where: { tipo: "PAGAR", titulo: { contains: "COLAB" } }, orderBy: { createdAt: "desc" }, select: { rateio: true } });
+    const rateio = Array.isArray(ant?.rateio) && ant.rateio.length ? ant.rateio : conta ? [{ contaId: conta, pct: 100 }] : null;
+    itens.push({
+      chave: `COLAB|${d.empresa}|${comp}|${d.arquivo}`, tipo: "COLAB", empresa: d.empresa, comp, refTexto: nomeMes(comp),
+      descricao: `Colab+ (iFood benefícios) — ${d.empresa} · ${nomeMes(comp)}${d.vidas ? ` · ${d.vidas} vida(s)${d.porVida ? ` × R$ ${d.porVida.toFixed(2).replace(".", ",")}` : ""}` : ""}`,
+      valor: r2(d.valor), arquivos: [d.arquivo], avisos: d.vencimento ? [] : ["Não li o vencimento do boleto."], rateio, vencimento: d.vencimento,
+      boleto: { arquivo: d.arquivo, linha: d.linha, vencimento: d.vencimento, valor: d.valor },
+      alvo: saida(alvo), opcoes: opcoes.map(saida),
+      novo: { titulo: nort ? "NORT - COLAB+ — MENSALIDADE" : "COLAB+ — MENSALIDADE", parceiro: "IFOOD BENEFÍCIOS", vencimento: d.vencimento, contaId: rateio?.[0]?.contaId || null },
     });
   }
   // boletos soltos (sem relatório no envio) viram "outro documento" com valor e vencimento
@@ -414,7 +457,7 @@ export async function analisarDocumentos(docs) {
     const hoje = new Date().toISOString().slice(0, 7);
     const opcoes = [...(await contasDoMes(hoje)), ...(await contasDoMes(somaMes(hoje, 1)))];
     const pistas = { IFOOD: /IFOOD|BENEF/, RESCIS: /RESCIS/, ADIANT: /ADIANT/, FERIAS: /FERIAS/ };
-    const alvo = assunto ? opcoes.find((t) => pistas[assunto].test(normRegra(t.titulo)) && nort === /NORT/.test(normRegra(t.titulo)) && t.status === "ABERTO") || null : null;
+    const alvo = assunto ? opcoes.find((t) => pistas[assunto].test(normRegra(t.titulo)) && !(assunto === "IFOOD" && /COLAB/.test(normRegra(t.titulo))) && nort === /NORT/.test(normRegra(t.titulo)) && t.status === "ABERTO") || null : null;
     // valor do documento, se der para achar (total)
     const L = d.texto || [];
     let valor = 0;
@@ -424,10 +467,10 @@ export async function analisarDocumentos(docs) {
     if (d.boleto?.valor) valor = d.boleto.valor;
     itens.push({
       chave: `OUTRO|${d.arquivo}`, tipo: "OUTRO", vencimento: d.boleto?.vencimento || null, empresa: nort ? "NORT" : "MERIDIAN", comp: alvo ? mesDe(alvo.vencimento) : hoje, refTexto: "",
-      descricao: `${assunto ? { IFOOD: "iFood", RESCIS: "Rescisão", ADIANT: "Adiantamento", FERIAS: "Férias" }[assunto] + " — " : ""}${d.arquivo}`,
-      valor: r2(valor), arquivos: [d.arquivo], avisos: [assunto ? "Documento sem leitura automática: confira a conta e o valor." : "Não reconheci o documento: escolha a conta para anexar (o valor só muda se você marcar)."],
-      atualizarValor: !!(alvo && valor > 0), alvo: saida(alvo), opcoes: opcoes.map(saida),
-      novo: { titulo: d.arquivo.replace(/\.pdf$/i, "").toUpperCase().slice(0, 120), parceiro: "", vencimento: null, contaId: null },
+      descricao: `${assunto ? { IFOOD: "iFood", RESCIS: "Rescisão", ADIANT: "Adiantamento", FERIAS: "Férias" }[assunto] + " — " : ""}${d.pix ? "PIX copia e cola · " : ""}${d.arquivo}`,
+      valor: r2(valor), arquivos: [d.arquivo], avisos: [d.pix ? `PIX copia e cola lido do TXT: vai para a chave PIX da conta escolhida (copiável no contas a pagar).` : assunto ? "Documento sem leitura automática: confira a conta e o valor." : "Não reconheci o documento: escolha a conta para anexar (o valor só muda se você marcar)."],
+      atualizarValor: !!(alvo && valor > 0), alvo: saida(alvo), opcoes: opcoes.map(saida), pix: d.pix || null,   // v1178
+      novo: { titulo: d.arquivo.replace(/\.(pdf|txt)$/i, "").toUpperCase().slice(0, 120), parceiro: "", vencimento: null, contaId: null },
     });
   }
   // guias de INSS (DARF previdenciário) e FGTS (GFD)
@@ -543,7 +586,6 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
             valor, previsao: false, valorConfirmado: true, pontual: true, atualizadoPorNome: quem || null,   // v212: valor do documento não volta pela Matriz
             ...(Array.isArray(it.rateio) && it.rateio.length ? { rateio: it.rateio.map((x) => ({ contaId: Number(x.contaId), pct: r2(x.pct) })) } : {}),
             ...(it.vencimento ? { vencimento: dataUTC(it.vencimento) } : {}),
-            ...(it.tipo === "IFOOD" && it.pix ? { observacao: [t.observacao, `IFOOD · PIX COPIA E COLA: ${String(it.pix).trim()}`].filter(Boolean).join(" · ").slice(0, 1000) } : {}),
             observacao: [t.observacao, `${it.descricao} · R$ ${valor.toFixed(2).replace(".", ",")}`].filter(Boolean).join(" · ").slice(0, 500),
           },
         });
@@ -569,6 +611,13 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
       r.linhas.push(`${t.titulo}: criada com R$ ${valor.toFixed(2)}`);
     } else { r.ids.push(null); continue; }
     r.ids.push(id);
+    // v1178 — PIX copia e cola (TXT ou colado): vai para a chave PIX da conta, copiável como o dos freelancers
+    if (String(it.pix || "").trim()) {
+      await prisma.finTitulo.update({ where: { id }, data: { chavePix: String(it.pix).trim(), formaPagamento: "PIX" } }).catch(() => null);
+      r.linhas.push("PIX copia e cola gravado na conta (copiável)");
+    } else if (it.tipo === "COLAB" || (it.tipo === "IFOOD" && it.boleto)) {
+      await prisma.finTitulo.update({ where: { id }, data: { formaPagamento: "BOLETO" } }).catch(() => null);
+    }
     // v1079 — folha / adiantamento: um lançamento por pessoa dentro da conta (como os freelancers), líquido + PIX do cadastro
     if (it.tipo === "FOLHA" && Array.isArray(it.funcionarios) && it.funcionarios.length && (await prisma.finTitulo.findUnique({ where: { id }, select: { status: true } }))?.status === "ABERTO") {
       const p = await lancarFolhaPorPessoa(id, it, quem);
@@ -579,7 +628,7 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
       try {
         const { hashB64 } = await import("@/lib/finHash");
         const pix = String(it.pix || "").trim();
-        if (pix) {
+        if (pix && !(it.arquivos || []).some((n) => /\.txt$/i.test(n))) {   // v1178 — o TXT enviado já vai anexado
           const conteudo = Buffer.from(pix, "utf8").toString("base64"), hash = hashB64(conteudo);
           if (!(await prisma.finTituloAnexo.findFirst({ where: { tituloId: id, hash }, select: { id: true } })))
             await prisma.finTituloAnexo.create({ data: { tituloId: id, nome: "PIX_COPIA_E_COLA.txt", mime: "text/plain", tamanho: pix.length, conteudo, hash, criadoPorNome: quem || null } });
@@ -608,7 +657,7 @@ export async function aplicarDocumentos(itens, arquivos, { quem, usuarioId } = {
       const ja = await prisma.finTituloAnexo.findFirst({ where: { tituloId: id, nome: a.nome }, select: { id: true } });
       if (ja) continue;
       await prisma.finTituloAnexo.create({
-        data: { tituloId: id, nome: a.nome, mime: "application/pdf", tamanho: Math.floor(a.conteudo.length * 3 / 4), conteudo: a.conteudo, criadoPorNome: quem || null },
+        data: { tituloId: id, nome: a.nome, mime: /\.txt$/i.test(a.nome) ? "text/plain" : "application/pdf", tamanho: Math.floor(a.conteudo.length * 3 / 4), conteudo: a.conteudo, criadoPorNome: quem || null },
       });
       r.anexos++;
     }

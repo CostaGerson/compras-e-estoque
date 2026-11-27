@@ -38,20 +38,21 @@ export async function lancarIfood(b, u) {
   let t = rec ? await prisma.finTitulo.findFirst({ where: { recorrenciaId: rec.id, competencia: comp, status: "ABERTO" } }) : null;
   if (!t) {
     const l = await prisma.finTitulo.findMany({ where: { tipo: "PAGAR", competencia: comp, status: "ABERTO" } });
-    t = l.find((x) => /IFOOD|BENEF/.test(x.titulo) && nort === /NORT/.test(x.titulo)) || null;
+    t = l.find((x) => /IFOOD|BENEF/.test(x.titulo) && !/COLAB/.test(x.titulo) && nort === /NORT/.test(x.titulo)) || null;
   }
   const pix = String(b.pix || "").trim();
   const obs = `IFOOD RECARGAS · R$ ${brl(valor)} · VENCE ${dBR(b.vencimento)}${pix ? ` · PIX: ${pix}` : " · BOLETO EM PDF"} · ENVIADO PELO RH (${quem})`;
   if (t) {
     t = await prisma.finTitulo.update({ where: { id: t.id }, data: {
       valor, vencimento: dataUTC(b.vencimento), previsao: false, valorConfirmado: true, atualizadoPorNome: quem,
+      ...(pix ? { chavePix: pix, formaPagamento: "PIX" } : { formaPagamento: "BOLETO" }),   // v1178 — PIX copiável no contas a pagar
       observacao: [t.observacao, obs].filter(Boolean).join(" · ").slice(0, 1000),
     } });
   } else {
     t = await prisma.finTitulo.create({ data: {
       tipo: "PAGAR", titulo: nort ? "NORT - IFOOD RECARGAS" : "IFOOD — RECARGAS", parceiro: "IFOOD BENEFÍCIOS", valor,
       vencimento: dataUTC(b.vencimento), competencia: comp, previsao: false, valorConfirmado: true,
-      rateio: rec?.rateio || [], observacao: obs.slice(0, 1000), forma: "RH", criadoPorId: u.id, criadoPorNome: quem,
+      rateio: rec?.rateio || [], observacao: obs.slice(0, 1000), forma: "RH", ...(pix ? { chavePix: pix, formaPagamento: "PIX" } : { formaPagamento: "BOLETO" }), criadoPorId: u.id, criadoPorNome: quem,
     } });
   }
   const arqs = [{ ...b.relatorio, nome: b.relatorio.nome || "relatorio-ifood.pdf" }];

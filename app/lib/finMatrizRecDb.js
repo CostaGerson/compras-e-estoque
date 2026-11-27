@@ -74,7 +74,7 @@ export async function aplicarMatrizRec({ quem, chaves, atualizar = [], encerrar 
     const rt = validarRateio(p.rateio);
     try {
       if (!p.jaExiste && (todas || quero.has(p.chave))) {
-        await prisma.finRecorrencia.create({
+        const nova = await prisma.finRecorrencia.create({
           data: {
             tipo: "PAGAR", titulo: p.titulo.toUpperCase(), parceiro: p.parceiro.toUpperCase(), valor: r2(p.valor), diaVencimento: p.dia, diaUtil: !!p.util,
             periodicidade: Math.max(1, Number(p.periodicidade) || 1),
@@ -83,6 +83,14 @@ export async function aplicarMatrizRec({ quem, chaves, atualizar = [], encerrar 
           },
         });
         criadas++;
+        // v1178 — 13º: a conta do mês que já foi lançada à mão passa a ser a desta recorrência (não duplica)
+        if (/DECIMO13\|[12]$/.test(p.chave)) {
+          const nort = p.chave.startsWith("NORT|"), parc = p.chave.slice(-1);
+          const l = await prisma.finTitulo.findMany({ where: { tipo: "PAGAR", competencia: nova.inicio, recorrenciaId: null, status: { not: "CANCELADO" } }, select: { id: true, titulo: true, parceiro: true } });
+          const N = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+          const ja = l.find((t) => /13\s*[º°O]?\s*SAL|DECIMO/.test(N(t.titulo)) && nort === /NORT/.test(N(`${t.titulo} ${t.parceiro}`)) && (!/[12]\s*[ªA]\s*PARC/.test(N(t.titulo)) || new RegExp(`${parc}\\s*[ªA]\\s*PARC`).test(N(t.titulo))));
+          if (ja) await prisma.finTitulo.update({ where: { id: ja.id }, data: { recorrenciaId: nova.id } }).catch(() => null);
+        }
       } else if (p.jaExiste && p.mudou && atual.has(p.chave)) {
         const up = { ...(p.valorGuia ? {} : { valor: r2(p.valor) }), diaVencimento: p.dia, diaUtil: !!p.util,
                      periodicidade: Math.max(1, Number(p.periodicidade) || 1), ...(p.obs ? { observacao: p.obs } : {}),
@@ -321,7 +329,7 @@ export async function encargosSociosAdm() {
 
 // Depois de mexer no pessoal da Matriz (RH ou importação da folha): cria as contas novas de pessoal,
 // atualiza as que mudaram e encerra as que não existem mais (ex.: estágio/pró-labore de quem saiu).
-const ehPessoal = (k) => k.startsWith("MATRIZ|pessoal|") || /^NORT\|(FOLHA5|ADIANTAMENTO|BENEFICIOS|INSS|FGTS)$/.test(k);
+const ehPessoal = (k) => k.startsWith("MATRIZ|pessoal|") || /^NORT\|(FOLHA5|ADIANTAMENTO|BENEFICIOS|INSS|FGTS|DECIMO13\|[12])$/.test(k);
 export async function sincronizarPessoal(quem) {
   const m = await montarMatrizRec();
   if (m.error) return m;
@@ -330,4 +338,12 @@ export async function sincronizarPessoal(quem) {
     quem, chaves: pes.filter((p) => !p.jaExiste).map((p) => p.chave), atualizar: pes.filter((p) => p.mudou).map((p) => p.chave),
     encerrar: (m.obsoletas || []).filter((o) => o.chave.startsWith("MATRIZ|pessoal|")).map((o) => o.id),
   });
+}
+
+// v1178 — só o 13º (contas anuais de 30/11 e 15/12): cria as recorrências que faltam e atualiza as que mudaram na Matriz
+export async function sincronizarDecimo(quem = "SISTEMA (13º)") {
+  const m = await montarMatrizRec();
+  if (m.error) return m;
+  const d = (m.propostas || []).filter((p) => /DECIMO13\|[12]$/.test(p.chave));
+  return aplicarMatrizRec({ quem, chaves: d.filter((p) => !p.jaExiste).map((p) => p.chave), atualizar: d.filter((p) => p.mudou).map((p) => p.chave) });
 }

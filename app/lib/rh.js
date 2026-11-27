@@ -2,6 +2,7 @@
 // documentos mensais ligados ao contas a pagar e calendário de obrigações — Meridian e NORT.
 import { prisma } from "@/lib/prisma";
 import { nDiaUtil, mesAtual, somaMes } from "@/lib/finTitulos";
+import { ehDiaUtil } from "@/lib/recorrencia";
 import { veRHCompleto, tem, temAlguma } from "@/lib/acesso";
 
 export const nomeUsuario = (u) => [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase();
@@ -145,21 +146,23 @@ export async function salvarPessoa({ acao, pessoa, nomeCompleto }, u) {
 // · adiantamento do mês: até o dia 17
 // · impostos (INSS e FGTS) do mês anterior: até o dia 17
 // · relatório de recargas do iFood + boleto (PDF ou PIX copia e cola): até o dia 25
+// · v1178 — boleto Colab+ (programa de benefícios do iFood): vence dia 25; enviar até 3 dias úteis antes
+const diasUteisAntes = (dia, n) => { const d = new Date(`${dia}T12:00:00Z`); let k = 0; while (k < n) { d.setUTCDate(d.getUTCDate() - 1); if (ehDiaUtil(d.toISOString().slice(0, 10))) k++; } return d; };
 const iso = (d) => d.toISOString().slice(0, 10);
 export async function calendario(comp = mesAtual()) {
   const envios = await prisma.rhEnvio.findMany({ where: { competencia: comp } });
   // documento que já entrou por outro caminho (contas a pagar, importação antiga…): a conta do mês tem anexo
   const CHAVES = {
-    MERIDIAN: { FOLHA: "MATRIZ|pessoal|SALARIO", ADIANTAMENTO: "MATRIZ|pessoal|ADIANTAMENTO", INSS: "MATRIZ|pessoal|INSS", FGTS: "MATRIZ|pessoal|FGTS", IFOOD: "MATRIZ|pessoal|IFOOD" },
-    NORT: { FOLHA: "NORT|FOLHA5", ADIANTAMENTO: "NORT|ADIANTAMENTO", INSS: "NORT|INSS", FGTS: "NORT|FGTS", IFOOD: "NORT|BENEFICIOS" },
+    MERIDIAN: { FOLHA: "MATRIZ|pessoal|SALARIO", ADIANTAMENTO: "MATRIZ|pessoal|ADIANTAMENTO", INSS: "MATRIZ|pessoal|INSS", FGTS: "MATRIZ|pessoal|FGTS", IFOOD: "MATRIZ|pessoal|IFOOD", COLAB: null },
+    NORT: { FOLHA: "NORT|FOLHA5", ADIANTAMENTO: "NORT|ADIANTAMENTO", INSS: "NORT|INSS", FGTS: "NORT|FGTS", IFOOD: "NORT|BENEFICIOS", COLAB: null },
   };
-  const recs = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { in: Object.values(CHAVES).flatMap((x) => Object.values(x)) } }, select: { id: true, chaveOrigem: true } });
+  const recs = await prisma.finRecorrencia.findMany({ where: { chaveOrigem: { in: Object.values(CHAVES).flatMap((x) => Object.values(x)).filter(Boolean) } }, select: { id: true, chaveOrigem: true } });
   const recId = Object.fromEntries(recs.map((r) => [r.chaveOrigem, r.id]));
   const titulos = await prisma.finTitulo.findMany({
     where: { tipo: "PAGAR", competencia: comp, status: { not: "CANCELADO" } },
     select: { id: true, titulo: true, recorrenciaId: true, _count: { select: { anexos: true } } },
   });
-  const PISTA = { FOLHA: /SAL[AÁ]RIO|FOLHA 5/, ADIANTAMENTO: /ADIANT/, INSS: /\bINSS\b/, FGTS: /\bFGTS\b/, IFOOD: /IFOOD|BENEF/, DECIMO13: /13\s*[º°O]?\s*SAL|D[EÉ]CIMO/ };
+  const PISTA = { FOLHA: /SAL[AÁ]RIO|FOLHA 5/, ADIANTAMENTO: /ADIANT/, INSS: /\bINSS\b/, FGTS: /\bFGTS\b/, IFOOD: /^(?!.*COLAB).*(IFOOD|BENEF)/, COLAB: /COLAB/, DECIMO13: /13\s*[º°O]?\s*SAL|D[EÉ]CIMO/ };
   const T13 = /13\s*[º°O]?\s*SAL|D[EÉ]CIMO/;
   const casa = (emp, cat) => (t) => t._count.anexos > 0 && ((CHAVES[emp][cat] && t.recorrenciaId === recId[CHAVES[emp][cat]])
     || (PISTA[cat].test(t.titulo.toUpperCase()) && (cat === "DECIMO13" || !T13.test(t.titulo.toUpperCase())) && (emp === "NORT") === /NORT/.test(t.titulo.toUpperCase()) && !/RESCIS/.test(t.titulo.toUpperCase())));
@@ -167,7 +170,7 @@ export async function calendario(comp = mesAtual()) {
   // v993 — anexos de cada obrigação (para baixar clicando no card): contas que receberam o envio + contas do mês que casam
   const tituloIdsDe = (emp, cats) => [...new Set([...envios.filter((e) => e.empresa === emp && cats.includes(e.categoria) && e.tituloId).map((e) => e.tituloId),
     ...cats.flatMap((c) => titulos.filter(casa(emp, c)).map((t) => t.id))])];
-  const todosIds = [...new Set(["MERIDIAN", "NORT"].flatMap((emp) => tituloIdsDe(emp, ["FOLHA", "ADIANTAMENTO", "INSS", "FGTS", "IFOOD", "DECIMO13"])))];
+  const todosIds = [...new Set(["MERIDIAN", "NORT"].flatMap((emp) => tituloIdsDe(emp, ["FOLHA", "ADIANTAMENTO", "INSS", "FGTS", "IFOOD", "COLAB", "DECIMO13"])))];
   const anexosL = todosIds.length ? await prisma.finTituloAnexo.findMany({ where: { tituloId: { in: todosIds } }, orderBy: { createdAt: "asc" },
     select: { id: true, tituloId: true, nome: true, tamanho: true, criadoPorNome: true, createdAt: true } }) : [];
   const enviado = (emp, c) => envios.some((e) => e.empresa === emp && e.categoria === c) || anexado(emp, c);
@@ -185,6 +188,7 @@ export async function calendario(comp = mesAtual()) {
       ["ADIANTAMENTO", dia17, ["ADIANTAMENTO"], `Adiantamento de ${nomeMes(comp)}`],
       ["IMPOSTOS", dia17, ["INSS", "FGTS"], `Guias de INSS e FGTS de ${nomeMes(ant)}`],
       ["IFOOD", `${comp}-25`, ["IFOOD"], `Recargas do iFood de ${nomeMes(comp)} + boleto/PIX`],
+      ["COLAB", iso(diasUteisAntes(`${comp}-25`, 3)), ["COLAB"], `Boleto Colab+ (iFood benefícios) de ${nomeMes(comp)} · vence 25/${String(mm).padStart(2, "0")}`],   // v1178
       // v1139 — 13º salário: só em novembro (1ª parcela, vence 30/11) e dezembro (2ª parcela, vence 15/12)
       ...(mm === 11 ? [["DECIMO13", `${a}-11-30`, ["DECIMO13"], `13º salário — 1ª parcela (fopag + líquidos) · vence 30/11`]]
         : mm === 12 ? [["DECIMO13", `${a}-12-15`, ["DECIMO13"], `13º salário — 2ª parcela (fopag + líquidos) · vence 15/12`]] : []),
@@ -207,11 +211,13 @@ export async function calendario(comp = mesAtual()) {
 // categoria do documento pela conta que recebeu (para o calendário)
 export function categoriaEnvio(it, titulo) {
   if (it.tipo === "FOLHA") return it.decimo ? "DECIMO13" : it.adiantamento ? "ADIANTAMENTO" : "FOLHA";   // v1079 · v1139 — 13º
+  if (it.tipo === "COLAB") return "COLAB";   // v1178
   if (it.tipo === "IFOOD") return "IFOOD";
   if (it.tipo === "GUIA" && ["INSS", "FGTS"].includes(it.guia)) return it.guia === "FGTS" && /RESCIS/.test(String(it.descricao)) ? "RESCISAO" : it.guia;
   const t = String(`${titulo?.titulo || ""} ${it.descricao || ""}`).toUpperCase();
   if (/13\s*[º°O]?\s*SAL|D[EÉ]CIMO/.test(t)) return "DECIMO13";   // v1139
   if (/ADIANT/.test(t)) return "ADIANTAMENTO";
+  if (/COLAB/.test(t)) return "COLAB";
   if (/IFOOD|BENEF/.test(t)) return "IFOOD";
   if (/RESCIS/.test(t)) return "RESCISAO";
   if (/ESTAGI/.test(t)) return "ESTAGIO";

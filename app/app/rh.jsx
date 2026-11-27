@@ -93,7 +93,7 @@ export default function Rh({ user }) {
                 ["matriz", Users2, "Matriz de pessoal", `${ativos.length} ativos · ${ativos.filter((p) => p.empresa === "NORT").length} na NORT`, "Salários, benefícios, setor, admissão e desligamento — a Matriz do financeiro acompanha"],
                 ["carometro", IdCard, "Carômetro", `${ativos.length} funcionários`, "Um card por funcionário com dados e documentos"],
                 ["financeiro", FileText, "Financeiro", `${(d.envios || []).filter((e) => e.competencia === d.competencia).length} documento(s) neste mês`, "Folhas, guias de INSS e FGTS, iFood, rescisões e outros — direto no contas a pagar"],
-                ["calendario", CalendarClock, "Calendário de obrigações", cal ? (calPend.length ? `${calPend.length} pendente(s)${calAtras ? ` · ${calAtras} atrasado(s)` : ""}` : "tudo enviado no mês") : "—", "Folha até o 3º dia útil · adiantamento e impostos até o dia 17 · iFood até o dia 25", calAtras ? C.red : null],
+                ["calendario", CalendarClock, "Calendário de obrigações", cal ? (calPend.length ? `${calPend.length} pendente(s)${calAtras ? ` · ${calAtras} atrasado(s)` : ""}` : "tudo enviado no mês") : "—", "Folha até o 3º dia útil · adiantamento e impostos até o dia 17 · Colab+ 3 dias úteis antes do dia 25 · iFood até o dia 25", calAtras ? C.red : null],
                 ["ferias", Palmtree, "Plano de férias", d.feriasResumo ? `${d.feriasResumo.agora} de férias agora · ${d.feriasResumo.proximas} nos próximos 30 dias` : "planejar férias individuais e coletivas", "Saldo por período aquisitivo, sobreposição no mesmo setor e regras da CLT", d.feriasResumo?.alertasAltos ? C.red : null],
                 ["ponto", Fingerprint, "Ponto", p?.competencias?.length ? `${pendPonto} pendência(s) · ${(p.ranking || []).length} cartão(ões) no mês` : "nenhum cartão importado", "Importar cartões de ponto, crítica de dias sem registro e justificativas", pendPonto ? C.red : null],
               ].filter(([k]) => d.completo !== false || ["financeiro", "calendario", "ponto"].includes(k)).map(([k, Ico, t, sub, desc, alerta]) => (
@@ -562,7 +562,7 @@ function FichaModal({ user, pessoa, onClose }) {
 }
 
 /* ---------------- financeiro do RH ---------------- */
-const CAT = { FOLHA: "Folha", DECIMO13: "13º salário", ADIANTAMENTO: "Adiantamento", INSS: "INSS", FGTS: "FGTS", IFOOD: "iFood", RESCISAO: "Rescisão", ESTAGIO: "Estágio", OUTRO: "Outro" };
+const CAT = { FOLHA: "Folha", DECIMO13: "13º salário", ADIANTAMENTO: "Adiantamento", INSS: "INSS", FGTS: "FGTS", IFOOD: "iFood", COLAB: "Colab+", RESCISAO: "Rescisão", ESTAGIO: "Estágio", OUTRO: "Outro" };
 function FinanceiroRH({ user, d, onSalvo, onAnexar }) {
   const setImp = () => onAnexar(null);
   const [ifood, setIfood] = useState(false);
@@ -577,7 +577,7 @@ function FinanceiroRH({ user, d, onSalvo, onAnexar }) {
         </Soltar>
         <button onClick={() => setConta(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.navy, border: `1px solid ${C.line}` }}><Receipt size={15} /> Lançar conta a pagar</button>
         <div className="text-xs ml-2 flex-1" style={{ color: C.sub, minWidth: 260 }}>
-          Folhas (fopag + líquidos), guias de INSS e FGTS, relatório de recarga do iFood (com o boleto em PDF ou o PIX), recibos, rescisões e outros: o sistema reconhece cada documento, acha a conta a pagar certa, atualiza e anexa.
+          Folhas (fopag + líquidos), guias de INSS e FGTS, relatório de recarga do iFood (com o boleto em PDF ou o TXT do PIX copia e cola), boleto Colab+, recibos, rescisões e outros: o sistema reconhece cada documento, acha a conta a pagar certa, atualiza e anexa.
         </div>
       </div>
       <Calendario user={user} cal={d.calendario} onAnexar={onAnexar} />
