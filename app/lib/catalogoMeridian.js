@@ -22,11 +22,11 @@ async function salvarEstado(v) {
 export async function dadosCatalogo() {
   const arts = await prisma.artigo.findMany({ where: { ativo: true, origem: "CARTELA" },
     select: { id: true, nome: true, artigoInterno: true, codigoFornecedor: true, categoria: true, composicao: true, largura: true, gramatura: true, rendimento: true,
-      tipoMalha: true, unidade: true, especificacao: true, cor: true, fornecedor: { select: { id: true, nome: true, nomeFantasia: true } } },
+      tipoMalha: true, unidade: true, especificacao: true, cor: true, fornecedor: { select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true } } },
     orderBy: [{ nome: "asc" }] });
   const forns = new Map();
   for (const a of arts) {
-    const fn = a.fornecedor?.nomeFantasia || a.fornecedor?.nome || "SEM FORNECEDOR";
+    const fn = (a.fornecedor?.nomeFantasia || a.fornecedor?.nome || a.fornecedor?.razaoSocial || "SEM FORNECEDOR").trim();   // v1168 — + razão social
     if (!forns.has(fn)) forns.set(fn, new Map());
     const m = forns.get(fn);
     const ch = [a.nome, a.codigoFornecedor, a.composicao, num(a.largura), num(a.gramatura)].join("|");
