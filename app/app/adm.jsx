@@ -238,13 +238,14 @@ export default function MovimentoFiscal({ user }) {
         </div>
         {msg && <div className="mx-4 mt-3 p-2 rounded text-xs flex items-center gap-2" style={{ background: C.greenSoft, color: C.green }}><CheckCircle2 size={14} /> {msg}<button className="ml-auto" onClick={() => setMsg("")}><X size={13} /></button></div>}
         {erro && <div className="mx-4 mt-3 p-2 rounded text-xs" style={{ background: C.redSoft, color: C.red }}>{erro}</div>}
-        {tot.km > 0 && <div className="mx-4 mt-3 p-2 rounded text-xs font-semibold flex items-center gap-2" style={{ background: C.redSoft, color: C.red }}><AlertTriangle size={14} className="shrink-0" /> {tot.km} NF(s) emitida(s) no KM sem XML/PDF no sistema — importe os arquivos aqui (a crítica some sozinha).</div>}
-        {tot.contab > 0 && <div className="mx-4 mt-3 p-2 rounded text-xs font-semibold" style={{ background: C.redSoft, color: C.red }}>{tot.contab} NF(s) sem conta lançada — verificar contas (importe o XML da nota aqui para lançar as contas; o aviso some).</div>}
-        <div className="overflow-x-auto">
-          {(lista || []).some((n) => n.semEtiquetas) && <div className="flex items-center gap-2 px-3 py-2 text-xs" style={{ background: "#FDECEA", color: "#B42318", borderBottom: "1px solid #F5C2BC" }}>
-            ⚠ <b>{(lista || []).filter((n) => n.semEtiquetas).length}</b> NF(s) de compra com etiquetas de volume não emitidas — emita quando o material for recebido.
-            <button onClick={() => setSoEtq((v) => !v)} className="ml-auto px-2 py-0.5 rounded font-semibold" style={{ border: "1px solid #B42318", background: soEtq ? "#B42318" : "#fff", color: soEtq ? "#fff" : "#B42318" }}>{soEtq ? "Mostrar todas" : "Ver só estas"}</button>
-          </div>}
+        {tot.km > 0 && <div className="mx-4 mt-2 p-2 rounded text-xs font-semibold flex items-center gap-2" style={{ background: C.redSoft, color: C.red }}><AlertTriangle size={14} className="shrink-0" /> {tot.km} NF(s) emitida(s) no KM sem XML/PDF no sistema — importe os arquivos aqui (a crítica some sozinha).</div>}
+        {tot.contab > 0 && <div className="mx-4 mt-2 p-2 rounded text-xs font-semibold" style={{ background: C.redSoft, color: C.red }}>{tot.contab} NF(s) sem conta lançada — verificar contas (importe o XML da nota aqui para lançar as contas; o aviso some).</div>}
+        {/* v1151 — críticas no mesmo formato, uma abaixo da outra, com espaço antes da tabela */}
+        {(lista || []).some((n) => n.semEtiquetas) && <div className="mx-4 mt-2 p-2 rounded text-xs font-semibold flex flex-wrap items-center gap-2" style={{ background: C.redSoft, color: C.red }}>
+          <AlertTriangle size={14} className="shrink-0" /> <span className="flex-1 min-w-0">{(lista || []).filter((n) => n.semEtiquetas).length} NF(s) de compra com etiquetas de volume não emitidas — emita quando o material for recebido.</span>
+          <button onClick={() => setSoEtq((v) => !v)} className="px-2 py-0.5 rounded font-semibold shrink-0" style={{ border: `1px solid ${C.red}`, background: soEtq ? C.red : "#fff", color: soEtq ? "#fff" : C.red }}>{soEtq ? "Mostrar todas" : "Ver só estas"}</button>
+        </div>}
+        <div className="overflow-x-auto mt-3">
           <table className="w-full text-xs">
             <thead>
               <tr style={{ color: C.sub }}>
