@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { nomePadrao, chaveNome } from "@/lib/artigoPadrao";
 
-export const TIPOS_ESTOQUE = ["MALHA", "TECIDO", "AVIAMENTO", "INSUMOS SILK", "INSUMOS SUBLIMAÇÃO", "INSUMOS DTF", "INSUMOS BORDADO", "OUTROS"];   // v1153 — + OUTROS
+export const TIPOS_ESTOQUE = ["MALHA", "TECIDO", "AVIAMENTO", "INSUMOS SILK", "INSUMOS SUBLIMAÇÃO", "INSUMOS DTF", "INSUMOS BORDADO", "PEÇAS PRONTAS", "OUTROS"];   // v1153 — + OUTROS · v1156 — + PEÇAS PRONTAS
 export const TIPOS_TECIDO = ["BRIM LEVE", "BRIM PESADO", "BRIM MISTO LEVE", "BRIM MISTO PESADO", "BRIM NÃO IDENTIFICADO", "RIPSTOP", "OXFORD", "GABARDINE", "TACTEL", "CAMISARIA", "NYLON PARAQUEDAS", "NYLON IMPERMEÁVEL", "TACTEL REPELENTE À ÁGUA", "TWO WAY", "MATELASSÊ", "BEMBER", "AMERICANO CRU", "ECOBAG", "JEANS", "OUTROS"];
 export const UNIDADES_MANUAL = [["KG", "Quilo (kg)"], ["M", "Metro"], ["L", "Litro"], ["CONE", "Cone"], ["UN", "Unidade"], ["PCT", "Pacote"]];
 export const ORIGENS = ["ESTOQUE PRÉVIO MERIDIAN", "W3"];

@@ -142,7 +142,8 @@ const MENU = [
       { key: "anLogistica", label: "Logística", icon: IcoLog, desc: "Custo logístico por peça (folha da Matriz + custos da DRE do mês), cobrado na FPP sem o frete de entrega" },
     ] },
     { key: "estoqueGrp", label: "Estoque", icon: Boxes, desc: "Saldo de estoque e fichas de movimentação", filhos: [
-      { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Tecidos, malhas, aviamentos e outros" },
+      { key: "estoque", label: "Saldo de estoque", icon: Boxes, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "O que está em estoque (entrou por NF ou lançamento manual), por categoria" },
+      { key: "artigosRegistrados", label: "Artigos registrados", icon: Database, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Todos os artigos cadastrados (catálogo, NF, FPP, manual), com ou sem saldo: usados nas FPPs e afins" },   // v1156
       { key: "pecasProntas", label: "Peças prontas", icon: Boxes, desc: "Estoque de peças prontas da loja NORT por depósito (SEDE/LOJA), com custo pela FPP e estoque mínimo" },   // v906
       { key: "fme", label: "FME", icon: ArrowLeftRight, perfis: ["FINANCEIRO", "ESTOQUE", ...PROD, ...OFICINAS], desc: "Saídas, retornos e ajustes por setor" },
     ] },
@@ -195,6 +196,7 @@ const PODE = {
   oc: (u) => gerencial(u) || T(u, "PRODUCAO"),
   devolucoes: (u) => gerencial(u) || T(u, "PRODUCAO"),   // v1086
   estoque: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),
+  artigosRegistrados: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),   // v1156
   pecasProntas: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER", "COMPRAS", "NORT") || tem(u, "pic"),   // v906
   fme: (u) => tem(u, "fme"),
   anCorte: (u) => gerencial(u), anPersonalizacao: (u) => gerencial(u), anSilk: (u) => gerencial(u), anBordado: (u) => gerencial(u), anCostura: (u) => gerencial(u), anExpedicao: (u) => gerencial(u), anLogistica: (u) => gerencial(u), anSublimacao: (u) => gerencial(u), anDtf: (u) => gerencial(u),
@@ -502,6 +504,7 @@ export default function Home() {
           {view === "oc" && pode("oc") && <OrdensCompra user={user} />}
           {view === "devolucoes" && pode("devolucoes") && <Devolucoes user={user} />}   {/* v1086 */}
           {view === "estoque" && pode("estoque") && <Estoque money={money} master={master} />}
+          {view === "artigosRegistrados" && pode("artigosRegistrados") && <Estoque money={money} master={master} registrados />}
           {view === "pecasProntas" && pode("pecasProntas") && <PecasProntas user={user} />}
           {view === "fme" && pode("fme") && <FME user={user} perfil={perfil} />}
           {view === "anCorte" && pode("anCorte") && <AnaliseCorte key="CORTE" user={user} setor="CORTE" />}
@@ -2150,7 +2153,7 @@ function OC({ money }) {
     </div>
   );
 }
-function Estoque({ money, master }) {
+function Estoque({ money, master, registrados }) {   // v1156 — registrados: todos os artigos cadastrados, sem filtro de saldo
   const [fornecedores, setFornecedores] = useState([]);
   const [artigos, setArtigos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2159,21 +2162,23 @@ function Estoque({ money, master }) {
     try {
       const [f, a] = await Promise.all([
         fetch("/api/fornecedores").then((r) => r.json()),
-        fetch("/api/artigos?estoque=1").then((r) => r.json()),
+        fetch(registrados ? "/api/artigos" : "/api/artigos?estoque=1").then((r) => r.json()),
       ]);
       setFornecedores(Array.isArray(f) ? f : []);
       setArtigos(Array.isArray(a) ? a : []);
     } catch {}
     setLoading(false);
   };
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => { carregar(); }, [registrados]);
   if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
   return (
     <div>
       <div className="text-xs mb-3" style={{ color: C.sub }}>
-        Estoque = os mesmos artigos de “Artigos &amp; Fornec.”. O que entra pela NF aparece aqui, e qualquer alteração feita aqui ou lá reflete nas duas telas.
+        {registrados ? "Todos os artigos cadastrados (catálogo, NF, FPP e manual), com ou sem saldo. Ficam salvos para as FPPs e afins; o saldo de estoque só mostra o que entrou por NF ou lançamento manual."
+          : "Só o que está em estoque: entra por NF ou lançamento manual (estoque zerado em 27/11/2026 para o inventário). Os artigos cadastrados ficam em Artigos registrados."}
       </div>
-      <ArtigosPane artigos={artigos} fornecedores={fornecedores} master={master} money={money} onSaved={carregar} modoEstoque />
+      {registrados ? <ArtigosPaneBase artigos={artigos} fornecedores={fornecedores} master={master} money={money} onSaved={carregar} />
+        : <ArtigosPane artigos={artigos.filter((a) => Math.abs(Number(a.quantidade) || 0) > 0.0005)} fornecedores={fornecedores} master={master} money={money} onSaved={carregar} modoEstoque />}
     </div>
   );
 }
@@ -3086,6 +3091,9 @@ function ResumoCard({ rotulo, valor, destaque }) {
 // agrupa artigos que são o mesmo item: fornecedor (pelo NOME comercial) + nome NF + cor + valor (regra do Igor)
 // v640 — regra de consolidação em lib/artigoConsolidar.js
 
+// v1156 — categoria do estoque = tipo da entrada manual (artigos antigos: pela categoria do cadastro)
+const GUIAS_ESTOQUE = ["MALHA", "TECIDO", "AVIAMENTO", "INSUMOS SILK", "INSUMOS SUBLIMAÇÃO", "INSUMOS DTF", "INSUMOS BORDADO", "PEÇAS PRONTAS", "OUTROS"];
+const tipoEstoqueDe = (a) => (GUIAS_ESTOQUE.includes(a?.tipoEstoque) ? a.tipoEstoque : ["MALHA", "TECIDO", "AVIAMENTO"].includes(a?.categoria) ? a.categoria : "OUTROS");
 function ArtigosPane(props) {   // v625 — abas Artigos | Artigos internos
   const [sub, setSub] = useState("artigos");
   if (props.modoEstoque) return <ArtigosPaneBase {...props} />;
@@ -3149,7 +3157,7 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
   const filtrados = artigos.filter((a) => {
     if (soAbaixoMin && !abaixoMin(a)) return false;
     if (filtroForn && String(a.fornecedorId) !== String(filtroForn)) return false;
-    if (classe && (["TECIDO", "MALHA", "AVIAMENTO"].includes(classe) ? a.categoria !== classe : !["TECIDO", "MALHA", "AVIAMENTO"].includes(a.categoria))) return false;
+    if (classe && tipoEstoqueDe(a) !== classe) return false;   // v1156 — guias = tipos da entrada manual
     if (dataDe && (!a.dataCompra || new Date(a.dataCompra) < new Date(dataDe))) return false;
     if (dataAte && (!a.dataCompra || new Date(a.dataCompra) > new Date(dataAte + "T23:59:59"))) return false;
     if (tokens.length) {
@@ -3207,13 +3215,17 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
 
       {modoEstoque && (
         <div className="flex flex-wrap gap-2 mb-3 items-center">
-          {[["", "Todos"], ["TECIDO", "Tecidos"], ["MALHA", "Malhas"], ["AVIAMENTO", "Aviamentos"], ["OUTROS", "Outros"]].map(([k, l]) => {
-            const on = classe === k;
-            return (
-              <button key={k || "todos"} onClick={() => setClasse(k)} className="px-3 py-1.5 rounded-md text-sm font-medium"
-                style={{ background: on ? C.accent : C.panel, color: on ? "#fff" : C.sub, border: `1px solid ${on ? C.accent : C.line}` }}>{l}</button>
-            );
-          })}
+          {/* v1156 — guias por categoria (as mesmas da entrada manual), no estilo das guias do financeiro */}
+          <div className="flex flex-wrap gap-x-1 w-full md:w-auto" style={{ borderBottom: `1px solid ${C.line}` }}>
+            {[["", "Todos"], ...GUIAS_ESTOQUE.map((t) => [t, t.charAt(0) + t.slice(1).toLowerCase()])].map(([k, l]) => {
+              const on = classe === k;
+              const n = k ? artigos.filter((a) => tipoEstoqueDe(a) === k).length : artigos.length;
+              return (
+                <button key={k || "todos"} onClick={() => setClasse(k)} className="px-3 py-2 text-sm font-medium -mb-px"
+                  style={{ color: on ? C.accent : C.sub, borderBottom: `2px solid ${on ? C.accent : "transparent"}` }}>{l} <span className="text-xs" style={{ color: on ? C.accent : "#98A2B3" }}>{n}</span></button>
+              );
+            })}
+          </div>
           <div style={{ flex: 1 }} />
           <button onClick={() => setSoAbaixoMin((v) => !v)} className="px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1"
             style={{ background: soAbaixoMin ? "#E5484D" : (qtdAbaixo ? "#FDECEC" : C.panel), color: soAbaixoMin ? "#fff" : (qtdAbaixo ? "#E5484D" : C.sub), border: `1px solid ${qtdAbaixo || soAbaixoMin ? "#E5484D" : C.line}` }}>
@@ -3229,19 +3241,7 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
             <ResumoCard rotulo="Total em metros" valor={fmtQtd(totais.m, "M")} />
             <ResumoCard rotulo="Total em kilos" valor={fmtQtd(totais.kg, "KG")} />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {["TECIDO", "MALHA", "AVIAMENTO", "OUTROS"].map((k) => {
-              const s = totais.seg[k];
-              const fisico = [s.m > 0 ? fmtQtd(s.m, "M") : null, s.kg > 0 ? fmtQtd(s.kg, "KG") : null].filter(Boolean).join(" · ");
-              return (
-                <div key={k} className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-                  <div className="text-xs font-semibold mb-1" style={{ color: C.sub, textTransform: "uppercase", letterSpacing: 0.3 }}>{s.rotulo}</div>
-                  <div className="text-base font-bold" style={{ color: C.text }}>{money(s.v)}</div>
-                  <div className="text-xs mt-0.5" style={{ color: C.sub }}>{s.n} item(ns){fisico ? ` · ${fisico}` : ""}</div>
-                </div>
-              );
-            })}
-          </div>
+          {/* v1156 — os cards por categoria viraram as guias acima */}
         </div>
       )}
 

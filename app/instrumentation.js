@@ -16,6 +16,7 @@ export async function register() {
     // v1038 — layouts/artes em base64 no banco vão para o disco (um por vez), 20 s após subir; repete de hora em hora
     const migrar = async () => { try { const { migrarTarefaArquivos } = await import("./lib/arquivos"); await migrarTarefaArquivos(); } catch (e) { console.error("[v1038]", e.message); } };
     setTimeout(migrar, 20 * 1000); setInterval(migrar, 60 * 60 * 1000);
+    setTimeout(async () => { try { const { zerarEstoqueInventario } = await import("./lib/estoqueZerar"); await zerarEstoqueInventario(); } catch (e) { console.error("[v1156]", e.message); } }, 45 * 1000);   // v1156 — estoque zerado (inventário 27/11)
     const { agendarPendenciasClientes } = await import("./lib/clientePendencias");   // v1148 — vendedor avisado dos cadastros incompletos
     agendarPendenciasClientes();
     const { agendarArtes } = await import("./lib/artesDrive");   // v1003 — artes e layouts vão para o Google Drive (a cada 5 min)
