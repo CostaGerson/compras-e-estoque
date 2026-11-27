@@ -172,6 +172,8 @@ const MENU = [
 ];
 // v170 — quem vê cada item do menu (tipo de usuário + permissões ligadas; master e diretoria veem tudo)
 const T = (u, ...tipos) => tipos.includes(tipoDe(u));
+// v1170 — sugestão #109: diretoria do setor comercial (Pedro) não vê compras (menu, telas e alertas de compra)
+const comercialDir = (u) => !ehMasterU(u) && u?.setor === "COMERCIAL";
 const PODE = {
   desenvolvimento: (u) => ehMasterU(u),
   usuarios: (u) => ehMasterU(u),
@@ -186,15 +188,15 @@ const PODE = {
   demandas: (u) => gerencial(u) || T(u, "ADMINISTRATIVO"),
   rh: (u) => veRHCompleto(u) || tem(u, "docsRH"),
   pp: (u) => vePP(u),
-  pic: (u) => tem(u, "pic"),
-  comprasCotacoes: (u) => tem(u, "pic"),   // v478
+  pic: (u) => !comercialDir(u) && (tem(u, "pic")),
+  comprasCotacoes: (u) => !comercialDir(u) && (tem(u, "pic")),   // v478
   producao: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER") || tem(u, "pic") || vePP(u),   // v420 — gestão da produção
-  comprasPedidos: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v404
-  levantamento: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),
-  comprasCruzamento: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v415
-  comprasAvulsas: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),   // v468 — mesmo acesso de Pedidos
-  comprasAtendidos: (u) => gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic"),
-  oc: (u) => gerencial(u) || T(u, "PRODUCAO"),
+  comprasPedidos: (u) => !comercialDir(u) && (gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic")),   // v404
+  levantamento: (u) => !comercialDir(u) && (gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic")),
+  comprasCruzamento: (u) => !comercialDir(u) && (gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic")),   // v415
+  comprasAvulsas: (u) => !comercialDir(u) && (gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic")),   // v468 — mesmo acesso de Pedidos
+  comprasAtendidos: (u) => !comercialDir(u) && (gerencial(u) || T(u, "PRODUCAO") || tem(u, "pic")),
+  oc: (u) => !comercialDir(u) && (gerencial(u) || T(u, "PRODUCAO")),
   devolucoes: (u) => gerencial(u) || T(u, "PRODUCAO"),   // v1086
   estoque: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),
   artigosRegistrados: (u) => gerencial(u) || T(u, "PRODUCAO", "LIDER"),   // v1156
@@ -337,7 +339,7 @@ export default function Home() {
   const diretor = ehDiretor(user);                 // chave Diretoria: todos os painéis e funções
   const master = veFinanceiro(user);               // painéis gerenciais e valores (master e diretoria)
   const tipo = tipoDe(user);
-  const perfil = masterReal ? "FINANCEIRO" : diretor ? "DIRETORIA" : user.setor;   // usado por alertas e FME
+  const perfil = masterReal ? "FINANCEIRO" : diretor && user.setor !== "COMERCIAL" ? "DIRETORIA" : user.setor;   // v1170 — diretoria comercial recebe os alertas do comercial   // usado por alertas e FME
   const menu = menuDoUsuario(user);
   const liberadas = folhas(menu);
   const pode = (k) => liberadas.includes(k);

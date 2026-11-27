@@ -2667,6 +2667,20 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
     catch (e) { setErro(e.message); }
   };
 
+  // v1170 — sugestão #110: apagar todos os lançamentos da semana de uma vez (ex.: planilha importada faltando informação)
+  const [limpando, setLimpando] = useState(false);
+  const limparTodos = async () => {
+    const l = (d?.itens || []).filter((it) => !ehPrevisao(it));
+    if (!l.length) return;
+    if (!(await confirmar(`Apagar TODOS os ${l.length} lançamento(s) desta semana (${moeda(l.reduce((s, it) => s + Number(it.valor || 0), 0))})?${l.length < d.itens.length ? " As previsões do PCP ficam." : ""}`, { titulo: "Limpar todos" }))) return;
+    setLimpando(true); setErro("");
+    let ult = null; const falhas = [];
+    for (const it of l) { try { ult = await api("/api/fin/semana", "DELETE", { usuarioId: user.id, id: it.id, tituloId }); } catch (e) { falhas.push(`${it.nome}: ${e.message}`); } }
+    setLimpando(false);
+    if (ult) setD(ult); else await carregar();
+    onMudou && onMudou();
+    if (falhas.length) setErro(`Não apagados: ${falhas.join(" · ")}`);
+  };
   if (!d && !erro) return <Modal titulo="Conta da semana" icone={CalendarClock} onClose={onClose} largura={980}><div style={{ color: C.sub }}>Carregando…</div></Modal>;
   if (erro && !d) return <Modal titulo="Conta da semana" icone={CalendarClock} onClose={onClose} largura={980}><div className="p-3 rounded" style={{ background: C.redSoft, color: C.red }}>{erro}</div></Modal>;
 
@@ -2689,6 +2703,8 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
           </button>
         ))}
         {d.tipo === "FREELANCER" && <ExcelFreelancers user={user} tituloId={tituloId} onFeito={(j) => { setD(j); onMudou && onMudou(); }} onErro={setErro} />}
+        {d.itens.some((it) => !ehPrevisao(it)) && <button onClick={limparTodos} disabled={limpando} className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.red}`, color: C.red, background: C.panel }} title="Apaga todos os lançamentos desta semana">
+          {limpando ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Limpar todos</button>}
         <div className="flex-1" />
         {d.grupos.map((g) => d.porGrupo[g] ? (
           <span key={g} className="px-2 py-1 rounded text-xs font-semibold" style={{ background: C.panel2, color: C.sub }}>
