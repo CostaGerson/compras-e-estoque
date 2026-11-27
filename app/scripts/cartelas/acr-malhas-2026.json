@@ -1,0 +1,2551 @@
+{
+"flag": "SEED|CARTELA|ACR|2026-11-27",
+"fornecedor": {
+"nome": "ACR MALHAS",
+"nomeFantasia": "ACR MALHAS E TECIDOS",
+"obs": "CADASTRADO PELO CATÁLOGO ACR MALHAS 2026 (27/11/2026)",
+"busca": "ACRMALHAS"
+},
+"tiposNovos": [],
+"artigos": [
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MEIA MALHA PV",
+"interno": null,
+"composicao": "65% POLIÉSTER 35% VISCOSE",
+"gramatura": 170.0,
+"largura": 1.2,
+"rendimento": 2.46,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"10391 BRANCO",
+null
+],
+[
+"17213 MARFIM",
+null
+],
+[
+"7293 SALMÃO",
+null
+],
+[
+"17221 AMARELO BEBÊ",
+null
+],
+[
+"26751 BAUNILHA",
+null
+],
+[
+"16985 CANÁRIO",
+null
+],
+[
+"16993 AMARELO INTERM.",
+null
+],
+[
+"4312 OURO",
+null
+],
+[
+"22098 LARANJA",
+null
+],
+[
+"22101 VERMELHO",
+null
+],
+[
+"22111 BORDÔ",
+null
+],
+[
+"22187 PINK",
+null
+],
+[
+"22233 CHICLETE",
+null
+],
+[
+"17272 ROSA BEBÊ",
+null
+],
+[
+"17280 LILÁS",
+null
+],
+[
+"22217 ROXO CLARO",
+null
+],
+[
+"22251 BIKE",
+null
+],
+[
+"22241 ROXO ESCURO",
+null
+],
+[
+"22128 MARROM",
+null
+],
+[
+"22209 VERDE MUSGO",
+null
+],
+[
+"20435 VERDE MENTA",
+null
+],
+[
+"17310 VERDE BEBÊ",
+null
+],
+[
+"17299 AZUL BEBÊ",
+null
+],
+[
+"22225 JADE",
+null
+],
+[
+"1589 TURQUESA",
+null
+],
+[
+"8435 BANDEIRA",
+null
+],
+[
+"22179 VERDE LIMÃO",
+null
+],
+[
+"22152 AZUL PETRÓLEO",
+null
+],
+[
+"22136 MARINHO NOITE",
+null
+],
+[
+"12017 MARINHO NÁUTICO",
+null
+],
+[
+"22427 CINZA ESVERD.",
+null
+],
+[
+"17329 CINZA PRATA",
+null
+],
+[
+"16977 CELESTE CLARO",
+null
+],
+[
+"17000 CELESTE",
+null
+],
+[
+"22071 ROYAL",
+null
+],
+[
+"22195 CINZA MÉDIO",
+null
+],
+[
+"22160 CINZA CHUMBO",
+null
+],
+[
+"22081 PRETO",
+null
+],
+[
+"373 MESCLA PRETO",
+null
+],
+[
+"100 MESCLA MÉDIO",
+null
+],
+[
+"17231 BEGE",
+null
+],
+[
+"22144 CAKI",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA ESCOLAR PA",
+"interno": null,
+"composicao": "65% POLIÉSTER 35% ALGODÃO",
+"gramatura": 290.0,
+"largura": 1.7,
+"rendimento": 2.03,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"12203 BRANCO",
+null
+],
+[
+"22535 GELO",
+null
+],
+[
+"22527 CZ. MÉDIO",
+null
+],
+[
+"22421 CHUMBO",
+null
+],
+[
+"22578 GRAFITE",
+null
+],
+[
+"27502 CZ. FLEX",
+null
+],
+[
+"22454 LILÁS",
+null
+],
+[
+"22446 PINK",
+null
+],
+[
+"42 VERM. PAIXÃO",
+null
+],
+[
+"22403 VERMELHO",
+null
+],
+[
+"22519 BORDÔ CLARO",
+null
+],
+[
+"22500 BORDÔ ESCURO",
+null
+],
+[
+"22586 ROXO",
+null
+],
+[
+"22438 BEGE",
+null
+],
+[
+"225675 CANÁRIO",
+null
+],
+[
+"22616 AM. INTERMEDIÁRIO",
+null
+],
+[
+"22462 AMAR. OURO",
+null
+],
+[
+"8559 LARANJA",
+null
+],
+[
+"22640 VERDE LIMÃO",
+null
+],
+[
+"10421 BANDEIRA",
+null
+],
+[
+"22497 VERDE MATA",
+null
+],
+[
+"22667 VERDE MUSGO",
+null
+],
+[
+"22561 VERDE JADE",
+null
+],
+[
+"22616 AMARELO INTERM.",
+null
+],
+[
+"10383 TURQUESA",
+null
+],
+[
+"22411 ROYAL",
+null
+],
+[
+"22624 ROYAL ESCURO",
+null
+],
+[
+"22594 PETRÓLEO CLARO",
+null
+],
+[
+"22551 PETRÓLEO ESCURO",
+null
+],
+[
+"533 MARINHO CÍVICO",
+null
+],
+[
+"22489 MARINHA NÁUTICO",
+null
+],
+[
+"26204 MARINHAO FERA",
+null
+],
+[
+"22470 PRETO",
+null
+],
+[
+"26281 MARROM",
+null
+],
+[
+"12211 CAFÉ",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM PVA 3 CABOS",
+"interno": null,
+"composicao": "44% ALGODÃO 38% POLIÉSTER 18% VISCOSE",
+"gramatura": 427.0,
+"largura": 1.8,
+"rendimento": 1.3,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"1325 BRANCO",
+null
+],
+[
+"20885 ROSA BEBÊ",
+null
+],
+[
+"20826 AMARELO INTERM.",
+null
+],
+[
+"4812 OURO",
+null
+],
+[
+"20801 LARANJA",
+null
+],
+[
+"20834 PINK",
+null
+],
+[
+"20699 VERMELHO",
+null
+],
+[
+"1333 BORDÔ",
+null
+],
+[
+"20745 PRETO",
+null
+],
+[
+"20753 MARROM",
+null
+],
+[
+"20796 CINZA CHUMBO",
+null
+],
+[
+"20761 CINZA MÉDIO",
+null
+],
+[
+"20729 MARINHO",
+null
+],
+[
+"376 MARINHO CÍVICO",
+null
+],
+[
+"20702 ROYAL",
+null
+],
+[
+"20771 CELESTE",
+null
+],
+[
+"2127 TURQUESA",
+null
+],
+[
+"6289 BANDEIRA",
+null
+],
+[
+"20778 VERDE MATA",
+null
+],
+[
+"1643 VERDE MUSGO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM PA 2 CABOS",
+"interno": null,
+"composicao": "50% POLIÉSTER 50% ALGODÃO",
+"gramatura": 320.0,
+"largura": 1.8,
+"rendimento": 1.74,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"7599 VERDE BANDEIRA",
+null
+],
+[
+"747 LARANJA",
+null
+],
+[
+"863 CINZA MÉDIO",
+null
+],
+[
+"7013 CELESTE",
+null
+],
+[
+"7598 ROYAL",
+null
+],
+[
+"7597 MARINHO CÍVICO",
+null
+],
+[
+"7596 MARINHO",
+null
+],
+[
+"7595 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA PIQUET PA",
+"interno": null,
+"composicao": "50% POLIÉSTER 50% ALGODÃO",
+"gramatura": 190.0,
+"largura": 1.2,
+"rendimento": 2.2,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"991 BRANCO",
+null
+],
+[
+"20591 AMARELO INTERM.",
+null
+],
+[
+"8400 MESCLA",
+null
+],
+[
+"1007 BANDEIRA",
+null
+],
+[
+"20672 PINK",
+null
+],
+[
+"11576 CINZA CHUMBO",
+null
+],
+[
+"20613 CINZA MÉDIO",
+null
+],
+[
+"20559 VERDE MUSGO",
+null
+],
+[
+"20516 VERMELHO",
+null
+],
+[
+"20567 CELESTE",
+null
+],
+[
+"20540 MARINHO",
+null
+],
+[
+"20621 VERDE JADE",
+null
+],
+[
+"20532 LARANJA",
+null
+],
+[
+"25259 BORDÔ",
+null
+],
+[
+"20524 ROYAL",
+null
+],
+[
+"20508 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA PENTEADA",
+"interno": null,
+"composicao": "100% ALGODÃO",
+"gramatura": 170.0,
+"largura": 1.2,
+"rendimento": 2.45,
+"unidade": "KG",
+"tipoMalha": "TUBULAR",
+"especificacao": "TUBULAR",
+"cores": [
+[
+"11134 BRANCO",
+null
+],
+[
+"18929 ROSA BEBÊ",
+null
+],
+[
+"15253 LILÁS",
+null
+],
+[
+"8869 PINK",
+null
+],
+[
+"1171 VERMELHO",
+null
+],
+[
+"5711 LARANJA",
+null
+],
+[
+"7706 AMARELO BEBÊ",
+null
+],
+[
+"8702 AMARELO INTERM.",
+null
+],
+[
+"1201 CANÁRIO",
+null
+],
+[
+"18945 TURQUESA",
+null
+],
+[
+"1163 ROYAL",
+null
+],
+[
+"1181 MARINHO",
+null
+],
+[
+"15121 VERDE LIMÃO",
+null
+],
+[
+"9636 BANDEIRA",
+null
+],
+[
+"8771 VERDE MATA",
+null
+],
+[
+"8087 CINZA MÉDIO",
+null
+],
+[
+"16144 MARROM",
+null
+],
+[
+"2161 PRETO",
+null
+],
+[
+"37 BRANCO",
+null
+],
+[
+"21601 CANÁRIO",
+null
+],
+[
+"21611 AMARELO INTERM.",
+null
+],
+[
+"435 AMARELO OURO",
+null
+],
+[
+"21733 LARANJA",
+null
+],
+[
+"21717 LARANJA CITRUS",
+null
+],
+[
+"17124 VERMELHO",
+null
+],
+[
+"21725 ROSA CITRUS",
+null
+],
+[
+"17108 PINK",
+null
+],
+[
+"21679 BIKE",
+null
+],
+[
+"21695 VERDE LIMÃO",
+null
+],
+[
+"21709 VERDE CITRUS",
+null
+],
+[
+"21628 V. BANDEIRA",
+null
+],
+[
+"21741 VERDE MUSGO",
+null
+],
+[
+"21687 TURQUESA",
+null
+],
+[
+"17094 AZUL CELESTE",
+null
+],
+[
+"21581 ROYAL",
+null
+],
+[
+"21571 MARINHO",
+null
+],
+[
+"13412 CINZA PRATA",
+null
+],
+[
+"407 MESCLA MÉDIO",
+null
+],
+[
+"21598 CINZA MÉDIO",
+null
+],
+[
+"372 CINZA CHUMBO",
+null
+],
+[
+"13420 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA PP TUBULAR",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 170.0,
+"largura": 1.2,
+"rendimento": 2.45,
+"unidade": "KG",
+"tipoMalha": "TUBULAR",
+"especificacao": "IDEAL PARA CAMISETAS DE UNIFORME",
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "HELANCA TOP COLEGIAL",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 258.0,
+"largura": 1.74,
+"rendimento": 2.23,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "IDEAL PARA UNIFORMES ESCOLARES",
+"cores": [
+[
+"21751 BRANCO",
+null
+],
+[
+"21891 CANÁRIO",
+null
+],
+[
+"19313 AMARELO INTERM.",
+null
+],
+[
+"21903 AMARELO OURO",
+null
+],
+[
+"21822 LARANJA",
+null
+],
+[
+"21806 VERMELHO",
+null
+],
+[
+"21792 PINK",
+null
+],
+[
+"21830 ROSA BEBÊ",
+null
+],
+[
+"21873 BORDÔ",
+null
+],
+[
+"21911 BIKE",
+null
+],
+[
+"22063 MARINHO",
+null
+],
+[
+"21865 CINZA MÉDIO",
+null
+],
+[
+"5800 PETRÓLEO",
+null
+],
+[
+"216 MARINHO CÍVICO",
+null
+],
+[
+"21814 ROYAL",
+null
+],
+[
+"21857 AZUL CELESTE",
+null
+],
+[
+"12513 TURQUESA",
+null
+],
+[
+"19488 VERDE JADE",
+null
+],
+[
+"22772 VERDE LIMÃO",
+null
+],
+[
+"11711 V. BANDEIRA",
+null
+],
+[
+"10197 VERDE MATA",
+null
+],
+[
+"21768 CINZA CHUMBO",
+null
+],
+[
+"24384 MARROM",
+null
+],
+[
+"21776 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "FURADINHO FORRO BRAUMATEX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 58.0,
+"largura": 1.6,
+"rendimento": null,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "MALHA PARA FORROS DIVERSOS",
+"cores": [
+[
+"1042 BRANCO",
+null
+],
+[
+"1043 MARINHO",
+null
+],
+[
+"1040 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "SPORT LIGHT",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 105.0,
+"largura": 1.8,
+"rendimento": 5.29,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "IDEAL PARA SUBLIMAÇÃO, CAMISETAS PROMOCIONAIS E ABADÁS",
+"cores": [
+[
+"751 BRANCO",
+null
+],
+[
+"757 AMARELO INTERM.",
+null
+],
+[
+"781 AMARELO FLÚOR",
+null
+],
+[
+"783 LARANJA",
+null
+],
+[
+"754 VERMELHO",
+null
+],
+[
+"753 PRETO",
+null
+],
+[
+"755 VERDE BANDEIRA",
+null
+],
+[
+"754 ROYAL",
+null
+],
+[
+"752 MARINHO NÁUTICO",
+null
+],
+[
+"782 CINZA MÉDIO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "CHIMPA TX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 240.0,
+"largura": 1.6,
+"rendimento": 2.6,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "SPORT E PELUCIADA",
+"cores": [
+[
+"632 BRANCO",
+null
+],
+[
+"636 CZ. MÉDIO",
+null
+],
+[
+"637 CHUMBO",
+null
+],
+[
+"634 VERMELHO",
+null
+],
+[
+"638 LARANJA",
+null
+],
+[
+"640 AMARELO",
+null
+],
+[
+"642 VERDE MATA",
+null
+],
+[
+"643 VERDE BANDEIRA",
+null
+],
+[
+"641 CELESTE",
+null
+],
+[
+"635 ROYAL",
+null
+],
+[
+"633 MARINHO",
+null
+],
+[
+"631 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "POLIPLEX POWER",
+"interno": null,
+"composicao": "88% POLIÉSTER 12% ELASTANO",
+"gramatura": 350.0,
+"largura": 1.7,
+"rendimento": 2.3,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "IDEAL PARA CALÇA LEGGING DE COLÉGIO.",
+"cores": [
+[
+"168 BRANCO",
+null
+],
+[
+"208 AMARELO INTERM.",
+null
+],
+[
+"147 VERDE BANDEIRA",
+null
+],
+[
+"60 VERDE MATA",
+null
+],
+[
+"135 MARINHO",
+null
+],
+[
+"136 MARINHO FERA",
+null
+],
+[
+"92 BORDÔ",
+null
+],
+[
+"90 VERMELHO",
+null
+],
+[
+"185 ROSA BEBÊ",
+null
+],
+[
+"446 PINK",
+null
+],
+[
+"1716 CINZA MÉDIO",
+null
+],
+[
+"89 PRETO",
+null
+],
+[
+"169 MESCLA",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "DRY FIT MINI COLMÉIA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 135.0,
+"largura": 1.8,
+"rendimento": 4.12,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"749 BRANCO",
+null
+],
+[
+"761 ROYAL",
+null
+],
+[
+"759 MARINHO",
+null
+],
+[
+"762 VERMELHO",
+null
+],
+[
+"763 CINZA MÉDIO",
+null
+],
+[
+"758 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "DRY TX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 130.0,
+"largura": 1.8,
+"rendimento": 4.27,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "LINHA ESPORTIVA SEM UV",
+"cores": [
+[
+"808 BRANCO",
+null
+],
+[
+"812 ROYAL",
+null
+],
+[
+"811 MARINHO",
+null
+],
+[
+"818 LARANJA",
+null
+],
+[
+"818 LARANJA FLÚOR",
+null
+],
+[
+"816 VERMELHO",
+null
+],
+[
+"820 CANÁRIO",
+null
+],
+[
+"813 AMARELO FLÚOR",
+null
+],
+[
+"815 VERDE BANDEIRA",
+null
+],
+[
+"814 CINZA MÉDIO",
+null
+],
+[
+"810 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "DRY ACTIVE COM ELASTANO",
+"interno": null,
+"composicao": "92% POLIÉSTER 8% ELASTANO",
+"gramatura": 160.0,
+"largura": 1.6,
+"rendimento": null,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "IDEAL PARA CAMISETAS ESPORTIVAS. · CONTÉM ELASTANO, QUE DÁ CAIMENTO E CONFORTO",
+"cores": [
+[
+"1044 BRANCO",
+null
+],
+[
+"1049 AMARELO CANÁRIO",
+null
+],
+[
+"1048 CINZA MÉDIO",
+null
+],
+[
+"1045 PRETO",
+null
+],
+[
+"1046 MARINHO",
+null
+],
+[
+"1047 ROYAL",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "DRY SHIRT UV 50+",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 137.0,
+"largura": 1.78,
+"rendimento": 4.1,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "LINHA ESPORTIVA COM UV",
+"cores": [
+[
+"2526 BRANCO",
+null
+],
+[
+"23019 AMARELO FLÚOR",
+null
+],
+[
+"11762 CANÁRIO",
+null
+],
+[
+"23043 AM. INTERMEDIÁRIO",
+null
+],
+[
+"23086 LARANJA",
+null
+],
+[
+"231116 LARANJA FLÚOR",
+null
+],
+[
+"1041 VERMELHO",
+null
+],
+[
+"93 ROSA FLÚOR",
+null
+],
+[
+"23094 PINK",
+null
+],
+[
+"23051 CELESTE",
+null
+],
+[
+"22985 ROYAL",
+null
+],
+[
+"22993 MARINHO",
+null
+],
+[
+"23000 LIMÃO",
+null
+],
+[
+"23108 VERDE BANDEIRA",
+null
+],
+[
+"24759 TURQUESA",
+null
+],
+[
+"23035 LILÁS",
+null
+],
+[
+"22977 VERDE FLÚOR",
+null
+],
+[
+"23078 MARROM",
+null
+],
+[
+"23061 CINZA MÉDIO",
+null
+],
+[
+"227 MESCLA",
+null
+],
+[
+"23027 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "DOUBLE WINTER",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 302.0,
+"largura": 1.5,
+"rendimento": null,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"662 BRANCO",
+null
+],
+[
+"721 VERMELHO",
+null
+],
+[
+"723 V. BANDEIRA",
+null
+],
+[
+"724 VERDE MATA",
+null
+],
+[
+"727 ROYAL",
+null
+],
+[
+"679 MARINHO",
+null
+],
+[
+"726 MARINHO FERA",
+null
+],
+[
+"620 CINZA MÉDIO",
+null
+],
+[
+"722 CINZA CHUMBO",
+null
+],
+[
+"725 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MANTA MICROFIBRA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 180.0,
+"largura": 2.2,
+"rendimento": 2.6,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "FLEECE",
+"cores": [
+[
+"530 BRANCO",
+null
+],
+[
+"599 ROYAL",
+null
+],
+[
+"607 PETRÓLEO",
+null
+],
+[
+"601 VERMELHO",
+null
+],
+[
+"609 VERDE ÁGUA",
+null
+],
+[
+"603 AZUL BEBÊ",
+null
+],
+[
+"614 CANÁRIO",
+null
+],
+[
+"608 MARROM",
+null
+],
+[
+"600 SÁLVIA",
+null
+],
+[
+"608 VERDE",
+null
+],
+[
+"618 MUSGO",
+null
+],
+[
+"610 SALMÃO",
+null
+],
+[
+"613 CINZA",
+null
+],
+[
+"605 PINK",
+null
+],
+[
+"615 CORAL",
+null
+],
+[
+"616 ROSA CHICLETE",
+null
+],
+[
+"617 ROSA ANTIGO",
+null
+],
+[
+"619 ROSA BEBÊ",
+null
+],
+[
+"602 MARINHO",
+null
+],
+[
+"621 BEGE",
+null
+],
+[
+"622 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MICROSOFT ULTRA BRAUMATEX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 190.0,
+"largura": 1.65,
+"rendimento": 2.6,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "PELUCIADO NOS DOIS LADOS E ANTI-PILLING",
+"cores": [
+[
+"1088 BRANCO",
+null
+],
+[
+"1087 VERDE MATA",
+null
+],
+[
+"1085 VERMELHO",
+null
+],
+[
+"1084 CINZA CHUMBO",
+null
+],
+[
+"1086 ROYAL",
+null
+],
+[
+"1083 MARINHO",
+null
+],
+[
+"1082 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MICROSOFT SKY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 240.0,
+"largura": 1.6,
+"rendimento": 2.6,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "ULTRACOOL ATENAS",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 115.0,
+"largura": 1.8,
+"rendimento": 4.83,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "CONSULTE DISPONIBILIDADE DAS ESTAMPAS",
+"cores": [
+[
+"788 PRETO",
+null
+],
+[
+"789 BRANCO",
+null
+],
+[
+"790 ROYAL",
+null
+],
+[
+"791 MARINHO",
+null
+],
+[
+"792 VERMELHO",
+null
+],
+[
+"793 CIMENTO",
+null
+],
+[
+"794 AMARELO FLÚOR",
+null
+],
+[
+"796 ROSA FLÚOR",
+null
+],
+[
+"797 TURQUESA",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MICROSENSE MESH",
+"interno": null,
+"composicao": "88% POLIAMIDA 12% ELASTANO",
+"gramatura": 160.0,
+"largura": 1.6,
+"rendimento": 3.9,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "FURADINHO",
+"cores": [
+[
+"807 BRANCO",
+null
+],
+[
+"1039 AMARELO FLÚOR",
+null
+],
+[
+"1038 ROSA FLÚOR",
+null
+],
+[
+"805 MARINHO",
+null
+],
+[
+"806 ROYAL",
+null
+],
+[
+"803 CZ MÉDIO",
+null
+],
+[
+"804 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "SUPLEX FIT POWER",
+"interno": null,
+"composicao": "88% POLIAMIDA 12% ELASTANO",
+"gramatura": 355.0,
+"largura": 1.6,
+"rendimento": 1.76,
+"unidade": "KG",
+"tipoMalha": null,
+"especificacao": "LINHA ESPORTIVA E UNIFORME",
+"cores": [
+[
+"801 ROYAL",
+null
+],
+[
+"800 MARINHO",
+null
+],
+[
+"802 VERDE MATA",
+null
+],
+[
+"799 CZ. CHUMBO",
+null
+],
+[
+"798 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "PROWORK BRIM MISTO",
+"interno": null,
+"composicao": "65% POLIÉSTER 35% ALGODÃO",
+"gramatura": 240.0,
+"largura": 1.6,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"765 BRANCO",
+null
+],
+[
+"767 CINZA MÉDIO",
+null
+],
+[
+"768 CHUMBO",
+null
+],
+[
+"769 MARINHO",
+null
+],
+[
+"770 ROYAL",
+null
+],
+[
+"766 V. BANDEIRA",
+null
+],
+[
+"881 LARANJA",
+null
+],
+[
+"880 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "PROWORK BRIM LEVE",
+"interno": "BRIM LEVE",
+"composicao": "65% POLIÉSTER 35% ALGODÃO",
+"gramatura": 195.0,
+"largura": 1.6,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"882 BRANCO",
+null
+],
+[
+"883 ROYAL",
+null
+],
+[
+"887 MARINHO",
+null
+],
+[
+"885 CINZA MÉDIO",
+null
+],
+[
+"886 CHUMBO",
+null
+],
+[
+"888 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "BRIM PESADO E LEVE DE ALGODÃO",
+"interno": null,
+"composicao": "100% ALGODÃO",
+"gramatura": 250.0,
+"largura": 1.62,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "TRICOLYCRA DUBAI",
+"interno": null,
+"composicao": "75% POLIÉSTER 21% ALGODÃO 4% ELASTANO",
+"gramatura": 127.0,
+"largura": 1.47,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": "CONSULTE DISPONIBILIDADE DAS CORES · TOQUE MACIO E FLEXIBILIDADE",
+"cores": [
+[
+"895 BRANCO",
+null
+],
+[
+"896 PRETO",
+null
+],
+[
+"897 AZUL BEBÊ",
+null
+],
+[
+"898 CELESTE",
+null
+],
+[
+"899 ROYAL",
+null
+],
+[
+"900 MARINHO NOITE",
+null
+],
+[
+"901 CINZA MÉDIO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "TRICOLINE PROWORK",
+"interno": null,
+"composicao": "65% POLIÉSTER 35% ALGODÃO",
+"gramatura": 115.0,
+"largura": 1.5,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"903 BRANCO",
+null
+],
+[
+"904 PRETO",
+null
+],
+[
+"905 AZUL BEBÊ",
+null
+],
+[
+"907 CELESTE",
+null
+],
+[
+"908 ROYAL",
+null
+],
+[
+"909 MARINHO NOITE",
+null
+],
+[
+"910 CINZA MÉDIO",
+null
+],
+[
+"911 VERMELHO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "OXFORD",
+"interno": "OXFORD",
+"composicao": "100% POLIÉSTER",
+"gramatura": 230.0,
+"largura": 1.5,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"632 BRANCO",
+null
+],
+[
+"670 V. BANDEIRA",
+null
+],
+[
+"674 V. MILITAR",
+null
+],
+[
+"673 ROSA BEBÊ",
+null
+],
+[
+"915 AMARELO",
+null
+],
+[
+"675 KRAFT",
+null
+],
+[
+"669 VERMELHO",
+null
+],
+[
+"668 ROYAL",
+null
+],
+[
+"667 MARINHO",
+null
+],
+[
+"672 CINZA MÉDIO",
+null
+],
+[
+"666 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "SARJA DUTY MICROFIBRA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 157.0,
+"largura": 1.5,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"730 BRANCO",
+null
+],
+[
+"742 CELESTE",
+null
+],
+[
+"743 ROYAL",
+null
+],
+[
+"745 MARINHO NÁUTICO",
+null
+],
+[
+"746 MARINHO NOITE",
+null
+],
+[
+"737 VERDE MATA",
+null
+],
+[
+"738 ROSA BEBÊ",
+null
+],
+[
+"740 VERMELHO",
+null
+],
+[
+"916 BORDÔ",
+null
+],
+[
+"732 CZ. MÉDIO",
+null
+],
+[
+"733 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "GABARDINE PARIS",
+"interno": "GABARDINE",
+"composicao": "100% POLIÉSTER",
+"gramatura": 170.0,
+"largura": 1.5,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": "LINHA HOSPITALAR, JALECOS E SCRUBS",
+"cores": [
+[
+"970 BRANCO",
+null
+],
+[
+"971 PRETO",
+null
+],
+[
+"972 MARINHO NOITE",
+null
+],
+[
+"974 CINZA MÉDIO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "TWO WAY",
+"interno": "TWO WAY",
+"composicao": "95% POLIÉSTER 5% ELASTANO",
+"gramatura": 240.0,
+"largura": 1.5,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": "LINHA HOSPITALAR, JALECOS E SCRUBS",
+"cores": [
+[
+"9458 BRANCO",
+null
+],
+[
+"18163 ROSA ARGENTO",
+null
+],
+[
+"19623 JUJUBA",
+null
+],
+[
+"7803 ANGEL BLUE",
+null
+],
+[
+"18155 CHINO",
+null
+],
+[
+"6517 DANONE",
+null
+],
+[
+"6516 PINK",
+null
+],
+[
+"6518 CELESTE GLACÊ",
+null
+],
+[
+"18228 CAQUI",
+null
+],
+[
+"6528 VIOLET ICE",
+null
+],
+[
+"18198 VERMELHO",
+null
+],
+[
+"115 ROYAL",
+null
+],
+[
+"18182 BOTANICAL",
+null
+],
+[
+"18211 CAFÉ",
+null
+],
+[
+"117 RUBI",
+null
+],
+[
+"18181 MARINHO NÁUTICO",
+null
+],
+[
+"18201 CZ MÉDIO",
+null
+],
+[
+"18252 CHUMBO",
+null
+],
+[
+"6519 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "MICRODINE BRAUMATEX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 150.0,
+"largura": 1.6,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"632 BRANCO",
+null
+],
+[
+"538 AMARELO",
+null
+],
+[
+"543 ROSA BEBÊ",
+null
+],
+[
+"552 AZUL BEBÊ",
+null
+],
+[
+"539 VERDE ÁGUA",
+null
+],
+[
+"540 VERDE CACTO",
+null
+],
+[
+"542 VERDE BANDEIRA",
+null
+],
+[
+"541 VERDE MATA",
+null
+],
+[
+"544 PINK",
+null
+],
+[
+"545 VERMELHO",
+null
+],
+[
+"550 BRODÔ",
+null
+],
+[
+"549 MARROM",
+null
+],
+[
+"551 CELESTE",
+null
+],
+[
+"546 ROYAL",
+null
+],
+[
+"547 MARINHO NOITE",
+null
+],
+[
+"537 CINZA",
+null
+],
+[
+"536 CZ CHUMBO",
+null
+],
+[
+"631 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "MICROTEL NEW",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 130.0,
+"largura": 1.5,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": "JAQUETAS, BERMUDAS E MAIS",
+"cores": [
+[
+"917 BRANCO",
+null
+],
+[
+"918 PRETO",
+null
+],
+[
+"919 MARINHO",
+null
+],
+[
+"920 ROYAL",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "NYLON ALPINISTA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 65.0,
+"largura": 1.48,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"691 BRANCO",
+null
+],
+[
+"692 VERMELHO",
+null
+],
+[
+"693 ROYAL",
+null
+],
+[
+"694 CZ MÉDIO",
+null
+],
+[
+"695 CZ CHUMBO",
+null
+],
+[
+"696 PRETO",
+null
+],
+[
+"697 MARINHO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "NYLON PARAQUEDAS RESINADO",
+"interno": "NYLON PARAQUEDAS",
+"composicao": "100% POLIÉSTER",
+"gramatura": 95.0,
+"largura": 1.48,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"680 BRANCO",
+null
+],
+[
+"684 V. BANDEIRA",
+null
+],
+[
+"685 V. MILITAR",
+null
+],
+[
+"686 ROYAL",
+null
+],
+[
+"690 MARINHO",
+null
+],
+[
+"687 CINZA MÉDIO",
+null
+],
+[
+"681 AMARELO",
+null
+],
+[
+"682 LARANJA",
+null
+],
+[
+"683 VERMELHO",
+null
+],
+[
+"688 CHUMBO",
+null
+],
+[
+"689 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "NYLON POLIAMIDA DONNA",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 38.0,
+"largura": 1.5,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": "CORTA VENTO SUPER QUALIDADE",
+"cores": [
+[
+"1053 BRANCO",
+null
+],
+[
+"1067 ROYAL",
+null
+],
+[
+"1052 MARINHO NÁUTICO",
+null
+],
+[
+"1054 CINZA MÉDIO",
+null
+],
+[
+"1051 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "NYLON EVEREST RESINADO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 105.0,
+"largura": 1.5,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"1055 BRANCO",
+null
+],
+[
+"1062 VERDE BANDEIRA",
+null
+],
+[
+"1063 VERDE MATA",
+null
+],
+[
+"1064 AMARELO FLÚOR",
+null
+],
+[
+"1065 LARANJA FLÚOR",
+null
+],
+[
+"1061 VERMELHO",
+null
+],
+[
+"1060 ROYAL",
+null
+],
+[
+"1059 MARINHO NÁUTICO",
+null
+],
+[
+"1057 MARINHO NOITE",
+null
+],
+[
+"1056 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "MATELADO 80 NYLON FORRO",
+"interno": "MATELASSÊ",
+"composicao": "82% POLIÉSTER 18% POLIPROPILENO",
+"gramatura": 145.0,
+"largura": 1.48,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": null,
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "MATELADO EM GOMO SIRE/NYLON 80",
+"interno": "MATELASSÊ",
+"composicao": "82% POLIÉSTER 18% POLIPROPILENO",
+"gramatura": 190.0,
+"largura": 1.48,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": "CONSULTE DISPONIBILIDADE DAS CORES",
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": null,
+"nome": "MATELADO EM GOMO GLINTS (NYLON FOSCO)",
+"interno": "MATELASSÊ",
+"composicao": "82% POLIÉSTER 18% POLIPROPILENO",
+"gramatura": 237.0,
+"largura": 1.5,
+"rendimento": null,
+"unidade": "M",
+"tipoMalha": null,
+"especificacao": "CONSULTE DISPONIBILIDADE DAS CORES",
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": null,
+"nome": "GORGURÃO REFLETIVO LINHATEX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"unidade": "UN",
+"tipoMalha": null,
+"especificacao": "ARMARINHOS",
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": null,
+"nome": "FITA REFLETIVA LINHATEX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"unidade": "UN",
+"tipoMalha": null,
+"especificacao": "ARMARINHOS",
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": null,
+"nome": "LINHA LINHATEX/ALFA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"unidade": "UN",
+"tipoMalha": null,
+"especificacao": "ARMARINHOS",
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": null,
+"nome": "FIO OVERLOCK LINHATEX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"unidade": "UN",
+"tipoMalha": null,
+"especificacao": "ARMARINHOS",
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+}
+]
+}

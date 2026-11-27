@@ -1,0 +1,7572 @@
+{
+"flag": "SEED|CARTELA|MANTOS|2026-11-27",
+"fornecedor": {
+"nome": "MANTOS",
+"nomeFantasia": "MANTOS MALHARIA",
+"obs": "CADASTRADO PELOS CATÁLOGOS MANTOS'26 POLIAMIDA E POLIÉSTER (27/11/2026)",
+"busca": "MANTOS"
+},
+"tiposNovos": [],
+"artigos": [
+{
+"categoria": "MALHA",
+"ref": "7510",
+"nome": "7510 SARJA MILANO",
+"interno": null,
+"composicao": "93% POLIAMIDA 7% ELASTANO",
+"gramatura": 350,
+"largura": 1.5,
+"rendimento": 1.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "7512",
+"nome": "7512 MARROCOS",
+"interno": null,
+"composicao": "83% POLIAMIDA 17% ELASTANO",
+"gramatura": 225,
+"largura": 1.55,
+"rendimento": 2.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9504",
+"nome": "9504 DELTA FLAG",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 110,
+"largura": 1.6,
+"rendimento": 5.7,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA · FPU25",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9509",
+"nome": "9509 MOVE CREPE FINE",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 100,
+"largura": 1.85,
+"rendimento": 5.4,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9510",
+"nome": "9510 ACTION",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 125,
+"largura": 1.85,
+"rendimento": 4.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9521",
+"nome": "9521 DELFINES I",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 110,
+"largura": 1.7,
+"rendimento": 5.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9522",
+"nome": "9522 PRIME AIR",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 120,
+"largura": 1.8,
+"rendimento": 4.6,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9524",
+"nome": "9524 MOVE LINE",
+"interno": null,
+"composicao": "78% POLIAMIDA 22% ELASTANO",
+"gramatura": 350,
+"largura": 1.6,
+"rendimento": 1.8,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9534",
+"nome": "9534 WAFFLE LIGHT",
+"interno": null,
+"composicao": "98% POLIAMIDA 2% ELASTANO",
+"gramatura": 190,
+"largura": 1.6,
+"rendimento": 3.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9536",
+"nome": "9536 MOVE FAST",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 140,
+"largura": 1.8,
+"rendimento": 4.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA · FPU50+",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9538",
+"nome": "9538 THERMO FLEX",
+"interno": null,
+"composicao": "88% POLIAMIDA 12% ELASTANO",
+"gramatura": 130,
+"largura": 1.65,
+"rendimento": 4.7,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9554",
+"nome": "9554 ELASTIC",
+"interno": null,
+"composicao": "91% POLIAMIDA 9% ELASTANO",
+"gramatura": 150,
+"largura": 1.7,
+"rendimento": 3.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA · FPU50+",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9556",
+"nome": "9556 DUBLIN",
+"interno": null,
+"composicao": "94% POLIAMIDA 6% ELASTANO",
+"gramatura": 125,
+"largura": 1.6,
+"rendimento": 5.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9557",
+"nome": "9557 JET BEE SPORT",
+"interno": null,
+"composicao": "90% POLIAMIDA 10% ELASTANO",
+"gramatura": 240,
+"largura": 1.4,
+"rendimento": 3.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9596",
+"nome": "9596 SUPER FLY",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 125,
+"largura": 1.85,
+"rendimento": 4.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9598",
+"nome": "9598 SPEED FLY",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 125,
+"largura": 1.85,
+"rendimento": 4.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9632",
+"nome": "9632 MELANGE CLASSIC",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 140,
+"largura": 1.85,
+"rendimento": 3.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIAMIDA",
+"cores": [
+[
+"1104 AMARELO RADIANTE",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+null
+],
+[
+"6630 SUPER PINK",
+null
+],
+[
+"3215 TURQUESA",
+null
+],
+[
+"2134 VERDE TWIST",
+null
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"9441 PRATA",
+null
+],
+[
+"1085 SUNSHINE",
+null
+],
+[
+"1625 ORANGE",
+null
+],
+[
+"5214 MADEIRA",
+null
+],
+[
+"4102 DOCE",
+null
+],
+[
+"4137 PINK FLAMB",
+null
+],
+[
+"4640 VERMELHO FERRARI",
+null
+],
+[
+"4642 TRUE RED",
+"COR COM ACRÉSCIMO"
+],
+[
+"4771 AMORA",
+null
+],
+[
+"6657 MALVA",
+null
+],
+[
+"6735 VIOLETA",
+null
+],
+[
+"6990 EXCALIBUR",
+"COR COM ACRÉSCIMO"
+],
+[
+"2153 LIMÃO",
+null
+],
+[
+"2533 BANDEIRA",
+null
+],
+[
+"2629 ALECRIM",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2225 MAR DO NORTE",
+null
+],
+[
+"3062 AZUL BEBÊ",
+null
+],
+[
+"3112 HAWAI",
+"COR COM ACRÉSCIMO"
+],
+[
+"3517 BLUE GEL",
+null
+],
+[
+"3600 ROYAL",
+"COR COM ACRÉSCIMO"
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9460 ARGENTO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "7130",
+"nome": "7130 MALHA SUBLIME",
+"interno": null,
+"composicao": "87% POLIÉSTER 13% ELASTANO",
+"gramatura": 230,
+"largura": 1.6,
+"rendimento": 2.7,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "7132",
+"nome": "7132 RIB SANTORINI",
+"interno": null,
+"composicao": "92% POLIÉSTER 8% ELASTANO",
+"gramatura": 380,
+"largura": 1.5,
+"rendimento": 1.8,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9000",
+"nome": "9000 CACHARREL",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 120,
+"largura": 1.85,
+"rendimento": 4.5,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9005",
+"nome": "9005 HELENCA CACHARREL",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 110,
+"largura": 1.87,
+"rendimento": 4.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9010",
+"nome": "9010 MICRO DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 120,
+"largura": 1.85,
+"rendimento": 4.5,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER · FPU45",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9015",
+"nome": "9015 SUPER DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.88,
+"rendimento": 3.8,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9016",
+"nome": "9016 DUNAS DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.8,
+"rendimento": 4.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9021",
+"nome": "9021 CREPE WIND DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 90,
+"largura": 1.55,
+"rendimento": 7.2,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9027",
+"nome": "9027 CLIP MASTER DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 120,
+"largura": 1.88,
+"rendimento": 4.4,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9029",
+"nome": "9029 MARATHON SKY DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.6,
+"rendimento": 4.5,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9031",
+"nome": "9031 CLIP RUNNER",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 180,
+"largura": 1.85,
+"rendimento": 3.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9034",
+"nome": "9034 ALPHA PLUS",
+"interno": null,
+"composicao": "98% POLIÉSTER 2% ELASTANO",
+"gramatura": 110,
+"largura": 1.67,
+"rendimento": 5.4,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER · FPU15",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9036",
+"nome": "9036 CREPE OLYMPIC DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 110,
+"largura": 1.7,
+"rendimento": 5.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9037",
+"nome": "9037 STREET SPORT DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 130,
+"largura": 1.85,
+"rendimento": 4.2,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9038",
+"nome": "9038 DRY COLMEIA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 130,
+"largura": 1.85,
+"rendimento": 4.2,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9039",
+"nome": "9039 PULSE",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 125,
+"largura": 1.85,
+"rendimento": 4.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9050",
+"nome": "9050 PUNHO (TUBULAR)",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 150,
+"largura": 0.75,
+"rendimento": 4.45,
+"tipoMalha": "TUBULAR",
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9060",
+"nome": "9060 PIQUET DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 120,
+"largura": 1.85,
+"rendimento": 4.5,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9061",
+"nome": "9061 MILANO DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 160,
+"largura": 1.8,
+"rendimento": 3.5,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9064",
+"nome": "9064 MICRO LIGHT",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 105,
+"largura": 1.8,
+"rendimento": 5.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9070",
+"nome": "9070 COLETE CACHARREL",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 95,
+"largura": 1.85,
+"rendimento": 5.7,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9082",
+"nome": "9082 SPLIT DRY SPORT",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 120,
+"largura": 1.85,
+"rendimento": 4.5,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9085",
+"nome": "9085 ARENA SPORT DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 125,
+"largura": 1.87,
+"rendimento": 4.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9095",
+"nome": "9095 ATHENAS FUN DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 135,
+"largura": 1.85,
+"rendimento": 4.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9104",
+"nome": "9104 JACQUARD TURIM",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.8,
+"rendimento": 4.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9105",
+"nome": "9105 JACQUARD OHIO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.8,
+"rendimento": 4.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9106",
+"nome": "9106 JACQUARD SANTIAGO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.8,
+"rendimento": 4.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9107",
+"nome": "9107 JACQUARD SANCHEZ",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.8,
+"rendimento": 4.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9109",
+"nome": "9109 FLY BEE SPORT",
+"interno": null,
+"composicao": "98% POLIÉSTER 2% ELASTANO",
+"gramatura": 125,
+"largura": 1.7,
+"rendimento": 4.7,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9116",
+"nome": "9116 DRY MESH WINNER",
+"interno": null,
+"composicao": "91% POLIÉSTER 9% ELASTANO",
+"gramatura": 120,
+"largura": 1.75,
+"rendimento": 4.8,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9130",
+"nome": "9130 AIR FITNESS",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 130,
+"largura": 1.8,
+"rendimento": 4.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9134",
+"nome": "9134 DOVER SPORT DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 120,
+"largura": 1.8,
+"rendimento": 4.6,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9135",
+"nome": "9135 MESCLA POLI DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.8,
+"rendimento": 4.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9260",
+"nome": "9260 TITANIUM DRY",
+"interno": null,
+"composicao": "90% POLIÉSTER 10% ELASTANO",
+"gramatura": 165,
+"largura": 1.65,
+"rendimento": 3.7,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER · FPU50+",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9336",
+"nome": "9336 ASPEN PRO",
+"interno": null,
+"composicao": "98% POLIÉSTER 2% ELASTANO",
+"gramatura": 260,
+"largura": 1.6,
+"rendimento": 2.4,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9400",
+"nome": "9400 AIR MESH",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 120,
+"largura": 1.85,
+"rendimento": 4.5,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9401",
+"nome": "9401 MESH NBA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 130,
+"largura": 1.85,
+"rendimento": 4.2,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9403",
+"nome": "9403 MESH OVAL",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 175,
+"largura": 1.4,
+"rendimento": 4.1,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "9406",
+"nome": "9406 NEW MESH OVAL",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.4,
+"rendimento": 5.1,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA POLIÉSTER",
+"cores": [
+[
+"1100 AMARELO FLÚOR",
+null
+],
+[
+"2150 MAÇÃ",
+null
+],
+[
+"1560 LARANJA FLÚOR",
+"COR COM ACRÉSCIMO"
+],
+[
+"6630 SUPER PINK",
+"COR COM ACRÉSCIMO"
+],
+[
+"3531 AZUL OCEANO",
+"COR COM ACRÉSCIMO"
+],
+[
+"0001 BRANCO",
+null
+],
+[
+"0061 PÉROLA",
+null
+],
+[
+"0049 ANGÉLICA",
+null
+],
+[
+"1080 AMARELO CANÁRIO",
+null
+],
+[
+"1389 ELBA",
+null
+],
+[
+"4124 ROSA",
+null
+],
+[
+"4142 ROUGE",
+null
+],
+[
+"4631 VERMELHO VIBRANTE",
+"COR COM ACRÉSCIMO"
+],
+[
+"4657 VERMELHO ESCARLATE",
+null
+],
+[
+"4660 VINHO",
+null
+],
+[
+"3058 LUNE",
+null
+],
+[
+"3600 ROYAL",
+null
+],
+[
+"3051 LAGUM",
+null
+],
+[
+"3215 TURQUESA",
+"COR COM ACRÉSCIMO"
+],
+[
+"3121 ETHER",
+null
+],
+[
+"2084 ENERGY",
+null
+],
+[
+"2140 VERDE FOLHA",
+"COR COM ACRÉSCIMO"
+],
+[
+"2100 VERDE BANDEIRA",
+null
+],
+[
+"2500 MUSGO",
+null
+],
+[
+"2746 THURF",
+null
+],
+[
+"5414 EXPRESSO",
+null
+],
+[
+"6755 ROXO",
+null
+],
+[
+"3851 NAVY",
+null
+],
+[
+"9540 CHUMBO",
+null
+],
+[
+"9999 PRETO",
+null
+]
+]
+}
+]
+}

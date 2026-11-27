@@ -16,6 +16,9 @@ export async function register() {
     // v1038 — layouts/artes em base64 no banco vão para o disco (um por vez), 20 s após subir; repete de hora em hora
     const migrar = async () => { try { const { migrarTarefaArquivos } = await import("./lib/arquivos"); await migrarTarefaArquivos(); } catch (e) { console.error("[v1038]", e.message); } };
     setTimeout(migrar, 20 * 1000); setInterval(migrar, 60 * 60 * 1000);
+    // v1165 — Catálogo Meridian no Drive: republica se as cartelas mudaram (depois das cargas de cartela do início)
+    const catalogo = async () => { try { const { publicarCatalogo } = await import("./lib/catalogoMeridian"); const r = await publicarCatalogo(); if (!r.igual) console.log(`[v1165] catálogo publicado: ${r.artigos} artigos`); } catch (e) { console.error("[v1165] catálogo:", e.message); } };
+    setTimeout(catalogo, 120 * 1000); setInterval(catalogo, 6 * 60 * 60 * 1000);
     setTimeout(async () => { try { const { zerarEstoqueInventario } = await import("./lib/estoqueZerar"); await zerarEstoqueInventario(); } catch (e) { console.error("[v1156]", e.message); } }, 45 * 1000);   // v1156 — estoque zerado (inventário 27/11)
     const { agendarPendenciasClientes } = await import("./lib/clientePendencias");   // v1148 — vendedor avisado dos cadastros incompletos
     agendarPendenciasClientes();

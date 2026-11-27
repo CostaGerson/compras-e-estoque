@@ -1,0 +1,2806 @@
+{
+"flag": "SEED|CARTELA|JETFIO|2026-11-27",
+"fornecedor": {
+"nome": "JETFIO",
+"nomeFantasia": "JETFIO TÊXTIL",
+"obs": "CADASTRADO PELO CATÁLOGO JETFIO 2026 (27/11/2026)",
+"busca": "JETFIO"
+},
+"tiposNovos": [],
+"artigos": [
+{
+"categoria": "TECIDO",
+"ref": "193110",
+"nome": "193110 ELASTON JET 1.6",
+"interno": null,
+"composicao": "75% POLIÉSTER 21% ALGODÃO 4% ELASTANO",
+"gramatura": 138,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para camisetes. Disfarça amassados que o uso acarreta. Exclusiva largura de 1,60 m. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"02 NATURAL",
+null
+],
+[
+"136 VERDE-ÁGUA",
+null
+],
+[
+"114 YELLOW",
+null
+],
+[
+"205 CASCALHO",
+null
+],
+[
+"179 GREEN",
+null
+],
+[
+"14 GELO",
+null
+],
+[
+"143 SILVER",
+null
+],
+[
+"243 ROSÉ",
+null
+],
+[
+"124 CARGO",
+null
+],
+[
+"04 NUVEM",
+null
+],
+[
+"408 LILAC",
+null
+],
+[
+"149 AZUL-CLARO",
+null
+],
+[
+"169 CAPRI",
+null
+],
+[
+"123 METAL",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"150 COBALTO",
+null
+],
+[
+"405 RIVIERA",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"19 AZUL-NOITE",
+null
+],
+[
+"183 ANGELITA",
+null
+],
+[
+"184 TAUPE",
+null
+],
+[
+"88 CONCRETO",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"133 RED",
+null
+],
+[
+"40 CEREJA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "190010",
+"nome": "190010 PRIME JET",
+"interno": null,
+"composicao": "67% ALGODÃO 30% POLIÉSTER 3% ELASTANO",
+"gramatura": 132,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para camisas. Tecido com mais algodão, menos poliéster e elastano. Exclusiva largura de 1,60 m. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"56 CREME",
+null
+],
+[
+"61 AMARELO-CLARO",
+null
+],
+[
+"205 CASCALHO",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"149 AZUL-CLARO",
+null
+],
+[
+"179 GREEN",
+null
+],
+[
+"143 SILVER",
+null
+],
+[
+"124 CARGO",
+null
+],
+[
+"72 PALACE",
+null
+],
+[
+"68 ESMERALDA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"150 COBALTO",
+null
+],
+[
+"19 AZUL-NOITE",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"133 RED",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "155010",
+"nome": "155010 JET WORKER",
+"interno": null,
+"composicao": "67% POLIÉSTER 33% ALGODÃO",
+"gramatura": 120,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para camisas. Tecido confortável e de fácil manutenção. Acabamento antipilling. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"145 VANILLA",
+null
+],
+[
+"160 ANGEL",
+null
+],
+[
+"139 PROVENCE",
+null
+],
+[
+"131 STONE-BLACK",
+null
+],
+[
+"143 SILVER",
+null
+],
+[
+"141 GRAY",
+null
+],
+[
+"173 MOON",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"165 MEDIEVAL",
+null
+],
+[
+"137 AZUL-IMPERIAL",
+null
+],
+[
+"135 STONE-BLUE",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "505010",
+"nome": "505010 WORKER JET MIX",
+"interno": null,
+"composicao": "50% POLIÉSTER 50% ALGODÃO",
+"gramatura": 120,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para camisas. O conforto do algodão e a resistência do poliéster. Acabamento antipilling. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"145 VANILLA",
+null
+],
+[
+"60 BABY BLUE",
+null
+],
+[
+"04 NUVEM",
+null
+],
+[
+"147 AZALEIA",
+null
+],
+[
+"75 LAVANDER",
+null
+],
+[
+"58 ERVA-DOCE",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"72 PALACE",
+null
+],
+[
+"142 GRANITO",
+null
+],
+[
+"88 CONCRETO",
+null
+],
+[
+"165 MEDIEVAL",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"405 RIVIERA",
+null
+],
+[
+"197 ALCAPARRA",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"40 CEREJA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "181010",
+"nome": "181010 FUSTÃO JET",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 150,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para camisas. Muito mais conforto e respirabilidade, devido à sua construção maquinetada. Acabamento antipilling.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"94 OSTRA",
+null
+],
+[
+"146 ÁRTICO",
+null
+],
+[
+"03 CAMAFEU",
+null
+],
+[
+"160 ANGEL",
+null
+],
+[
+"144 TUTTI-FRUTTI",
+null
+],
+[
+"147 AZALEIA",
+null
+],
+[
+"88 CONCRETO",
+null
+],
+[
+"165 MEDIEVAL",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "88010",
+"nome": "88010 TRICOFIO",
+"interno": null,
+"composicao": "60% ALGODÃO 40% POLIÉSTER",
+"gramatura": 102,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para camisas operacionais. Melhor 17 Preto 20 Marine custo-benefício. Acabamento antipilling. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"96 VERDE-NÉVOA",
+null
+],
+[
+"115 BEGE",
+null
+],
+[
+"130 SAFÁRI",
+null
+],
+[
+"82 PRISMA",
+null
+],
+[
+"85 BLUE-DRIVER",
+null
+],
+[
+"138 ALUMÍNIO",
+null
+],
+[
+"142 GRANITO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"20 MARINE",
+null
+],
+[
+"130 SAFARI",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "208010",
+"nome": "208010 TRICOFIO PLUS",
+"interno": null,
+"composicao": "60% ALGODÃO 40% POLIÉSTER",
+"gramatura": 92,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Tecido produzido com fio penteado 40/1 que garante um toque e caimento superior. Ideal para camisas operacionais. Melhor custo benefício.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"96 VERDE-NÉVOA",
+null
+],
+[
+"115 BEGE",
+null
+],
+[
+"130 SAFÁRI",
+null
+],
+[
+"82 PRISMA",
+null
+],
+[
+"85 BLUE-DRIVER",
+null
+],
+[
+"138 ALUMÍNIO",
+null
+],
+[
+"142 GRANITO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"20 MARINE",
+null
+],
+[
+"130 SAFARI",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "217010",
+"nome": "217010 TRICOFIO FLEX",
+"interno": null,
+"composicao": "56% ALGODÃO 40% POLIÉSTER 4% ELASTANO",
+"gramatura": 116,
+"largura": 1.4,
+"unidade": "M",
+"especificacao": "Ideal para camisas operacionais. Melhor custo benefício com o conforto do elastano.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"82 PRISMA",
+null
+],
+[
+"85 BLUE-DRIVER",
+null
+],
+[
+"138 ALUMÍNIO",
+null
+],
+[
+"142 GRANITO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"20 MARINE",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "60010",
+"nome": "60010 MICROSSARJA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 109,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para jalecos. Tecido à base de fios microfilamentados. Construção em sarja.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"2674 AQUA SKY",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "271010",
+"nome": "271010 MICROSARJA MAX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 180,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para jalecos e alfaiataria. Tecido à base de fios microfilamentados. Construção em sarja 2x2 (GABARDINE). Base ideal para estamparia digital. Outras cores",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"2674 AQUA SKY",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "370010",
+"nome": "370010 JET FORM",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 180,
+"largura": 1.5,
+"unidade": "M",
+"especificacao": "Ideal para blazers e calças. Tecido com stretch mecânico proporcionando formato, performance e design. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"185 NOTURNO",
+null
+],
+[
+"186 GRAFITE",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "98167",
+"nome": "98167 COTTON JET SARJA",
+"interno": null,
+"composicao": "65% ALGODÃO 35% POLIÉSTER",
+"gramatura": 150,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para aventais e dólmã para restaurantes. Construção em sarja 2x1.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"28 AREIA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"14 GELO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"16 MARINHO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "98150",
+"nome": "98150 COTTON JET SARJA PURGADO",
+"interno": null,
+"composicao": "65% ALGODÃO 35% POLIÉSTER",
+"gramatura": 150,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para bermudas casuais. Quando sublimado, apresenta aspecto estonado. Construção em sarja.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"28 AREIA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"14 GELO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"16 MARINHO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "91010",
+"nome": "91010 JET TEL PLUS",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 109,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para uniformes escolares. Tecido à base de fios texturizados a ar com exclusivo sistema Dry Jet. Construção em tela. 72 Palace 49 Carbono 44 Azul-anil 11 ",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"56 CREME",
+null
+],
+[
+"61 AMARELO-CLARO",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"36 MOSTARDA",
+null
+],
+[
+"66 ÂMBAR",
+null
+],
+[
+"50 CENOURA",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"59 BABY-PINK",
+null
+],
+[
+"67 GIRL",
+null
+],
+[
+"70 PINK",
+null
+],
+[
+"65 PISTACHE",
+null
+],
+[
+"54 MAÇÃ-VERDE",
+null
+],
+[
+"79 VERDE-FOLHA",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"72 PALACE",
+null
+],
+[
+"49 CARBONO",
+null
+],
+[
+"44 AZUL-ANIL",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"19 AZUL-NOITE",
+null
+],
+[
+"76 JASMIN",
+null
+],
+[
+"71 LILÁS",
+null
+],
+[
+"77 ROXO",
+null
+],
+[
+"69 NÁUTICO",
+null
+],
+[
+"34 TURQUESA",
+null
+],
+[
+"84 LARANJA-NEON",
+null
+],
+[
+"95 LIMÃO-NEON",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "92010",
+"nome": "92010 ACTION JET",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 97,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para agasalhos. Tecido à base de fios \u0003microfilamentados com aspecto liso, garantindo \u0003maior praticidade ao uso. Construção em tela.",
+"cores": [
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"86 DARK",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"21 CAFÉ",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"01 BRANCO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "280010",
+"nome": "280010 ACTION JET FLEX",
+"interno": null,
+"composicao": "96% ALGODÃO 4% POLIÉSTER",
+"gramatura": 101,
+"largura": 1.4,
+"unidade": "M",
+"especificacao": "01 Branco 86 Dark 17 Preto Ideal para agasalhos e shorts. Tecido à base de fios microfilamentados com elastano, garantindo maior conforto ao uso. Construção em ",
+"cores": [
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"86 DARK",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"21 CAFÉ",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"01 BRANCO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "52010",
+"nome": "52010 MILLENNIUM",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 127,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para agasalhos. Tecido à base de fios microfilamentados com acabamento peletizado. Construção em sarja.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"28 AREIA",
+null
+],
+[
+"21 CAFÉ",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"40 CEREJA",
+null
+],
+[
+"13 VINHO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"51 VERDE-ESCURO",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"1907 MARINHO-ESCURO",
+null
+],
+[
+"14 GELO",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "52030",
+"nome": "52030 MILLENNIUM REPELENTE",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 127,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para agasalhos que necessitam de repelência à água e óleo. Tecido à base de fios microfilamentados com acabamento peletizado. Construção em sarja.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"28 AREIA",
+null
+],
+[
+"21 CAFÉ",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"40 CEREJA",
+null
+],
+[
+"13 VINHO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"51 VERDE-ESCURO",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"1907 MARINHO-ESCURO",
+null
+],
+[
+"14 GELO",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "94010",
+"nome": "94010 STRETCH JET",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 103,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para shorts e agasalhos esportivos. Possui toque macio e stretch mecânico. Construção em sarja.",
+"cores": [
+[
+"14 GELO",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"40 CEREJA",
+null
+],
+[
+"13 VINHO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"2720 MARINHO-NOITE",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"01 BRANCO",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "294010",
+"nome": "294010 STRETCH JET RECYCLED",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 103,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para shorts e agasalhos esportivos. Possui toque macio e stretch mecânico. Construção em sarja. Tecido produzido com fio reciclado Repreve®. Outras cores ",
+"cores": [
+[
+"14 GELO",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"40 CEREJA",
+null
+],
+[
+"13 VINHO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"2720 MARINHO-NOITE",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"01 BRANCO",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "74010",
+"nome": "74010 NEW SPIDER JET",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 97,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para shorts e agasalhos. Proporciona visual diferenciado e moderno graças à sua construção maquinetada.",
+"cores": [
+[
+"14 GELO",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"40 CEREJA",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"33 AZUL-PETRÓLEO",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"01 BRANCO",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "74050",
+"nome": "74050 NEW SPIDER JET SIRÊ",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 97,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para shorts, agasalhos e jaquetas. Proporciona visual diferenciado e moderno graças à sua construção maquinetada e acabamento brilhante. Outras cores espe",
+"cores": [
+[
+"14 GELO",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"40 CEREJA",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"33 AZUL-PETRÓLEO",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"01 BRANCO",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "75010",
+"nome": "75010 JAWS JET",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 146,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para bermudas d’água. Tecido com stretch mecânico. Construção em sarja.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"28 AREIA",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "75030",
+"nome": "75030 JAWS JET REPELENTE",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 146,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para jaquetas mais encorpadas que necessitam de repelência à agua e óleo. Stretch mecânico. Construção em sarja.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"28 AREIA",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "226010",
+"nome": "226010 SOFT JET",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 83,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Tecido leve, multifuncional com toque super macio. Construção em tela. 16 Marinho 19 Azul-noite 12 Vermelho 23 Verde-bandeira",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"19 AZUL-NOITE",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "226050",
+"nome": "226050 SOFT JET SIRÊ",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 83,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Tecido leve, multifuncional com toque super macio. Construção em tela. Com acabamento brilhante. Outras cores especiais: Mínimo múltiplos de 1.300m. 226050 SOFT",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"19 AZUL-NOITE",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "56010",
+"nome": "56010 POLYCOTTON JET",
+"interno": null,
+"composicao": "72% ALGODÃO 28% POLIÉSTER",
+"gramatura": 142,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": "Ideal para roupas infantis. Visual canelado. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"28 AREIA",
+null
+],
+[
+"26 CÁQUI",
+null
+],
+[
+"39 CASTOR",
+null
+],
+[
+"14 GELO",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"40 CEREJA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "12010",
+"nome": "12010 NYLON PARAQUEDAS",
+"interno": "NYLON PARAQUEDAS",
+"composicao": "100% POLIAMIDA",
+"gramatura": 127,
+"largura": 1.5,
+"unidade": "M",
+"especificacao": "Ideal para jaquetas térmicas. Poliamida (nylon) 240. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"14 GELO",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"51 VERDE-ESCURO",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"21 CAFÉ",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"40 CEREJA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "12065",
+"nome": "12065 NYLON PARAQUEDAS RESINADO II",
+"interno": "NYLON PARAQUEDAS",
+"composicao": "100% POLIAMIDA",
+"gramatura": 138,
+"largura": 1.4,
+"unidade": "M",
+"especificacao": "Ideal para jaquetas mais encorpadas com repelência à água. Construção em tela.",
+"cores": [
+[
+"31 CINZA",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "12070",
+"nome": "12070 NYLON PARAQUEDAS PLASTIFICADO",
+"interno": "NYLON PARAQUEDAS",
+"composicao": "100% POLIAMIDA",
+"gramatura": 170,
+"largura": 1.4,
+"unidade": "M",
+"especificacao": "Características: Ideal para jaquetas que necessitam de repelência à Ideal para jaquetas mais encorpadas 100% água e óleo. Construção em tela. impermeáveis. Cons",
+"cores": [
+[
+"31 CINZA",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "12030",
+"nome": "12030 NYLON PARAQUEDAS REPELENTE",
+"interno": "NYLON PARAQUEDAS",
+"composicao": "100% POLIAMIDA",
+"gramatura": 127,
+"largura": 1.5,
+"unidade": "M",
+"especificacao": "Ideal para jaquetas térmicas. Poliamida (nylon) 240. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"14 GELO",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"51 VERDE-ESCURO",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"21 CAFÉ",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"40 CEREJA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "26010",
+"nome": "26010 NYLON 100",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 74,
+"largura": 1.5,
+"unidade": "M",
+"especificacao": "Ideal para jaquetas mais leves com conforto térmico. Poliamida (nylon) 100. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"14 GELO",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"51 VERDE-ESCURO",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"21 CAFÉ",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"40 CEREJA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "26065",
+"nome": "26065 NYLON 100 RESINADO II",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 85,
+"largura": 1.4,
+"unidade": "M",
+"especificacao": "Ideal para jaquetas mais leves com repelência à água. Construção em tela.",
+"cores": [
+[
+"31 CINZA",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "26070",
+"nome": "26070 NYLON 100 PLASTIFICADO",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 100,
+"largura": 1.4,
+"unidade": "M",
+"especificacao": "Características: Ideal para jaquetas que necessitam de repelência à Ideal para jaquetas mais leves 100% impermeáveis. água e óleo. Construção em tela. Construçã",
+"cores": [
+[
+"31 CINZA",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "26030",
+"nome": "26030 NYLON 100 REPELENTE",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 74,
+"largura": 1.5,
+"unidade": "M",
+"especificacao": "Ideal para jaquetas mais leves com conforto térmico. Poliamida (nylon) 100. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"14 GELO",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"51 VERDE-ESCURO",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"21 CAFÉ",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"40 CEREJA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "26234",
+"nome": "26234 NYLON 100 MATELASSÊ 5X5 M60 LOSANGO",
+"interno": "MATELASSÊ",
+"composicao": "100% POLIAMIDA",
+"gramatura": 154,
+"largura": 1.45,
+"unidade": "M",
+"especificacao": "Ideal para jaquetas. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"14 GELO",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"51 VERDE-ESCURO",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"21 CAFÉ",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"12 VERMELHO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "26703",
+"nome": "26703 NYLON 100 MATELASSÊ 5X5 M60 LISTRADO",
+"interno": "MATELASSÊ",
+"composicao": "100% POLIAMIDA",
+"gramatura": 154,
+"largura": 1.45,
+"unidade": "M",
+"especificacao": "Ideal para jaquetas. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"14 GELO",
+null
+],
+[
+"57 PRATA",
+null
+],
+[
+"31 CINZA",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+],
+[
+"51 VERDE-ESCURO",
+null
+],
+[
+"07 AMARELO-OURO",
+null
+],
+[
+"24 LARANJA",
+null
+],
+[
+"21 CAFÉ",
+null
+],
+[
+"11 ROYAL-CLARO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"23 VERDE-BANDEIRA",
+null
+],
+[
+"12 VERMELHO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "20010",
+"nome": "20010 NYL JET",
+"interno": null,
+"composicao": "100% POLIAMIDA",
+"gramatura": 100,
+"largura": 1.5,
+"unidade": "M",
+"especificacao": "Ideal para shorts, agasalhos e camisas para pesca e agro. Texturizado a ar. Maior transpiração e toque, secagem rápida. Construção em tela.",
+"cores": [
+[
+"01 BRANCO",
+null
+],
+[
+"12 VERMELHO",
+null
+],
+[
+"27 ROYAL-ESCURO",
+null
+],
+[
+"78 NAVY",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"17 PRETO",
+null
+],
+[
+"146 ÁRTICO",
+null
+],
+[
+"187 HORTÊNCIA",
+null
+],
+[
+"188 ALOE VERA",
+null
+],
+[
+"189 DUNAS",
+null
+],
+[
+"197 ALCAPARRA",
+null
+],
+[
+"2711 OLIVA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "100010",
+"nome": "100010 POLIÉSTER 100",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 63,
+"largura": 1.5,
+"unidade": "M",
+"especificacao": "Construção em tela. Utilizado para forros em geral.",
+"cores": [
+[
+"17 PRETO",
+null
+],
+[
+"2144 CARAMELO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "300001",
+"nome": "300001 POLIÉSTER 300 P.T.",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 153,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"26 CÁQUI",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "300010",
+"nome": "300010 POLIÉSTER 300 TINTO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 160,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"26 CÁQUI",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "300060",
+"nome": "300060 POLIÉSTER 300 RESINADO I",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 160,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"26 CÁQUI",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "300065",
+"nome": "300065 POLIÉSTER 300 RESINADO II",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 165,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"26 CÁQUI",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "300070",
+"nome": "300070 POLIÉSTER 300 PLASTIFICADO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 205,
+"largura": 1.5,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"26 CÁQUI",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "600001",
+"nome": "600001 POLIÉSTER 600 P.T.",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 200,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"26 CÁQUI",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "600010",
+"nome": "600010 POLIÉSTER 600 TINTO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 200,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"26 CÁQUI",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "600060",
+"nome": "600060 POLIÉSTER 600 RESINADO I",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 210,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"26 CÁQUI",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "600065",
+"nome": "600065 POLIÉSTER 600 RESINADO II",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 220,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"26 CÁQUI",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "600070",
+"nome": "600070 POLIÉSTER 600 PLASTIFICADO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 275,
+"largura": 1.5,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+],
+[
+"16 MARINHO",
+null
+],
+[
+"22 CHUMBO",
+null
+],
+[
+"26 CÁQUI",
+null
+],
+[
+"09 VERDE-OLIVA",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "599001",
+"nome": "599001 RIP STOP P.T.",
+"interno": "RIPSTOP",
+"composicao": "100% POLIÉSTER",
+"gramatura": 172,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "599010",
+"nome": "599010 RIP STOP TINTO",
+"interno": "RIPSTOP",
+"composicao": "100% POLIÉSTER",
+"gramatura": 162,
+"largura": 1.6,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "599060",
+"nome": "599060 RIP STOP RESINADO I",
+"interno": "RIPSTOP",
+"composicao": "100% POLIÉSTER",
+"gramatura": 172,
+"largura": 1.55,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "599065",
+"nome": "599065 RIP STOP RESINADO II",
+"interno": "RIPSTOP",
+"composicao": "100% POLIÉSTER",
+"gramatura": 178,
+"largura": 1.5,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+]
+]
+},
+{
+"categoria": "TECIDO",
+"ref": "599070",
+"nome": "599070 RIP STOP PLASTIFICADO",
+"interno": "RIPSTOP",
+"composicao": "100% POLIÉSTER",
+"gramatura": 257,
+"largura": 1.5,
+"unidade": "M",
+"especificacao": null,
+"cores": [
+[
+"17 PRETO",
+null
+]
+]
+}
+]
+}

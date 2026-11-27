@@ -1,4 +1,5 @@
 "use client";
+import CatalogoCard from "./catalogoCard";   // v1165
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Acompanhamento from "./acompanhamento";   // v381
 import { fornecedoresParecidos } from "@/lib/artigoPadrao";   // v1143
@@ -770,6 +771,7 @@ function Fpp({ user, master, abrirId, abrirVoltar, voltarRef, componentes = {} }
 
       {aba === "banco" && <BancoParams params={params} master={master} user={user} onReload={() => fetch("/api/fpp/params").then((x) => x.json()).then(setParams)} />}
 
+      {aba === "salvas" && <div className="mb-4" style={{ maxWidth: 560 }}><CatalogoCard compacto /></div>}   {/* v1165 */}
       {aba === "salvas" && <FichasSalvas master={master} onEditar={(x) => carregarFicha(x, { aba: "salvas" })} onClonar={clonarSalva} voltarRef={voltarSalvas} onItemPadrao={(x) => tornarPadrao(x.id, x.numero)} />}
       {itemPadrao && <ItemPadraoModal id={itemPadrao.id || null} fppInicialId={itemPadrao.fppId || null} user={user} componentes={componentes}
         onClose={() => setItemPadrao(null)} onSaved={() => { setItemPadrao(null); alerta("Item padrão salvo. Ele já aparece no lançamento do pedido para o cliente (e no portal, se o cliente tiver)."); }} />}

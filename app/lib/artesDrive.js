@@ -289,3 +289,8 @@ function doPost(e) {
 function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 `;
 }
+
+// v1165 — usos gerais da ponte (Catálogo Meridian): enviar para uma pasta específica, ler e excluir
+export const driveEnviar = ({ pasta, nome, mime, base64 }) => chamar({ acao: "enviar", ...(pasta ? { pasta } : {}), nome, mime, base64 });
+export const driveLer = (id) => chamar({ acao: "ler", id });
+export const driveExcluir = (id) => chamar({ acao: "excluir", id });

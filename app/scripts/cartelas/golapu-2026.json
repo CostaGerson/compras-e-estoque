@@ -1,0 +1,8247 @@
+{
+"flag": "SEED|CARTELA|GOLAPU|2026-11-27",
+"fornecedor": {
+"nome": "GOLAPU",
+"nomeFantasia": "GOLAPU",
+"obs": "CADASTRADO PELO CATÁLOGO DIGITAL catalogo.golapu.com.br (27/11/2026)",
+"busca": "GOLAPU"
+},
+"tiposNovos": [],
+"artigos": [
+{
+"categoria": "MALHA",
+"ref": "T100",
+"nome": "T100 RIBANA CAMISETA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 190,
+"largura": 0.8,
+"rendimento": 3.28,
+"tipoMalha": "TUBULAR",
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T101",
+"nome": "T101 LISO BRILHANTE",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 135,
+"largura": 1.85,
+"rendimento": 4.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T102",
+"nome": "T102 DRY KPA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 145,
+"largura": 1.75,
+"rendimento": 3.94,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T104",
+"nome": "T104 RUSH TECH",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 160,
+"largura": 1.6,
+"rendimento": 3.91,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T108",
+"nome": "T108 INTER DRY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 150,
+"largura": 1.85,
+"rendimento": 3.6,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T112",
+"nome": "T112 PIQUET SOFT",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 170,
+"largura": 1.95,
+"rendimento": 3.02,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T173",
+"nome": "T173 DRY SPORT NAPOLI",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 150,
+"largura": 1.7,
+"rendimento": 3.92,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T405",
+"nome": "T405 DRY ATENAS",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.85,
+"rendimento": 3.86,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T407",
+"nome": "T407 DRY SPORT COLMEIA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.85,
+"rendimento": 3.86,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T409",
+"nome": "T409 DRY SPORT LISO OPACO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 125,
+"largura": 1.85,
+"rendimento": 4.32,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T410",
+"nome": "T410 DIAGONAL MESH",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.75,
+"rendimento": 4.08,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T413",
+"nome": "T413 SQUARE",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.7,
+"rendimento": 4.2,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T420",
+"nome": "T420 DRY SPORT FENIX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.85,
+"rendimento": 3.86,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T430",
+"nome": "T430 JACQUARD BELGA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.85,
+"rendimento": 3.86,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T436",
+"nome": "T436 STAR LISO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 130,
+"largura": 1.85,
+"rendimento": 4.16,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T465",
+"nome": "T465 DRY SPORT SPHERE",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 100,
+"largura": 1.8,
+"rendimento": 5.56,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T466",
+"nome": "T466 INTERLOQUE MESH",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 150,
+"largura": 1.85,
+"rendimento": 3.6,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T481",
+"nome": "T481 DRY SPORT GOLF MAX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.85,
+"rendimento": 3.86,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T491",
+"nome": "T491 DRY SPORT BORDEAUX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.85,
+"rendimento": 3.86,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T656",
+"nome": "T656 DRY FAVO SOFT",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.85,
+"rendimento": 3.86,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA DRY",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T114",
+"nome": "T114 DRY GEOMETRIC",
+"interno": null,
+"composicao": "95% POLIÉSTER 5% ELASTANO",
+"gramatura": 155,
+"largura": 1.6,
+"rendimento": 4.03,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA PERFORMANCE",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T136",
+"nome": "T136 NEO TECH PLUS",
+"interno": null,
+"composicao": "92% POLIÉSTER 8% ELASTANO",
+"gramatura": 300,
+"largura": 1.6,
+"rendimento": 2.08,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA PERFORMANCE",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T164",
+"nome": "T164 FIT TECH",
+"interno": null,
+"composicao": "96% POLIÉSTER 4% ELASTANO",
+"gramatura": 135,
+"largura": 1.6,
+"rendimento": 4.63,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA PERFORMANCE",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T285",
+"nome": "T285 AERO DRY AIR",
+"interno": null,
+"composicao": "82% POLIÉSTER 18% ELASTANO",
+"gramatura": 140,
+"largura": 1.6,
+"rendimento": 4.46,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA PERFORMANCE",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T439",
+"nome": "T439 DRY SPORT CAMB PRO",
+"interno": null,
+"composicao": "88% POLIÉSTER 12% ELASTANO",
+"gramatura": 160,
+"largura": 1.6,
+"rendimento": 3.91,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA PERFORMANCE",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T515",
+"nome": "T515 FURADINHO",
+"interno": null,
+"composicao": "90% POLIÉSTER 10% ELASTANO",
+"gramatura": 140,
+"largura": 1.4,
+"rendimento": 5.1,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA PERFORMANCE",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T652",
+"nome": "T652 MÁLAGA",
+"interno": null,
+"composicao": "85% POLIÉSTER 15% ELASTANO",
+"gramatura": 240,
+"largura": 1.55,
+"rendimento": 2.69,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA PERFORMANCE",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T669",
+"nome": "T669 DIAGONAL ATLETIC",
+"interno": null,
+"composicao": "96% POLIÉSTER 4% ELASTANO",
+"gramatura": 245,
+"largura": 1.65,
+"rendimento": 2.47,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA PERFORMANCE",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T105",
+"nome": "T105 TELA 3X1",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 80,
+"largura": 1.75,
+"rendimento": 7.14,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA TELAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T122",
+"nome": "T122 OPEN 5X1",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 90,
+"largura": 1.75,
+"rendimento": 6.35,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA TELAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T129",
+"nome": "T129 K004",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 70,
+"largura": 1.6,
+"rendimento": 8.93,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA TELAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T131",
+"nome": "T131 TELA SOFT",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 110,
+"largura": 1.85,
+"rendimento": 4.91,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA TELAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T132",
+"nome": "T132 TELA SOFT RIDER",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 130,
+"largura": 1.8,
+"rendimento": 4.27,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA TELAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T134",
+"nome": "T134 NBA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 120,
+"largura": 1.85,
+"rendimento": 4.5,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA TELAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T146",
+"nome": "T146 FURADÃO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 130,
+"largura": 1.85,
+"rendimento": 4.16,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA TELAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T152",
+"nome": "T152 AERO DRY NEW",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.8,
+"rendimento": 3.97,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA TELAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T220",
+"nome": "T220 TELA BROOKLYN",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.6,
+"rendimento": 4.46,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA TELAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T507",
+"nome": "T507 RUGBY",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 185,
+"largura": 1.6,
+"rendimento": 3.38,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA TELAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T667",
+"nome": "T667 TELA SOFT RIDER SENSATION",
+"interno": null,
+"composicao": "97% POLIÉSTER 3% ELASTANO",
+"gramatura": 150,
+"largura": 1.8,
+"rendimento": 3.7,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA TELAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T110",
+"nome": "T110 RIBANA SOFT",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 300,
+"largura": 0.55,
+"rendimento": 3.03,
+"tipoMalha": "TUBULAR",
+"unidade": "KG",
+"especificacao": "LINHA AGASALHO",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T150",
+"nome": "T150 HELANCA COLEGIAL",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 260,
+"largura": 1.05,
+"rendimento": 3.66,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA AGASALHO",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T384",
+"nome": "T384 CHIMPA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 215,
+"largura": 1.5,
+"rendimento": 3.1,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA AGASALHO",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T509",
+"nome": "T509 NEO TECH PRO",
+"interno": null,
+"composicao": "96% POLIÉSTER 4% ELASTANO",
+"gramatura": 255,
+"largura": 1.6,
+"rendimento": 2.45,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA AGASALHO",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T657",
+"nome": "T657 COLLEGE",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 330,
+"largura": 1.6,
+"rendimento": 1.89,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA AGASALHO",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "T658",
+"nome": "T658 COLLEGE FLANELADO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 330,
+"largura": 1.6,
+"rendimento": 1.89,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA AGASALHO",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "JACQUARD DUNAS",
+"interno": null,
+"composicao": "96% POLIÉSTER 4% ELASTANO",
+"gramatura": 165,
+"largura": 1.6,
+"rendimento": 3.79,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA JACQUARD",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "JACQUARD MESH CAMUFLADO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 133,
+"largura": 1.83,
+"rendimento": 4.11,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA JACQUARD",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "JJ321",
+"nome": "JJ321 JACQUARD STRIPED",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 160,
+"largura": 1.6,
+"rendimento": 3.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA JACQUARD",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "JJ324",
+"nome": "JJ324 JACQUARD PODPAH",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 170,
+"largura": 1.85,
+"rendimento": 3.17,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA JACQUARD",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "JJ409",
+"nome": "JJ409 JACQUARD LOSANGO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.8,
+"rendimento": 3.96,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA JACQUARD",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "JJ512",
+"nome": "JJ512 JACQUARD INTER B",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 165,
+"largura": 1.6,
+"rendimento": 3.79,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA JACQUARD",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "JY597",
+"nome": "JY597 JACQUARD BRILLIANT BLUE",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 145,
+"largura": 1.85,
+"rendimento": 3.72,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA JACQUARD",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "JY597",
+"nome": "JY597 JACQUARD BUTTER CUP",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 145,
+"largura": 1.8,
+"rendimento": 3.83,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA JACQUARD",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "TJ JACQUARD TIGRE",
+"interno": null,
+"composicao": "96% POLIÉSTER 4% ELASTANO",
+"gramatura": 165,
+"largura": 1.6,
+"rendimento": 3.79,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA JACQUARD",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "TJ294",
+"nome": "TJ294 JACQUARD SPACE",
+"interno": null,
+"composicao": "96% POLIÉSTER 4% ELASTANO",
+"gramatura": 160,
+"largura": 1.6,
+"rendimento": 3.91,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA JACQUARD",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "TJ295",
+"nome": "TJ295 JACQUARD SAARA",
+"interno": null,
+"composicao": "96% POLIÉSTER 4% ELASTANO",
+"gramatura": 165,
+"largura": 1.6,
+"rendimento": 3.78,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA JACQUARD",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "TJ407",
+"nome": "TJ407 JACQUARD SEP VERTICAL",
+"interno": null,
+"composicao": "96% POLIÉSTER 4% ELASTANO",
+"gramatura": 165,
+"largura": 1.65,
+"rendimento": 3.67,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA JACQUARD",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "DRY SPORT CAMB ACTIVE",
+"interno": null,
+"composicao": "92% POLIÉSTER 8% ELASTANO",
+"gramatura": 160,
+"largura": 1.6,
+"rendimento": 3.91,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA ESPECIAL",
+"cores": [
+[
+"2105 LARANJA ÂMBAR",
+null
+],
+[
+"2110 VERMELHO RUBI",
+null
+],
+[
+"2112 AZUL SAFIRA",
+null
+],
+[
+"2180 MARINHO TOPÁZIO",
+null
+],
+[
+"2113 VERDE JADE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "DRY SPORT MESCLA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.85,
+"rendimento": 3.86,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": "LINHA ESPECIAL",
+"cores": [
+[
+"0008 OURO MESCLA",
+null
+],
+[
+"0030 ASTÚRIAS MESCLA",
+null
+],
+[
+"0010 VERMELHO MESCLA",
+null
+],
+[
+"0020 COBALTO MESCLA",
+null
+],
+[
+"0015 MELÃO MESCLA",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "0002",
+"nome": "GOLA RETILÍNEA REF. 0002",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "0220",
+"nome": "GOLA RETILÍNEA REF. 0220",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "0224",
+"nome": "GOLA RETILÍNEA REF. 0224",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "770",
+"nome": "GOLA RETILÍNEA REF. 770",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "875",
+"nome": "GOLA RETILÍNEA REF. 875",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "0132",
+"nome": "PUNHO RETILÍNEO REF. 0132",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "1190",
+"nome": "PUNHO RETILÍNEO REF. 1190",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "0081",
+"nome": "GOLA E PUNHO RETILÍNEOS REF. 0081",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "1196",
+"nome": "GOLA E PUNHO RETILÍNEOS REF. 1196",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "1197",
+"nome": "GOLA E PUNHO RETILÍNEOS REF. 1197",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "1198",
+"nome": "GOLA E PUNHO RETILÍNEOS REF. 1198",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "1199",
+"nome": "GOLA E PUNHO RETILÍNEOS REF. 1199",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "1211",
+"nome": "GOLA E PUNHO RETILÍNEOS REF. 1211",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+},
+{
+"categoria": "AVIAMENTO",
+"ref": "868-869",
+"nome": "GOLA E PUNHO RETILÍNEOS REF. 868-869",
+"interno": null,
+"composicao": null,
+"gramatura": null,
+"largura": null,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "UN",
+"especificacao": "RETILÍNEAS",
+"cores": [
+[
+"0001 BRANCO",
+null
+],
+[
+"0048 PRATA",
+null
+],
+[
+"0003 AÇO",
+null
+],
+[
+"0002 PRETO",
+null
+],
+[
+"0011 BORDÔ",
+null
+],
+[
+"0066 GOLD",
+null
+],
+[
+"0006 CANÁRIO",
+null
+],
+[
+"0008 OURO",
+null
+],
+[
+"0005 LARANJA",
+null
+],
+[
+"0010 VERMELHO",
+null
+],
+[
+"0004 CÉU",
+null
+],
+[
+"0020 COBALTO",
+null
+],
+[
+"0012 ROYAL",
+null
+],
+[
+"0050 PETRÓLEO",
+null
+],
+[
+"4280 MARINHO",
+null
+],
+[
+"0051 ARUBA",
+null
+],
+[
+"0729 ARTIC ACQUA",
+null
+],
+[
+"0113 VERDE GRAMA",
+null
+],
+[
+"0024 VERDE FOLHA",
+null
+],
+[
+"2203 VERDE SELVA",
+null
+],
+[
+"0013 LIMÃO",
+null
+],
+[
+"0015 MELÃO",
+null
+],
+[
+"0030 ASTÚRIAS",
+null
+],
+[
+"0760 PINK GLOW",
+null
+],
+[
+"0021 PURPLE",
+null
+]
+]
+}
+]
+}

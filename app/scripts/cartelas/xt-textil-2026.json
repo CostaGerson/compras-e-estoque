@@ -1,0 +1,4393 @@
+{
+"flag": "SEED|CARTELA|XTTEXTIL|2026-11-27",
+"fornecedor": {
+"nome": "XT TÊXTIL",
+"nomeFantasia": "XT TÊXTIL MALHAS",
+"obs": "CADASTRADO PELO CATÁLOGO XT TÊXTIL 2026 (27/11/2026)",
+"busca": "XTTEXTIL"
+},
+"tiposNovos": [],
+"artigos": [
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA PENTEADA",
+"interno": null,
+"composicao": "100% ALGODÃO",
+"gramatura": 175,
+"largura": 1.2,
+"rendimento": 2.4,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"BISCOITO",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"MILHO",
+null
+],
+[
+"LEMON",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"MARROM",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"CORAL",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"PIMENTA",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROMANTIC",
+null
+],
+[
+"TUTI FRUTI",
+null
+],
+[
+"PÉTALA",
+null
+],
+[
+"LILÁS",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"VERDE MENTA",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"JADE",
+null
+],
+[
+"VERDE BANDEIRA",
+null
+],
+[
+"VERDE FLORESTA",
+null
+],
+[
+"PETRÓLEO",
+null
+],
+[
+"MONTANA",
+null
+],
+[
+"FROZEN",
+null
+],
+[
+"AQUATIC",
+null
+],
+[
+"TURQUESA",
+null
+],
+[
+"DENIM",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRATA",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA PENTEADA ESPECIAL",
+"interno": null,
+"composicao": "100% ALGODÃO",
+"gramatura": 175,
+"largura": 1.2,
+"rendimento": 2.4,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"BISCOITO",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"MILHO",
+null
+],
+[
+"LEMON",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"MARROM",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"CORAL",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"PIMENTA",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROMANTIC",
+null
+],
+[
+"TUTI FRUTI",
+null
+],
+[
+"PÉTALA",
+null
+],
+[
+"LILÁS",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"VERDE MENTA",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"JADE",
+null
+],
+[
+"VERDE BANDEIRA",
+null
+],
+[
+"VERDE FLORESTA",
+null
+],
+[
+"PETRÓLEO",
+null
+],
+[
+"MONTANA",
+null
+],
+[
+"FROZEN",
+null
+],
+[
+"AQUATIC",
+null
+],
+[
+"TURQUESA",
+null
+],
+[
+"DENIM",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRATA",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA PENTEADA PREMIUM",
+"interno": null,
+"composicao": "100% ALGODÃO",
+"gramatura": 160,
+"largura": 1.2,
+"rendimento": 2.6,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"BISCOITO",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"MILHO",
+null
+],
+[
+"LEMON",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"MARROM",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"CORAL",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"PIMENTA",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROMANTIC",
+null
+],
+[
+"TUTI FRUTI",
+null
+],
+[
+"PÉTALA",
+null
+],
+[
+"LILÁS",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"VERDE MENTA",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"JADE",
+null
+],
+[
+"VERDE BANDEIRA",
+null
+],
+[
+"VERDE FLORESTA",
+null
+],
+[
+"PETRÓLEO",
+null
+],
+[
+"MONTANA",
+null
+],
+[
+"FROZEN",
+null
+],
+[
+"AQUATIC",
+null
+],
+[
+"TURQUESA",
+null
+],
+[
+"DENIM",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRATA",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "15.02.0002",
+"nome": "MALHA COM ELASTANO P.A. 15.02.0002",
+"interno": null,
+"composicao": "48% ALGODÃO 48% POLIÉSTER 4% ELASTANO",
+"gramatura": 200,
+"largura": 1.8,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"LARANJA",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"VERDE FLÚOR",
+null
+],
+[
+"AMARELO FLÚOR",
+null
+],
+[
+"MESCLA BANANA",
+null
+],
+[
+"MESCLA GELO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "15.02.0003",
+"nome": "MALHA COM ELASTANO P.A. 15.02.0003",
+"interno": null,
+"composicao": "94% ALGODÃO 2% POLIÉSTER 4% ELASTANO",
+"gramatura": 200,
+"largura": 1.8,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"LARANJA",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"VERDE FLÚOR",
+null
+],
+[
+"AMARELO FLÚOR",
+null
+],
+[
+"MESCLA BANANA",
+null
+],
+[
+"MESCLA GELO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "15.02.0010",
+"nome": "MALHA COM ELASTANO P.A. 15.02.0010",
+"interno": null,
+"composicao": "48% ALGODÃO 48% POLIÉSTER 4% ELASTANO",
+"gramatura": 200,
+"largura": 1.8,
+"rendimento": null,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"LARANJA",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"VERDE FLÚOR",
+null
+],
+[
+"AMARELO FLÚOR",
+null
+],
+[
+"MESCLA BANANA",
+null
+],
+[
+"MESCLA GELO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA COM ELASTANO PREMIUM",
+"interno": null,
+"composicao": "96% ALGODÃO 4% ELASTANO",
+"gramatura": 200,
+"largura": 1.8,
+"rendimento": 2.75,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"BISCOITO",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"MILHO",
+null
+],
+[
+"LEMON",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"MARROM",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"CORAL",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"PIMENTA",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROMANTIC",
+null
+],
+[
+"TUTI FRUTI",
+null
+],
+[
+"PÉTALA",
+null
+],
+[
+"LILÁS",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"VERDE MENTA",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"JADE",
+null
+],
+[
+"VERDE BANDEIRA",
+null
+],
+[
+"VERDE FLORESTA",
+null
+],
+[
+"PETRÓLEO",
+null
+],
+[
+"MONTANA",
+null
+],
+[
+"FROZEN",
+null
+],
+[
+"AQUATIC",
+null
+],
+[
+"TURQUESA",
+null
+],
+[
+"DENIM",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRATA",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"MESCLA CINZA",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA COM ELASTANO 40 PREMIUM",
+"interno": null,
+"composicao": "94% ALGODÃO 6% ELASTANO",
+"gramatura": 160,
+"largura": 1.8,
+"rendimento": 3.45,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"BISCOITO",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"MILHO",
+null
+],
+[
+"LEMON",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"MARROM",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"CORAL",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"PIMENTA",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROMANTIC",
+null
+],
+[
+"TUTI FRUTI",
+null
+],
+[
+"PÉTALA",
+null
+],
+[
+"LILÁS",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"VERDE MENTA",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"JADE",
+null
+],
+[
+"VERDE BANDEIRA",
+null
+],
+[
+"VERDE FLORESTA",
+null
+],
+[
+"PETRÓLEO",
+null
+],
+[
+"MONTANA",
+null
+],
+[
+"FROZEN",
+null
+],
+[
+"AQUATIC",
+null
+],
+[
+"TURQUESA",
+null
+],
+[
+"DENIM",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRATA",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"MESCLA CINZA",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA COM ELASTANO ESPECIAL",
+"interno": null,
+"composicao": "96% ALGODÃO 4% ELASTANO",
+"gramatura": 190,
+"largura": 1.8,
+"rendimento": 2.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"BISCOITO",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"MILHO",
+null
+],
+[
+"LEMON",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"MARROM",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"CORAL",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"PIMENTA",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROMANTIC",
+null
+],
+[
+"TUTI FRUTI",
+null
+],
+[
+"PÉTALA",
+null
+],
+[
+"LILÁS",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"VERDE MENTA",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"JADE",
+null
+],
+[
+"VERDE BANDEIRA",
+null
+],
+[
+"VERDE FLORESTA",
+null
+],
+[
+"PETRÓLEO",
+null
+],
+[
+"MONTANA",
+null
+],
+[
+"FROZEN",
+null
+],
+[
+"AQUATIC",
+null
+],
+[
+"TURQUESA",
+null
+],
+[
+"DENIM",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRATA",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"MESCLA CINZA",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHÃO TUBULAR",
+"interno": null,
+"composicao": "100% ALGODÃO",
+"gramatura": 250,
+"largura": 1.25,
+"rendimento": 1.6,
+"tipoMalha": "TUBULAR",
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "CANELADA VENEZA",
+"interno": null,
+"composicao": "48% ALGODÃO 48% POLIÉSTER 4% ELASTANO",
+"gramatura": 280,
+"largura": 0.62,
+"rendimento": 2.92,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"BISCOITO",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"MILHO",
+null
+],
+[
+"LEMON",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"MARROM",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"CORAL",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"PIMENTA",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROMANTIC",
+null
+],
+[
+"TUTI FRUTI",
+null
+],
+[
+"PÉTALA",
+null
+],
+[
+"LILÁS",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"VERDE MENTA",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"JADE",
+null
+],
+[
+"VERDE BANDEIRA",
+null
+],
+[
+"VERDE FLORESTA",
+null
+],
+[
+"PETRÓLEO",
+null
+],
+[
+"MONTANA",
+null
+],
+[
+"FROZEN",
+null
+],
+[
+"AQUATIC",
+null
+],
+[
+"TURQUESA",
+null
+],
+[
+"DENIM",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRATA",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"MESCLA CINZA",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "CANELADA MILÃO",
+"interno": null,
+"composicao": "93% VISCOSE 7% ELASTANO",
+"gramatura": 320,
+"largura": 1.65,
+"rendimento": 1.75,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"PINK",
+null
+],
+[
+"MONTANA",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "CANELADA ROMA",
+"interno": null,
+"composicao": "96% POLIÉSTER 4% ELASTANO",
+"gramatura": 220,
+"largura": 1.65,
+"rendimento": 2.75,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "CANELADA SLIM",
+"interno": null,
+"composicao": "95% POLIÉSTER 5% ELASTANO",
+"gramatura": 240,
+"largura": 1.65,
+"rendimento": 2.5,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "CANELADA PARIS",
+"interno": null,
+"composicao": "95% POLIÉSTER 5% ELASTANO",
+"gramatura": 300,
+"largura": 1.6,
+"rendimento": 2.1,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "CANELADA IBIZA",
+"interno": null,
+"composicao": "95% POLIÉSTER 5% ELASTANO",
+"gramatura": 195,
+"largura": 1.65,
+"rendimento": 3.1,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"CANELA",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM 3CB PA RM",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 360,
+"largura": 1.8,
+"rendimento": 1.54,
+"tipoMalha": "RAMADA",
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM 3CB PA RM- MSC CLARO",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 390,
+"largura": 1.8,
+"rendimento": 1.45,
+"tipoMalha": "RAMADA",
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLECOTTON PAP",
+"interno": null,
+"composicao": "48% ALGODÃO 47% POLIÉSTER 5% ELASTANO",
+"gramatura": 350,
+"largura": 1.65,
+"rendimento": 1.75,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETINHO VISCOSE S/ FELPA",
+"interno": null,
+"composicao": "95% VISCOSE 5% ELASTANO",
+"gramatura": 280,
+"largura": 1.6,
+"rendimento": 2.2,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"BISCOITO",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"MILHO",
+null
+],
+[
+"LEMON",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"MARROM",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"CORAL",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"PIMENTA",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROMANTIC",
+null
+],
+[
+"TUTI FRUTI",
+null
+],
+[
+"PÉTALA",
+null
+],
+[
+"LILÁS",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"VERDE MENTA",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"JADE",
+null
+],
+[
+"VERDE BANDEIRA",
+null
+],
+[
+"VERDE FLORESTA",
+null
+],
+[
+"PETRÓLEO",
+null
+],
+[
+"MONTANA",
+null
+],
+[
+"FROZEN",
+null
+],
+[
+"AQUATIC",
+null
+],
+[
+"TURQUESA",
+null
+],
+[
+"DENIM",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRATA",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"MESCLA CINZA",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM 2 CABOS P.A S/ FELPA TUBULAR",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 240,
+"largura": 1.05,
+"rendimento": 2.0,
+"tipoMalha": "TUBULAR",
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"MESCLA CINZA",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM 2 CABOS JET BLACK",
+"interno": null,
+"composicao": "70% ALGODÃO 30% POLIÉSTER",
+"gramatura": 230,
+"largura": 1.05,
+"rendimento": 2.07,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"AÇO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM 2 CABOS JET WHITE",
+"interno": null,
+"composicao": "70% ALGODÃO 30% POLIÉSTER",
+"gramatura": 230,
+"largura": 1.05,
+"rendimento": 2.07,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BORDÔ",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM 2CB PA PREMIUM RM",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 290,
+"largura": 1.77,
+"rendimento": 1.95,
+"tipoMalha": "RAMADA",
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM 2CABOS RAMADO",
+"interno": null,
+"composicao": "80% ALGODÃO 20% POLIÉSTER",
+"gramatura": 260,
+"largura": 1.8,
+"rendimento": 2.1,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"MESCLA BANANA",
+null
+],
+[
+"MESCLA GELO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM 2CB PA RAMADO",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 290,
+"largura": 1.77,
+"rendimento": 1.95,
+"tipoMalha": "RAMADA",
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM 2CB PA TUBULAR",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 290,
+"largura": 0.92,
+"rendimento": 1.85,
+"tipoMalha": "TUBULAR",
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM 2CB RM - MSC CLARO",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 290,
+"largura": 1.77,
+"rendimento": 1.95,
+"tipoMalha": "RAMADA",
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MOLETOM 2CB TUB - MSC CLARO",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 290,
+"largura": 0.92,
+"rendimento": 1.85,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "PIQUET P.A",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 210,
+"largura": 1.2,
+"rendimento": 2.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"BISCOITO",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"MILHO",
+null
+],
+[
+"LEMON",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"MARROM",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"CORAL",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"PIMENTA",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROMANTIC",
+null
+],
+[
+"TUTI FRUTI",
+null
+],
+[
+"PÉTALA",
+null
+],
+[
+"LILÁS",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"VERDE MENTA",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"JADE",
+null
+],
+[
+"VERDE BANDEIRA",
+null
+],
+[
+"VERDE FLORESTA",
+null
+],
+[
+"PETRÓLEO",
+null
+],
+[
+"MONTANA",
+null
+],
+[
+"FROZEN",
+null
+],
+[
+"AQUATIC",
+null
+],
+[
+"TURQUESA",
+null
+],
+[
+"DENIM",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRATA",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"MESCLA CINZA",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "PIQUET P.A COM ELASTANO",
+"interno": null,
+"composicao": "48% POLIÉSTER 48% ALGODÃO 4% ELASTANO",
+"gramatura": 200,
+"largura": 1.8,
+"rendimento": 2.8,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"BISCOITO",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"MILHO",
+null
+],
+[
+"LEMON",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"MARROM",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"CORAL",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"PIMENTA",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROMANTIC",
+null
+],
+[
+"TUTI FRUTI",
+null
+],
+[
+"PÉTALA",
+null
+],
+[
+"LILÁS",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"VERDE MENTA",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"JADE",
+null
+],
+[
+"VERDE BANDEIRA",
+null
+],
+[
+"VERDE FLORESTA",
+null
+],
+[
+"PETRÓLEO",
+null
+],
+[
+"MONTANA",
+null
+],
+[
+"FROZEN",
+null
+],
+[
+"AQUATIC",
+null
+],
+[
+"TURQUESA",
+null
+],
+[
+"DENIM",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRATA",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"MESCLA CINZA",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "PIQUET P.A IMP",
+"interno": null,
+"composicao": "60% POLIÉSTER 40% ALGODÃO",
+"gramatura": 180,
+"largura": 1.2,
+"rendimento": 2.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"BISCOITO",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"MILHO",
+null
+],
+[
+"LEMON",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"MARROM",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"CORAL",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"PIMENTA",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"ROMANTIC",
+null
+],
+[
+"TUTI FRUTI",
+null
+],
+[
+"PÉTALA",
+null
+],
+[
+"LILÁS",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"VERDE MENTA",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"JADE",
+null
+],
+[
+"VERDE BANDEIRA",
+null
+],
+[
+"VERDE FLORESTA",
+null
+],
+[
+"PETRÓLEO",
+null
+],
+[
+"MONTANA",
+null
+],
+[
+"FROZEN",
+null
+],
+[
+"AQUATIC",
+null
+],
+[
+"TURQUESA",
+null
+],
+[
+"DENIM",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRATA",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"MESCLA CINZA",
+null
+],
+[
+"MESCLA ESCURO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "PIQUET MESCLA CLARO",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 180,
+"largura": 1.2,
+"rendimento": 2.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"MESCLA CINZA",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "ROMANTIC DE POLIAMIDA",
+"interno": null,
+"composicao": "87% POLIAMIDA 13% ELASTANO",
+"gramatura": 190,
+"largura": 1.6,
+"rendimento": 3.2,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"NUDE",
+null
+],
+[
+"ERVA DOCE",
+null
+],
+[
+"CACAU",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "SUEDINE INFINITY",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 230,
+"largura": 1.8,
+"rendimento": 2.4,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"BORDÔ",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA WAFFLE PAP",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 190,
+"largura": 1.8,
+"rendimento": 2.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"OFF WHITE",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "15.02.0011",
+"nome": "MALHA COM ELASTANO P.A PREMIUM 15.02.0011",
+"interno": null,
+"composicao": "48% ALGODÃO 48% POLIÉSTER 4% ELASTANO",
+"gramatura": 200,
+"largura": 1.8,
+"rendimento": 2.75,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": "15.02.0006",
+"nome": "MALHA COM ELASTANO P.A PREMIUM 15.02.0006",
+"interno": null,
+"composicao": "94% ALGODÃO 2% POLIÉSTER 4% ELASTANO",
+"gramatura": 200,
+"largura": 1.8,
+"rendimento": 2.75,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA COM ELASTANO PERUANA",
+"interno": null,
+"composicao": "48% ALGODÃO 48% POLIÉSTER 4% ELASTANO",
+"gramatura": 200,
+"largura": 1.8,
+"rendimento": 2.75,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA P.A. 50%CO 50%PES 170G",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 170,
+"largura": 1.2,
+"rendimento": 2.45,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA P.A. 50%CO 50%PES 160G",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 160,
+"largura": 1.2,
+"rendimento": 2.45,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA P.A. 98%CO 2%PES 160G",
+"interno": null,
+"composicao": "98% ALGODÃO 2% POLIÉSTER",
+"gramatura": 160,
+"largura": 1.2,
+"rendimento": 2.45,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"CONSULTAR CORES",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA P.A. PREMIUM",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 160,
+"largura": 1.2,
+"rendimento": 2.6,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"MESCLA CINZA",
+null
+],
+[
+"MESCLA ESCURO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA P.A.P.",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 165,
+"largura": 1.2,
+"rendimento": 2.5,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "JACQUARD SYMBOL",
+"interno": null,
+"composicao": "66% ALGODÃO 34% POLIÉSTER",
+"gramatura": 195,
+"largura": 1.82,
+"rendimento": 2.8,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "JACQUARD GEOMETRIC",
+"interno": null,
+"composicao": "80% ALGODÃO 20% POLIÉSTER",
+"gramatura": 195,
+"largura": 1.82,
+"rendimento": 2.8,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "JACQUARD XADREZ",
+"interno": null,
+"composicao": "66% ALGODÃO 34% POLIÉSTER",
+"gramatura": 210,
+"largura": 1.82,
+"rendimento": 2.6,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"CANELA",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "JACQUARD LOZANGO",
+"interno": null,
+"composicao": "75% ALGODÃO 25% POLIÉSTER",
+"gramatura": 190,
+"largura": 1.8,
+"rendimento": 2.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"OFF WHITE",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "JACQUARD TRANÇA",
+"interno": null,
+"composicao": "80% ALGODÃO 20% POLIÉSTER",
+"gramatura": 190,
+"largura": 1.8,
+"rendimento": 2.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"OFF WHITE",
+null
+],
+[
+"CANELA",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "JACQUARD PIRÂMIDE",
+"interno": null,
+"composicao": "70% ALGODÃO 30% POLIÉSTER",
+"gramatura": 190,
+"largura": 1.8,
+"rendimento": 2.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"CANELA",
+null
+],
+[
+"CASTOR",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "JACQUARD PRISMA",
+"interno": null,
+"composicao": "77% ALGODÃO 23% POLIÉSTER",
+"gramatura": 190,
+"largura": 1.8,
+"rendimento": 2.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"OFF WHITE",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA TEXTURIZADA MÔNACO",
+"interno": null,
+"composicao": "60% ALGODÃO 40% POLIÉSTER",
+"gramatura": 245,
+"largura": 1.8,
+"rendimento": 2.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"OFF WHITE",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA TEXTURIZADA GENOVA",
+"interno": null,
+"composicao": "50% ALGODÃO 50% POLIÉSTER",
+"gramatura": 210,
+"largura": 1.8,
+"rendimento": 2.65,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"OFF WHITE",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA PV ANTIPILLING",
+"interno": null,
+"composicao": "65% POLIÉSTER 35% VISCOSE",
+"gramatura": 180,
+"largura": 1.2,
+"rendimento": 2.31,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA POLIÉSTER C/ RESINA ANTIPILLING",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 170,
+"largura": 1.2,
+"rendimento": 2.45,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"MANTEIGA",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"AMARELO OURO",
+null
+],
+[
+"LARANJA",
+null
+],
+[
+"PIMENTA",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"VERDE CLARO",
+null
+],
+[
+"VERDE BANDEIRA",
+null
+],
+[
+"FROZEN",
+null
+],
+[
+"TURQUESA",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRATA",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"VERDE FLÚOR",
+null
+],
+[
+"AMARELO FLÚOR",
+null
+],
+[
+"MESCLA CLARO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA POLIÉSTER S/ RESINA ANTIPILLING",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 170,
+"largura": 1.2,
+"rendimento": 2.45,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "HELANCA FLANELADA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 300,
+"largura": 1.82,
+"rendimento": 1.83,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "HELANCA COLEGIAL",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 260,
+"largura": 1.05,
+"rendimento": 1.85,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"MARINHO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "MALHA BUBBLE",
+"interno": null,
+"composicao": "95% POLIÉSTER 5% ELASTANO",
+"gramatura": 270,
+"largura": 1.6,
+"rendimento": 2.3,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"TELHA",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "ANARRUGA",
+"interno": null,
+"composicao": "94% POLIÉSTER 6% ELASTANO",
+"gramatura": 330,
+"largura": 1.6,
+"rendimento": 1.9,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"CANELA",
+null
+],
+[
+"CAPUCCINO",
+null
+],
+[
+"CARAMELO",
+null
+],
+[
+"CASTOR",
+null
+],
+[
+"ROSA CLARO",
+null
+],
+[
+"PINK",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "NEW POLIDRY",
+"interno": null,
+"composicao": "92% POLIÉSTER 8% ELASTANO",
+"gramatura": 165,
+"largura": 1.6,
+"rendimento": 3.8,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"LILÁS",
+null
+],
+[
+"PINK",
+null
+],
+[
+"VIOLETA",
+null
+],
+[
+"AQUATIC",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+],
+[
+"PINK FLÚOR",
+null
+],
+[
+"VERDE FLÚOR",
+null
+],
+[
+"AMARELO FLÚOR",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "DRY MINI GRÃO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 140,
+"largura": 1.8,
+"rendimento": 3.95,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "DRY COLMEIA",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 130,
+"largura": 1.8,
+"rendimento": 4.25,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "DRY ESPORTIVO MAX",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 150,
+"largura": 1.8,
+"rendimento": 3.7,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"OFF WHITE",
+null
+],
+[
+"AMARELO CANÁRIO",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "DRY CANELADO",
+"interno": null,
+"composicao": "100% POLIÉSTER",
+"gramatura": 130,
+"largura": 1.8,
+"rendimento": 4.25,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"ROYAL",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "TELA DRY COM ELASTANO",
+"interno": null,
+"composicao": "96% POLIÉSTER 4% ELASTANO",
+"gramatura": 155,
+"largura": 1.6,
+"rendimento": 4.0,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"MARINHO",
+null
+],
+[
+"AÇO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+},
+{
+"categoria": "MALHA",
+"ref": null,
+"nome": "DRY QUADRY FIT",
+"interno": null,
+"composicao": "92% POLIÉSTER 8% ELASTANO",
+"gramatura": 150,
+"largura": 1.6,
+"rendimento": 4.1,
+"tipoMalha": null,
+"unidade": "KG",
+"especificacao": null,
+"cores": [
+[
+"BRANCO",
+null
+],
+[
+"VERMELHO",
+null
+],
+[
+"PRETO",
+null
+]
+]
+}
+]
+}

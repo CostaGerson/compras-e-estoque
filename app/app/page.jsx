@@ -11,6 +11,7 @@ import {
   Bell, Inbox, LogOut, Send, AlertTriangle, Briefcase, Landmark, Compass, Factory, Truck, Building2, Tags, ChevronDown,
 } from "lucide-react";
 import { ThO, BuscaLista, SEL_BRANCO } from "./listaPadrao";   // v994
+import CatalogoCard from "./catalogoCard";   // v1165
 import ArtesLayouts from "./artesLayouts";   // v1003
 import { Image as ImageIco } from "lucide-react";
 import Comercial from "./comercial";
@@ -643,6 +644,7 @@ function CardsGrupo({ grupo, ir, user }) {
         {grupo.key === "estoqueGrp" && <button onClick={() => setEntManual(true)} className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={16} /> Entrada manual</button>}
       </div>
       {entManual && <EntradaManualEstoque user={user} onClose={() => setEntManual(false)} />}
+      {grupo.key === "estoqueGrp" && <div className="mb-4" style={{ maxWidth: 560 }}><CatalogoCard /></div>}   {/* v1165 */}
       {/* v284 — análises: 8 colunas compactas (5 setores + bruta + líquida + vaga do bordado) */}
       <div className={`grid ${an ? "gap-3" : "gap-4"}`} style={{ gridTemplateColumns: an ? "repeat(8, minmax(0, 1fr))" : grupo.key === "compras" ? "repeat(auto-fit, minmax(170px, 1fr))" : "repeat(auto-fill, minmax(240px, 1fr))" }}>
         {grupo.filhos.map((f) => {
