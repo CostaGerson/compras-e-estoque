@@ -12,7 +12,7 @@ const up = (s) => (s == null || String(s).trim() === "" ? null : String(s).trim(
 const so = (s) => String(s || "").replace(/\D/g, "");
 const num = (v) => { if (v === "" || v == null) return null; if (typeof v === "number") return Number.isFinite(v) ? v : null; const s = String(v).trim(); const n = Number(s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s); return Number.isFinite(n) ? n : null; };
 const CATS = ["MALHA", "TECIDO", "AVIAMENTO", "OUTROS"];
-const UNS = ["M", "KG", "UN", "PC", "CM"];
+const UNS = ["M", "KG", "UN", "PC", "CM", "L", "CONE", "PCT"];   // v1152
 const CNPJ_EMPRESAS = ["48011287000181", "55116246000115"];   // Meridian e Nort (NF entre as empresas não entra pelo fornecedor)
 const r3 = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
 
@@ -158,13 +158,15 @@ export async function volumesDaNf(id) {
   const especie = (String(n.xml || "").match(/<esp>([^<]*)<\/esp>/) || [])[1] || null;
   const nota = n.chave ? await prisma.notaFiscal.findUnique({ where: { chave: n.chave }, select: { id: true } }) : null;
   const its = nota ? await prisma.nfItem.findMany({ where: { nfId: nota.id, artigoId: { not: null } }, orderBy: { id: "asc" },
-    include: { artigo: { select: { id: true, nome: true, artigoInterno: true, cor: true, codigo: true, unidade: true, categoria: true, largura: true, composicao: true, fornecedor: { select: { nome: true, nomeFantasia: true, razaoSocial: true } } } } } }) : [];
+    include: { artigo: { select: { id: true, nome: true, artigoInterno: true, cor: true, codigo: true, unidade: true, categoria: true, largura: true, composicao: true, tipoMalha: true, tipoEstoque: true, tipoTecido: true, fornecedor: { select: { nome: true, nomeFantasia: true, razaoSocial: true } } } } } }) : [];
   const vols = await prisma.estoqueVolume.findMany({ where: { fiscalNotaId: n.id }, orderBy: { id: "asc" } });
   return {
     id: n.id, numero: n.numero, parceiro: n.parceiro, emissao: n.emissao, entrada: n.estoqueEm || null, estoqueStatus: n.estoqueStatus, qVol, especie, notaFiscalId: nota?.id || null,
     itens: its.map((i) => ({ nfItemId: i.id, artigoId: i.artigoId, quantidade: Number(i.quantidade), descricaoNf: i.descricaoNf,
       artigoInterno: i.artigo.artigoInterno || i.artigo.nome, cor: i.artigo.cor, codigo: i.artigo.codigo, unidade: i.artigo.unidade, categoria: i.artigo.categoria,
       largura: i.artigo.largura != null ? Number(i.artigo.largura) : null, composicao: i.artigo.composicao,
+      tipoEtiqueta: i.artigo.tipoEstoque ? (i.artigo.tipoEstoque === "TECIDO" && i.artigo.tipoTecido ? `TECIDO · ${i.artigo.tipoTecido}` : i.artigo.tipoEstoque) : i.artigo.categoria === "OUTROS" ? "INSUMOS" : i.artigo.categoria,   // v1152
+      construcao: i.artigo.categoria === "MALHA" ? i.artigo.tipoMalha || null : null,
       fornecedor: i.artigo.fornecedor ? i.artigo.fornecedor.nomeFantasia || i.artigo.fornecedor.nome || i.artigo.fornecedor.razaoSocial : n.parceiro })),
     volumes: vols.map((v) => ({ id: v.id, codigo: codigoVolume(v.id), artigoId: v.artigoId, quantidade: Number(v.quantidade), unidade: v.unidade, pedido: v.pedido, entradaEm: v.entradaEm, justificativa: v.justificativa })),
   };

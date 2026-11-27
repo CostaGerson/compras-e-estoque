@@ -59,6 +59,9 @@ enum Unidade {
   UN
   PC
   CM
+  L      // v1152 — litro
+  CONE   // v1152
+  PCT    // v1152 — pacote (unidades por pacote no volume)
 }
 
 enum TipoMov {
@@ -261,6 +264,10 @@ model EstoqueVolume {
   nfNumero      String?
   pedido        String?
   justificativa String?  // v623 — etiqueta além dos volumes da NF
+  origem        String?  // v1152 — entrada manual: ESTOQUE PRÉVIO MERIDIAN, W3 ou texto livre (NF: o número da NF)
+  unidadesPacote Int?    // v1152 — unidade PCT: unidades dentro do pacote
+  pesoKg        Decimal? @db.Decimal(14, 3)   // v1152 — tecido plano pesado no inventário (metragem calculada)
+  gramatura     Decimal? @db.Decimal(10, 2)   // v1152 — g/m² usada no cálculo
   entradaEm     DateTime @default(now())
   criadoPorNome String?
   createdAt     DateTime @default(now())
@@ -319,7 +326,9 @@ model Artigo {
   estoqueMinimoAtivo  Boolean    @default(false)
   estoqueMinimo       Decimal?   @db.Decimal(14, 3)
   abaixoMinimoAvisado Boolean    @default(false)
-  origem        String?         // v404 — "FPP" quando o artigo nasceu do detalhe de uma FPP
+  origem        String?         // v404 — "FPP" quando o artigo nasceu do detalhe de uma FPP · v1152 "MANUAL" (entrada manual)
+  tipoEstoque   String?         // v1152 — tipo da etiqueta: MALHA, TECIDO, AVIAMENTO, INSUMOS SILK/SUBLIMAÇÃO/DTF/BORDADO
+  tipoTecido    String?         // v1152 — tecido plano: BRIM LEVE, OXFORD, … (gramatura padrão) ou OUTROS
   origemFppId   Int?            // v404 — FPP que criou o cadastro
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt

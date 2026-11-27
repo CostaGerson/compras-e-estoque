@@ -18,41 +18,63 @@ export function barrasSvg(txt, { altura = 40, modulo = 1.6 } = {}) {
 }
 
 const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-const qtdTxt = (q, u) => `${Number(q || 0).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} ${String(u || "").toUpperCase()}`;
 const dBR = (s) => (s ? new Date(s).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : "");
-export const TAMANHOS = { "100x60": [100, 60], "100x50": [100, 50], "100x75": [100, 75], "100x150": [100, 150], "80x50": [80, 50] };
-
-// etiquetas: [{ codigo, artigoInterno, cor, codigoArtigo, largura, composicao, quantidade, unidade, nfNumero, fornecedor, entrada, ordem, total }]
-export function imprimirEtiquetas(etiquetas, { tamanho = "100x60" } = {}) {
-  const [W, H] = TAMANHOS[tamanho] || TAMANHOS["100x60"];
-  const grande = H >= 75;
-  const pags = etiquetas.map((e) => `<div class="et">
-    <div class="topo"><div class="art">${esc(e.artigoInterno)}</div><div class="vol">VOL ${e.ordem}/${e.total}</div></div>
-    <div class="det">${[e.cor && `Cor: <b>${esc(e.cor)}</b>`, e.codigoArtigo && `Cód.: <b>${esc(e.codigoArtigo)}</b>`, e.largura && `Larg.: <b>${String(e.largura).replace(".", ",")} m</b>`].filter(Boolean).join(" · ") || "&nbsp;"}</div>
-    ${grande && e.composicao ? `<div class="det">${esc(e.composicao)}</div>` : ""}
-    <div class="meio"><div class="qtd">${esc(qtdTxt(e.quantidade, e.unidade))}</div>
-      <div class="nf">NF de compra <b>${esc(e.nfNumero || "—")}</b><br/>Entrada <b>${esc(dBR(e.entrada))}</b>${e.fornecedor ? `<br/><span class="f">${esc(e.fornecedor)}</span>` : ""}</div></div>
-    <div class="ped">PEDIDO:</div>
+const nBR = (n, d = 3) => Number(n || 0).toLocaleString("pt-BR", { maximumFractionDigits: d });
+const UN = { M: "M", KG: "KG", UN: "UN", PC: "PÇ", CM: "CM", L: "L", CONE: "CONE", PCT: "PCT" };
+// v1152 — padrão: 10 cm de largura × 8,5 cm de altura (pré-selecionada) e 5 × 5 cm
+export const TAMANHOS = { "100x85": [100, 85], "50x50": [50, 50] };
+export const TAMANHO_PADRAO = "100x85";
+export const nomeTamanho = (k) => ({ "100x85": "10 × 8,5 cm", "50x50": "5 × 5 cm" }[k] || k);
+const qtdTxt = (e) => {
+  const u = UN[String(e.unidade || "").toUpperCase()] || String(e.unidade || "").toUpperCase();
+  let t = `${nBR(e.quantidade)} ${u}`;
+  if (e.unidade === "PCT" && e.unidadesPacote) t += ` (${nBR(e.unidadesPacote, 0)} UN/PCT)`;
+  return t;
+};
+// etiqueta: { codigo, tipo, artigo, cor, codigoArtigo, fornecedor, largura, construcao, quantidade, unidade, unidadesPacote, pesoKg, gramatura, origem, entrada, ordem, total }
+export function htmlEtiquetas(etiquetas, { tamanho = TAMANHO_PADRAO, autoPrint = true } = {}) {
+  const [W, H] = TAMANHOS[tamanho] || TAMANHOS[TAMANHO_PADRAO];
+  const p = W <= 50;   // 5 × 5: compacta
+  const linha = (k, v, cls = "") => (v == null || v === "" ? "" : `<tr class="${cls}"><th>${k}</th><td>${esc(v)}</td></tr>`);
+  const pags = etiquetas.map((e) => {
+    const larg = e.largura ? `${String(nBR(e.largura, 3))} M` : "";
+    const qt = qtdTxt(e) + (e.pesoKg ? ` · ${nBR(e.pesoKg)} KG` : "");
+    return `<div class="et">
+    <div class="topo"><div class="tipo">${esc(e.tipo || "—")}</div>${e.total ? `<div class="vol">VOL ${e.ordem}/${e.total}</div>` : ""}</div>
+    <table>
+      ${linha("ARTIGO", e.artigo, "art")}
+      ${linha("COR", e.cor)}
+      ${linha("CÓDIGO", e.codigoArtigo)}
+      ${linha(p ? "FORN." : "FORNECEDOR", e.fornecedor)}
+      ${linha(p ? "LARG." : "LARGURA", larg)}
+      ${linha(p ? "CONSTR." : "CONSTRUÇÃO", e.construcao)}
+      ${linha(p ? "QTD" : "QUANTIDADE", qt, "qtd")}
+      ${linha("ORIGEM", e.origem)}
+      ${p ? "" : linha("ENTRADA", dBR(e.entrada))}
+    </table>
     <div class="bar">${barrasSvg(e.codigo)}</div><div class="cod">${esc(e.codigo)}</div>
-  </div>`).join("");
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Etiquetas · ${etiquetas.length} volume(s)</title><style>
+  </div>`;
+  }).join("");
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Etiquetas · ${etiquetas.length} volume(s)</title><style>
     @page { size: ${W}mm ${H}mm; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Arial, Helvetica, sans-serif; color: #000; }
-    .et { width: ${W}mm; height: ${H}mm; padding: 2.5mm 3mm; display: flex; flex-direction: column; page-break-after: always; overflow: hidden; }
-    .topo { display: flex; align-items: flex-start; gap: 2mm; }
-    .art { flex: 1; font-weight: 800; font-size: ${grande ? 17 : 13.5}pt; line-height: 1.05; max-height: ${grande ? 15 : 10.5}mm; overflow: hidden; text-transform: uppercase; }
-    .vol { font-weight: 700; font-size: 9pt; border: 1.2px solid #000; border-radius: 1.5mm; padding: .5mm 1.5mm; white-space: nowrap; }
-    .det { font-size: 8.5pt; margin-top: 1mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .meio { display: flex; align-items: center; gap: 3mm; margin-top: 1.2mm; }
-    .qtd { font-weight: 800; font-size: ${grande ? 22 : 17}pt; white-space: nowrap; }
-    .nf { font-size: 8pt; line-height: 1.25; border-left: 1px solid #000; padding-left: 2.5mm; min-width: 0; }
-    .nf .f { font-size: 7pt; }
-    .ped { margin-top: 1.5mm; border: 1.2px solid #000; border-radius: 1mm; padding: 1mm 1.5mm; font-weight: 700; font-size: 9pt; height: ${grande ? 9 : 6.5}mm; }
-    .bar { flex: 1; min-height: 7mm; margin-top: 1.5mm; }
-    .cod { text-align: center; font-family: 'Courier New', monospace; font-size: 8pt; letter-spacing: 1px; }
-  </style></head><body>${pags}<script>window.onload=function(){setTimeout(function(){window.print();},300);}</script></body></html>`;
+    .et { width: ${W}mm; height: ${H}mm; padding: ${p ? "1.5mm" : "2.5mm 3mm"}; display: flex; flex-direction: column; page-break-after: always; overflow: hidden; }
+    .topo { display: flex; align-items: center; gap: 1.5mm; margin-bottom: ${p ? 0.8 : 1.5}mm; }
+    .tipo { flex: 1; font-weight: 800; font-size: ${p ? 7.5 : 12}pt; background: #000; color: #fff; padding: ${p ? ".4mm 1mm" : ".8mm 2mm"}; border-radius: 1mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .vol { font-weight: 800; font-size: ${p ? 7 : 10}pt; border: 1.2px solid #000; border-radius: 1mm; padding: .3mm 1.2mm; white-space: nowrap; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: ${p ? ".6px" : "1px"} solid #000; padding: ${p ? ".25mm .8mm" : ".6mm 1.5mm"}; text-align: left; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    th { width: ${p ? "12mm" : "26mm"}; font-size: ${p ? 5.5 : 7.5}pt; font-weight: 700; background: #eee; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    td { font-size: ${p ? 6.5 : 9.5}pt; font-weight: 600; }
+    tr.art td { font-size: ${p ? 7 : 12}pt; font-weight: 800; white-space: normal; line-height: 1.05; max-height: ${p ? 6 : 10}mm; }
+    tr.qtd td { font-size: ${p ? 8 : 15}pt; font-weight: 800; }
+    .bar { flex: 1; min-height: ${p ? 4 : 7}mm; margin-top: ${p ? 0.8 : 1.5}mm; }
+    .cod { text-align: center; font-family: 'Courier New', monospace; font-size: ${p ? 6 : 8}pt; letter-spacing: 1px; }
+  </style></head><body>${pags}${autoPrint ? "<script>window.onload=function(){setTimeout(function(){window.print();},300);}</script>" : ""}</body></html>`;
+}
+export function imprimirEtiquetas(etiquetas, { tamanho = TAMANHO_PADRAO } = {}) {
   const w = window.open("", "_blank");
   if (!w) { alert("Permita pop-ups para imprimir as etiquetas."); return; }
-  w.document.write(html); w.document.close();
+  w.document.write(htmlEtiquetas(etiquetas, { tamanho })); w.document.close();
 }

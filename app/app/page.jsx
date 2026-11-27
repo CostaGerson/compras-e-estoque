@@ -1,4 +1,5 @@
 "use client";
+import EntradaManualEstoque from "./estoqueManual";   // v1152
 import React, { useState, useEffect, useRef } from "react";
 import { useMobile, useGaveta } from "./useMobile";   // v550
 import { COMPONENTES, TAMANHOS } from "@/lib/componentesPedido";   // v1006
@@ -616,6 +617,7 @@ function VoltaCard({ r }) {
 function CardsGrupo({ grupo, ir, user }) {
   const [volta, setVolta] = useState(null);
   const [metro, setMetro] = useState({});   // v924
+  const [entManual, setEntManual] = useState(false);   // v1152
   useEffect(() => {
     if (grupo.key !== "analisesOp" || !user?.id) return;
     fetch(`/api/producao/analises?u=${user.id}&acao=resumo`).then((r) => (r.ok ? r.json() : null)).then(setVolta).catch(() => setVolta(null));
@@ -633,7 +635,10 @@ function CardsGrupo({ grupo, ir, user }) {
           <div className="text-lg font-bold" style={{ color: C.sidebar }}>{grupo.label}</div>
           <div className="text-xs" style={{ color: C.sub }}>{grupo.desc}</div>
         </div>
+        {/* v1152 — entrada manual de estoque (inventário) com etiqueta Zebra */}
+        {grupo.key === "estoqueGrp" && <button onClick={() => setEntManual(true)} className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={16} /> Entrada manual</button>}
       </div>
+      {entManual && <EntradaManualEstoque user={user} onClose={() => setEntManual(false)} />}
       {/* v284 — análises: 8 colunas compactas (5 setores + bruta + líquida + vaga do bordado) */}
       <div className={`grid ${an ? "gap-3" : "gap-4"}`} style={{ gridTemplateColumns: an ? "repeat(8, minmax(0, 1fr))" : grupo.key === "compras" ? "repeat(auto-fit, minmax(170px, 1fr))" : "repeat(auto-fill, minmax(240px, 1fr))" }}>
         {grupo.filhos.map((f) => {

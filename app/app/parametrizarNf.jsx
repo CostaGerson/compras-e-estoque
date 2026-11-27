@@ -120,7 +120,7 @@ export default function ParametrizarNf({ user, id, onFim }) {
 // v620 — identificação de volumes da NF: cada item com "+" para adicionar etiqueta (quantidade do volume) e impressão na Zebra
 export function VolumesNf({ user, id, onFim }) {
   const [d, setD] = useState(null), [erro, setErro] = useState(""), [ets, setEts] = useState([]), [st, setSt] = useState(false);
-  const [tam, setTam] = useState(() => { try { return localStorage.getItem("ce_etiqueta_tam") || "100x60"; } catch { return "100x60"; } });
+  const [tam, setTam] = useState(() => { try { const t = localStorage.getItem("ce_etiqueta_tam"); return t === "50x50" ? t : "100x85"; } catch { return "100x85"; } });   // v1152 — 10×8,5 (padrão) ou 5×5
   const carregar = () => fetch(`/api/fiscal/estoque?u=${user.id}&volumes=${id}`).then((r) => r.json()).then((x) => { if (x.error) throw new Error(x.error); setD(x);
     setEts(x.volumes.map((v) => ({ ...v, quantidade: fmt(v.quantidade) }))); }).catch((e) => setErro(e.message));
   useEffect(() => { carregar(); }, [id]);
@@ -148,8 +148,8 @@ export function VolumesNf({ user, id, onFim }) {
     try { localStorage.setItem("ce_etiqueta_tam", tam); } catch {}
     const porArt = Object.fromEntries(x.itens.map((i) => [i.artigoId, i]));
     const { imprimirEtiquetas } = await import("./etiquetaZebra");
-    imprimirEtiquetas(x.volumes.map((v, k) => { const a = porArt[v.artigoId] || {}; return { codigo: v.codigo, artigoInterno: a.artigoInterno, cor: a.cor, codigoArtigo: a.codigo, largura: a.largura,
-      composicao: a.composicao, quantidade: v.quantidade, unidade: v.unidade, nfNumero: x.numero, fornecedor: a.fornecedor, entrada: v.entradaEm || x.entrada, ordem: k + 1, total: x.volumes.length }; }), { tamanho: tam });
+    imprimirEtiquetas(x.volumes.map((v, k) => { const a = porArt[v.artigoId] || {}; return { codigo: v.codigo, tipo: a.tipoEtiqueta, artigo: a.artigoInterno, cor: a.cor, codigoArtigo: a.codigo, largura: a.largura,
+      construcao: a.construcao, quantidade: v.quantidade, unidade: v.unidade, origem: `NF ${x.numero}`, fornecedor: a.fornecedor, entrada: v.entradaEm || x.entrada, ordem: k + 1, total: x.volumes.length }; }), { tamanho: tam });   // v1152 — etiqueta padrão
   };
   const inp = "px-2 py-1 rounded-lg outline-none text-sm text-right";
   const iS = { background: C.panel2, border: `1px solid ${C.line}`, color: C.text };
@@ -193,7 +193,7 @@ export function VolumesNf({ user, id, onFim }) {
         </div>
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
           <label className="text-xs flex items-center gap-1" style={{ color: C.sub }}>Etiqueta
-            <select value={tam} onChange={(e) => setTam(e.target.value)} className="px-2 py-1 rounded-lg text-sm outline-none" style={iS}>{["100x60", "100x50", "100x75", "100x150", "80x50"].map((t) => <option key={t} value={t}>{t.replace("x", " × ")} mm</option>)}</select></label>
+            <select value={tam} onChange={(e) => setTam(e.target.value)} className="px-2 py-1 rounded-lg text-sm outline-none" style={iS}>{["100x85", "50x50"].map((t) => <option key={t} value={t}>{t.replace("x", " × ")} mm</option>)}</select></label>
           <span className="flex-1" />
           <button onClick={() => onFim()} className="px-3 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Fechar</button>
           <button disabled={!d || st} onClick={imprimir} className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-1.5" style={{ background: C.accent, opacity: st ? 0.6 : 1 }}>
