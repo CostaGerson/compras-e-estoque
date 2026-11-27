@@ -107,9 +107,9 @@ nav.side a{display:flex;justify-content:space-between;align-items:center;gap:8px
 nav.side a:hover{background:var(--navyL)}nav.side a.on{background:var(--or);color:#fff}nav.side a span{color:var(--navyS);font-size:10.5px;font-weight:600}nav.side a.on span{color:#FFE3D1}
 main{flex:1;padding:18px 24px;min-width:0}
 h2{font-size:15px;color:var(--navy);font-weight:800;margin:6px 0 12px;display:flex;align-items:center;gap:8px}h2 small{color:var(--sub);font-weight:500;font-size:11.5px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;align-items:start}
+.grid{columns:300px;column-gap:14px}.grid>.card{break-inside:avoid;margin-bottom:14px;width:100%}
 .card{background:var(--pn);border:1px solid var(--ln);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:9px;transition:box-shadow .15s}
-.card:hover{box-shadow:0 6px 20px rgba(0,30,65,.08)}.card.open{grid-column:1/-1;border-color:var(--or);box-shadow:0 10px 30px rgba(0,30,65,.12)}
+.card:hover{box-shadow:0 6px 20px rgba(0,30,65,.08)}.card.open{column-span:all;border-color:var(--or);box-shadow:0 10px 30px rgba(0,30,65,.12)}
 .card .t{font-weight:800;color:var(--navy);font-size:14px;line-height:1.25}.card .f{font-size:10.5px;color:var(--or);font-weight:800;text-transform:uppercase;letter-spacing:.04em}
 .tag{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;background:var(--pn2);color:var(--sub);margin:0 4px 2px 0}
 .tag.MALHA{background:var(--grS);color:var(--gr)}.tag.TECIDO{background:var(--blS);color:var(--bl)}.tag.AVIAMENTO{background:var(--yeS);color:var(--ye)}
