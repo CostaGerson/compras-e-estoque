@@ -21,6 +21,16 @@ export async function POST(req) {
   const b = await req.json().catch(() => ({}));
   const u = await usuario(b.usuarioId);
   if (!pode(u)) return Response.json({ error: "Só o financeiro/gestão altera os dados tributários." }, { status: 403 });
-  const r = b.acao === "empresa" ? await salvarEmpresa(b.dados) : b.acao === "produto" ? await salvarProduto(b.dados || {}) : b.acao === "excluirNatureza" ? await excluirNatureza(b.id) : await salvarNatureza(b.dados || {});
+  // v1188 — certificado A1 e teste de comunicação com a SEFAZ-MG
+  if (b.acao === "certificado") {
+    try { const { salvarCertificado } = await import("@/lib/nfeCert"); const r = await salvarCertificado(b.empresa, b.conteudo, b.senha, u.nome); return Response.json(r, { status: r.error ? 400 : 200 }); }
+    catch (e) { return Response.json({ error: e.message }, { status: 400 }); }
+  }
+  if (b.acao === "excluirCertificado") { const { excluirCertificado } = await import("@/lib/nfeCert"); return Response.json(await excluirCertificado(b.empresa)); }
+  if (b.acao === "testarSefaz") {
+    try { const { statusServico } = await import("@/lib/nfeSefaz"); return Response.json(await statusServico(b.empresa, b.ambiente)); }
+    catch (e) { return Response.json({ ok: false, erro: e.message }); }
+  }
+  const r = b.acao === "empresa" ? await salvarEmpresa(b.dados, prisma, b.empresaId) : b.acao === "produto" ? await salvarProduto(b.dados || {}) : b.acao === "excluirNatureza" ? await excluirNatureza(b.id) : await salvarNatureza(b.dados || {});
   return Response.json(r, { status: r.error ? 400 : 200 });
 }

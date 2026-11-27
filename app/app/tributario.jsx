@@ -33,7 +33,7 @@ export default function Tributario({ user, tiposPeca = [] }) {
         {[["naturezas", "Naturezas de operação"], ["produtos", "Produtos (NCM)"], ["icms", "ICMS interestadual"], ["empresa", "Emitente"]].map(([k, t]) => <button key={k} onClick={() => setAba(k)} className="px-3 py-1.5 rounded-md text-sm"
           style={{ background: aba === k ? C.accentSoft : C.panel, color: aba === k ? C.accent : C.sub, border: `1px solid ${aba === k ? C.accent : C.line}` }}>{t}</button>)}
       </div>
-      {aba === "empresa" && <Empresa d={d} post={post} />}
+      {aba === "empresa" && <Empresa d={d} post={post} user={user} />}
       {aba === "produtos" && <Produtos d={d} post={post} tiposPeca={tiposPeca} />}
       {aba === "icms" && <IcmsInter d={d} />}
       {aba === "naturezas" && <>
@@ -187,29 +187,91 @@ function IcmsInter({ d }) {
   );
 }
 
-function Empresa({ d, post }) {
-  const [f, setF] = useState(d.empresa);
+function Empresa({ d, post, user }) {
+  // v1188 — duas emitentes (Meridian e NORT), certificado A1 e teste de comunicação com a SEFAZ-MG
+  const [emp, setEmp] = useState("MERIDIAN");
+  const [f, setF] = useState((d.empresas || {}).MERIDIAN || d.empresa);
+  useEffect(() => { setF((d.empresas || {})[emp] || d.empresa); }, [emp, d]);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const I = (k, props = {}) => <input value={f[k] ?? ""} onChange={(e) => set(k, e.target.value)} className={inp} style={iS} {...props} />;
   return (
-    <div className="rounded-lg p-5" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
-      <Sec t="Emitente">
-        <Campo rot="Razão social" cls="col-span-2">{I("razaoSocial")}</Campo><Campo rot="CNPJ">{I("cnpj")}</Campo><Campo rot="Inscrição estadual">{I("ie")}</Campo>
-        <Campo rot="Inscrição municipal" dica="NFS-e">{I("im")}</Campo>
-        <Campo rot="Regime tributário (CRT)" cls="col-span-2"><select value={f.crt} onChange={(e) => set("crt", e.target.value)} className={inp} style={iS}>{CRT.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></Campo>
-        <Campo rot="Série da NF-e">{I("serie")}</Campo>
-      </Sec>
-      <Sec t="Endereço">
-        <Campo rot="Logradouro" cls="col-span-2">{I("logradouro")}</Campo><Campo rot="Número">{I("numero")}</Campo><Campo rot="Bairro">{I("bairro")}</Campo>
-        <Campo rot="Município">{I("municipio")}</Campo><Campo rot="UF">{I("uf", { maxLength: 2 })}</Campo><Campo rot="CEP">{I("cep")}</Campo><Campo rot="Código IBGE do município">{I("codigoMunicipio")}</Campo>
-        <Campo rot="Telefone">{I("telefone")}</Campo><Campo rot="E-mail" cls="col-span-2">{I("email")}</Campo>
-      </Sec>
-      <Sec t="Bling">
-        <Campo rot="Ambiente" cls="col-span-2"><select value={f.ambiente} onChange={(e) => set("ambiente", e.target.value)} className={inp} style={iS}><option value="HOMOLOGACAO">Homologação (teste, sem valor fiscal)</option><option value="PRODUCAO">Produção</option></select></Campo>
-      </Sec>
-      <div className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: C.navy }}>Informações complementares padrão (todas as NFs)</div>
-      <textarea value={f.infoComplementar || ""} onChange={(e) => set("infoComplementar", e.target.value)} rows={3} className={inp} style={{ ...iS, resize: "vertical" }} />
-      <div className="flex justify-end mt-3"><button onClick={() => post("empresa", f)} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent }}>Salvar emitente</button></div>
+    <div>
+      <div className="flex gap-1 mb-3">
+        {[["MERIDIAN", "Meridian"], ["NORT", "NORT Sports"]].map(([k, t]) => <button key={k} onClick={() => setEmp(k)} className="px-3 py-1.5 rounded-md text-sm font-semibold"
+          style={{ background: emp === k ? C.navy : C.panel, color: emp === k ? "#fff" : C.sub, border: `1px solid ${emp === k ? C.navy : C.line}` }}>{t}</button>)}
+      </div>
+      <Certificado emp={emp} info={(d.certificados || {})[emp]} user={user} ambiente={f.ambiente} />
+      <div className="rounded-lg p-5" style={{ background: C.panel, border: `1px solid ${C.line}` }}>
+        <Sec t="Emitente">
+          <Campo rot="Razão social" cls="col-span-2">{I("razaoSocial")}</Campo><Campo rot="Nome fantasia">{I("fantasia")}</Campo><Campo rot="CNPJ">{I("cnpj")}</Campo>
+          <Campo rot="Inscrição estadual">{I("ie")}</Campo><Campo rot="Inscrição municipal" dica="NFS-e">{I("im")}</Campo><Campo rot="CNAE principal">{I("cnae")}</Campo>
+          <Campo rot="Regime tributário (CRT)"><select value={f.crt} onChange={(e) => set("crt", e.target.value)} className={inp} style={iS}>{CRT.map(([k, t]) => <option key={k} value={k}>{t}</option>)}</select></Campo>
+        </Sec>
+        <Sec t="Endereço">
+          <Campo rot="Logradouro" cls="col-span-2">{I("logradouro")}</Campo><Campo rot="Número">{I("numero")}</Campo><Campo rot="Complemento">{I("complemento")}</Campo>
+          <Campo rot="Bairro">{I("bairro")}</Campo><Campo rot="Município">{I("municipio")}</Campo><Campo rot="UF">{I("uf", { maxLength: 2 })}</Campo><Campo rot="CEP">{I("cep")}</Campo>
+          <Campo rot="Código IBGE do município">{I("codigoMunicipio")}</Campo><Campo rot="Telefone">{I("telefone")}</Campo><Campo rot="E-mail" cls="col-span-2">{I("email")}</Campo>
+        </Sec>
+        <Sec t="NF-e (SEFAZ-MG)">
+          <Campo rot="Ambiente" cls="col-span-2"><select value={f.ambiente} onChange={(e) => set("ambiente", e.target.value)} className={inp} style={iS}><option value="HOMOLOGACAO">Homologação (teste, sem valor fiscal)</option><option value="PRODUCAO">Produção</option></select></Campo>
+          <Campo rot="Série da NF-e" dica="use uma série só do ERP">{I("serie")}</Campo>
+        </Sec>
+        <div className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: C.navy }}>Informações complementares padrão (todas as NFs)</div>
+        <textarea value={f.infoComplementar || ""} onChange={(e) => set("infoComplementar", e.target.value)} rows={3} className={inp} style={{ ...iS, resize: "vertical" }} />
+        <div className="flex justify-end mt-3"><button onClick={() => post("empresa", f, { empresaId: emp })} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent }}>Salvar emitente</button></div>
+      </div>
+    </div>
+  );
+}
+
+// v1188 — certificado A1 (.pfx): enviado com a senha, validado no servidor (CNPJ e validade) e guardado cifrado
+function Certificado({ emp, info, user, ambiente }) {
+  const [cert, setCert] = useState(info || null);
+  const [arq, setArq] = useState(null), [senha, setSenha] = useState(""), [st, setSt] = useState(""), [teste, setTeste] = useState(null);
+  useEffect(() => { setCert(info || null); setArq(null); setSenha(""); setTeste(null); }, [emp, info]);
+  const api = async (corpo) => {
+    const r = await fetch("/api/tributario", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, empresa: emp, ...corpo }) });
+    return r.json().catch(() => ({}));
+  };
+  const ler = (file) => new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.readAsDataURL(file); });
+  const enviar = async () => {
+    if (!arq) return alerta("Escolha o arquivo .pfx do certificado.");
+    setSt("Validando o certificado…");
+    const x = await api({ acao: "certificado", conteudo: await ler(arq), senha });
+    setSt("");
+    if (x.error) return alerta(x.error);
+    setCert({ ...x.certificado, dias: Math.floor((new Date(x.certificado.ate) - Date.now()) / 86400000) }); setArq(null); setSenha("");
+  };
+  const testar = async () => { setSt("Consultando a SEFAZ-MG…"); setTeste(await api({ acao: "testarSefaz", ambiente })); setSt(""); };
+  const excluir = async () => { if (!(await confirmar(`Remover o certificado digital da ${emp}?`))) return; await api({ acao: "excluirCertificado" }); setCert(null); setTeste(null); };
+  const dBR = (s) => String(s || "").slice(0, 10).split("-").reverse().join("/");
+  return (
+    <div className="rounded-lg p-4 mb-3" style={{ background: C.panel, border: `1px solid ${cert ? (cert.dias < 30 ? C.accent : C.green) : C.line}` }}>
+      <div className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: C.navy }}>Certificado digital A1 (e-CNPJ)</div>
+      {cert ? (
+        <div className="text-sm flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span style={{ color: C.green }}>✓ <b>{cert.cn}</b></span>
+          <span style={{ color: cert.dias < 30 ? C.accent : C.sub }}>válido até <b>{dBR(cert.ate)}</b> ({cert.dias} dias)</span>
+          <span className="text-xs" style={{ color: C.sub }}>{cert.emissor}{cert.enviadoPor ? ` · enviado por ${cert.enviadoPor} em ${dBR(cert.enviadoEm)}` : ""}</span>
+          <span className="ml-auto flex gap-2">
+            <button onClick={testar} disabled={!!st} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.navy }}>Testar comunicação com a SEFAZ ({ambiente === "PRODUCAO" ? "produção" : "homologação"})</button>
+            <button onClick={excluir} className="text-xs underline" style={{ color: C.sub }}>remover</button>
+          </span>
+        </div>
+      ) : <div className="text-xs mb-2" style={{ color: C.sub }}>Sem certificado: envie o arquivo .pfx e a senha. A senha só é usada para abrir o arquivo e não fica guardada.</div>}
+      <div className="flex flex-wrap items-end gap-2 mt-2">
+        <label className="text-xs" style={{ color: C.sub }}>{cert ? "Trocar certificado (.pfx)" : "Arquivo do certificado (.pfx)"}
+          <input type="file" accept=".pfx,.p12" onChange={(e) => setArq(e.target.files?.[0] || null)} className="block text-xs mt-1" /></label>
+        <label className="text-xs" style={{ color: C.sub }}>Senha<input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} className={inp} style={{ ...iS, width: 180 }} autoComplete="new-password" /></label>
+        <button onClick={enviar} disabled={!arq || !!st} className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent, opacity: arq ? 1 : 0.5 }}>Enviar certificado</button>
+        {st && <span className="flex items-center gap-1 text-xs" style={{ color: C.sub }}><Loader2 size={13} className="animate-spin" /> {st}</span>}
+      </div>
+      {teste && (
+        <div className="mt-2 text-xs rounded-lg px-3 py-2" style={{ background: teste.ok ? "#E7F6EE" : "#FDECEA", color: teste.ok ? C.green : C.red }}>
+          {teste.ok ? <>SEFAZ-MG respondeu: <b>{teste.cStat} · {teste.xMotivo}</b>{teste.tMed ? ` · tempo médio ${teste.tMed} s` : ""} · {teste.ms} ms</>
+            : <>{teste.erro || `SEFAZ-MG: ${teste.cStat} · ${teste.xMotivo}`}</>}
+        </div>
+      )}
     </div>
   );
 }

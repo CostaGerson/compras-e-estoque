@@ -12,9 +12,13 @@ export const NATUREZAS_INICIAIS = [
   { nome: "PRESTAÇÃO DE SERVIÇO", uso: "SERVICO", padrao: true },
   { nome: "DEVOLUÇÃO DE COMPRA PARA INDUSTRIALIZAÇÃO", uso: "DEVOLUCAO", finalidade: 4, cfopEstado: "5201", cfopForaEstado: "6201", padrao: true },
 ];
-export const EMPRESA_PADRAO = { razaoSocial: "MERIDIAN LTDA", cnpj: "48.011.287/0001-81", ie: "", im: "", crt: "1", serie: "1", ambiente: "HOMOLOGACAO",
-  logradouro: "RUA DR. NATALINO TRIGINELLI", numero: "281", bairro: "JARDIM ATLÂNTICO", municipio: "BELO HORIZONTE", uf: "MG", cep: "31710-420", codigoMunicipio: "3106200",
+// v1188 — duas emitentes: MERIDIAN (Lucro Presumido, CRT 3) e NORT (Simples Nacional, CRT 1); NF-e direto na SEFAZ-MG
+export const EMPRESA_PADRAO = { razaoSocial: "MERIDIAN LTDA", fantasia: "MERIDIAN", cnpj: "48.011.287/0001-81", ie: "0044450590058", im: "", crt: "3", cnae: "1413403", serie: "1", ambiente: "HOMOLOGACAO",
+  logradouro: "RUA DR. NATALINO TRIGINELLI", numero: "281", complemento: "", bairro: "JARDIM ATLÂNTICO", municipio: "BELO HORIZONTE", uf: "MG", cep: "31710-420", codigoMunicipio: "3106200",
   telefone: "", email: "", infoComplementar: "" };
+export const EMPRESA_NORT = { ...EMPRESA_PADRAO, razaoSocial: "NORT SPORTS LTDA", fantasia: "NORT SPORTS", cnpj: "55.116.246/0001-15", ie: "0048920590036", crt: "1", cnae: "4781400",
+  logradouro: "RUA RIO GRANDE DO NORTE", numero: "1435", complemento: "7º ANDAR", bairro: "SAVASSI", cep: "30130-138", telefone: "(31) 3656-4398", email: "contato@nortsports.com.br" };
+const K_EMP_DE = (emp) => (emp === "NORT" ? "TRIB|EMPRESA|NORT" : K_EMP);
 
 // v677 — classes de produto com NCM e tributação da planilha "NCM_Produtos - Planilha Atualizada" (Meridian Artigos Militares e Outdoor).
 //   Um NCM por classe (o tipo de peça do item); todas com ICMS tributado CST 00 (18% interno MG; interestadual pela tabela),
@@ -65,17 +69,25 @@ export async function dadosTributarios(db = prisma) {
     db.tribProduto.findMany({ orderBy: { tipoPeca: "asc" } }),
   ]);
   let empresa = { ...EMPRESA_PADRAO }; try { empresa = { ...empresa, ...JSON.parse(cfg?.valor || "{}") }; } catch {}
+  // v1188 — Meridian é Lucro Presumido: CRT 3 (o padrão antigo era 1 = Simples) · IE da EFD
+  if (empresa.crt === "1") empresa.crt = "3";
+  if (!empresa.ie) empresa.ie = EMPRESA_PADRAO.ie;
+  const cfgN = await db.finConfig.findUnique({ where: { chave: K_EMP_DE("NORT") } }).catch(() => null);
+  let nort = { ...EMPRESA_NORT }; try { nort = { ...nort, ...JSON.parse(cfgN?.valor || "{}") }; } catch {}
+  const { infoCertificados } = await import("@/lib/nfeCert");
+  const certificados = await infoCertificados().catch(() => ({}));
   const n = (v) => (v == null ? null : Number(v));
   const { ICMS_INTERESTADUAL } = await import("@/lib/icmsInterestadual");
-  return { empresa, usos: USOS, icmsInterestadual: ICMS_INTERESTADUAL,
+  return { empresa, empresas: { MERIDIAN: empresa, NORT: nort }, certificados, usos: USOS, icmsInterestadual: ICMS_INTERESTADUAL,
     produtos: produtos.map((p) => ({ ...p, icmsAliquotaInterna: n(p.icmsAliquotaInterna), pisAliquota: n(p.pisAliquota), cofinsAliquota: n(p.cofinsAliquota), ipiAliquota: n(p.ipiAliquota) })),
     naturezas: naturezas.map((x) => ({ ...x, icmsAliquota: n(x.icmsAliquota), icmsReducao: n(x.icmsReducao), icmsStAliquota: n(x.icmsStAliquota), ipiAliquota: n(x.ipiAliquota),
       pisAliquota: n(x.pisAliquota), cofinsAliquota: n(x.cofinsAliquota), issAliquota: n(x.issAliquota) })) };
 }
-export async function salvarEmpresa(e, db = prisma) {
+export async function salvarEmpresa(e, db = prisma, emp = "MERIDIAN") {
   const permitidos = Object.keys(EMPRESA_PADRAO);
   const v = Object.fromEntries(permitidos.map((k) => [k, e?.[k] == null ? "" : String(e[k]).trim()]));
-  await db.finConfig.upsert({ where: { chave: K_EMP }, create: { chave: K_EMP, valor: JSON.stringify(v) }, update: { valor: JSON.stringify(v) } });
+  const k = K_EMP_DE(emp === "NORT" ? "NORT" : "MERIDIAN");
+  await db.finConfig.upsert({ where: { chave: k }, create: { chave: k, valor: JSON.stringify(v) }, update: { valor: JSON.stringify(v) } });
   return { ok: true };
 }
 export async function salvarNatureza(b, db = prisma) {
