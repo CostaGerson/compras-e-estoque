@@ -219,8 +219,9 @@ export function VolumesNf({ user, id, onFim }) {
     try { localStorage.setItem("ce_etiqueta_tam", tam); } catch {}
     const porArt = Object.fromEntries(x.itens.map((i) => [i.artigoId, i]));
     const { imprimirEtiquetas } = await import("./etiquetaZebra");
-    imprimirEtiquetas(x.volumes.map((v, k) => { const a = porArt[v.artigoId] || {}; return { codigo: v.codigo, tipo: a.tipoEtiqueta, artigo: a.artigoInterno, cor: a.cor, codigoArtigo: a.codigo, largura: a.largura,
+    const rz = await imprimirEtiquetas(x.volumes.map((v, k) => { const a = porArt[v.artigoId] || {}; return { codigo: v.codigo, tipo: a.tipoEtiqueta, artigo: a.artigoInterno, cor: a.cor, codigoArtigo: a.codigo, largura: a.largura,
       construcao: a.construcao, quantidade: v.quantidade, unidade: v.unidade, origem: `NF ${x.numero}`, fornecedor: a.fornecedor, entrada: v.entradaEm || x.entrada, ordem: k + 1, total: x.volumes.length }; }), { tamanho: tam });   // v1152 — etiqueta padrão
+    if (rz?.direta) alerta(`${x.volumes.length} etiqueta(s) enviada(s) para a Zebra (${rz.impressora}).`);   // v1174 — direto em ZPL
   };
   const inp = "px-2 py-1 rounded-lg outline-none text-sm text-right";
   const iS = { background: C.panel2, border: `1px solid ${C.line}`, color: C.text };

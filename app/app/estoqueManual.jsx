@@ -7,7 +7,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Loader2, X, PackagePlus, Printer, Settings2, ExternalLink, RefreshCw } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { fornecedoresParecidos } from "@/lib/artigoPadrao";
-import { htmlEtiquetas, imprimirEtiquetas, TAMANHOS, TAMANHO_PADRAO, nomeTamanho } from "./etiquetaZebra";
+import { htmlEtiquetas, imprimirEtiquetas, TAMANHOS, TAMANHO_PADRAO, nomeTamanho, acharZebra, zebraCfg, salvarZebraCfg } from "./etiquetaZebra";
 
 const C = { panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
   green: "#12A150", greenSoft: "#E7F6EE", navy: "#001E41", red: "#D92D20" };
@@ -79,6 +79,36 @@ export function FornecedorBusca({ forns, valor, onEscolher, onCriado }) {
       )}
     </div>
   );
+}
+
+// v1174 — impressão direta na Zebra (ZPL pelo Zebra Browser Print): status, resolução e escuridão
+const URL_BP = "https://www.zebra.com/us/en/support-downloads/software/printer-software/browser-print.html";
+export function ZebraPainel() {
+  const [z, setZ] = useState(undefined);   // undefined = procurando · false = não achou · { device }
+  const [cfg, setCfg] = useState(() => zebraCfg());
+  const procurar = () => { setZ(undefined); acharZebra({ forcar: true }).then(setZ).catch(() => setZ(false)); };
+  useEffect(() => { procurar(); }, []);
+  const muda = (p) => setCfg(salvarZebraCfg(p));
+  return (
+    <div className="rounded-lg px-3 py-2 mb-3 text-xs flex items-center gap-x-3 gap-y-1.5 flex-wrap" style={{ background: z ? C.greenSoft : C.panel2, border: `1px solid ${z ? C.green : C.line}` }}>
+      {z === undefined ? <span className="flex items-center gap-1" style={{ color: C.sub }}><Loader2 size={12} className="animate-spin" /> Procurando a Zebra…</span>
+        : z ? <span style={{ color: C.green }}><b>Impressão direta:</b> {z.device.name}</span>
+        : <span style={{ color: C.sub }}>Impressão direta indisponível: instale o <a href={URL_BP} target="_blank" rel="noreferrer" className="underline font-semibold" style={{ color: C.accent }}>Zebra Browser Print</a> no PC da Zebra (sem ele, imprime pelo navegador).</span>}
+      <button type="button" onClick={procurar} title="Procurar de novo" style={{ color: C.sub }}><RefreshCw size={12} /></button>
+      <span className="ml-auto flex items-center gap-2" style={{ color: C.sub }}>
+        <label className="flex items-center gap-1">Resolução
+          <select value={cfg.dpi} onChange={(e) => muda({ dpi: Number(e.target.value) })} className="rounded px-1 py-0.5" style={iS}><option value={203}>203 dpi</option><option value={300}>300 dpi</option></select></label>
+        <label className="flex items-center gap-1">Escuridão
+          <input type="number" min={0} max={30} value={cfg.escuridao} onChange={(e) => muda({ escuridao: Number(e.target.value) })} className="w-12 rounded px-1 py-0.5 text-right" style={iS} /></label>
+        <label className="flex items-center gap-1">Velocidade
+          <select value={cfg.velocidade} onChange={(e) => muda({ velocidade: Number(e.target.value) })} className="rounded px-1 py-0.5" style={iS}>{[2, 3, 4, 5, 6].map((v) => <option key={v} value={v}>{v} pol/s</option>)}</select></label>
+      </span>
+    </div>
+  );
+}
+export async function imprimirComAviso(lista, tamanho) {
+  const r = await imprimirEtiquetas(lista, { tamanho });
+  if (r?.direta) alerta(`${lista.length} etiqueta(s) enviada(s) para a Zebra (${r.impressora}).`);
 }
 
 function Gramaturas({ user, tecidos, gram, onSalvo, onClose }) {
@@ -183,6 +213,7 @@ export default function EntradaManualEstoque({ user, onClose }) {
           : etq ? (
           <div className="p-5 overflow-auto">
             <div className="text-sm mb-3" style={{ color: C.green }}>✓ Entrada feita no estoque. Confira a etiqueta e imprima.</div>
+            <ZebraPainel />
             <div className="flex items-center gap-2 mb-3 text-sm">
               <span style={{ color: C.sub }}>Tamanho</span>
               <Opcoes ops={Object.keys(TAMANHOS).map((k) => [k, nomeTamanho(k)])} valor={tam} onChange={setTam} />
@@ -193,7 +224,8 @@ export default function EntradaManualEstoque({ user, onClose }) {
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={onClose} className="px-3 py-2 text-sm" style={{ color: C.sub }}>Fechar</button>
-              <button onClick={() => imprimirEtiquetas([etq], { tamanho: tam })} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Printer size={15} /> Imprimir</button>
+              <button onClick={() => imprimirEtiquetas([etq], { tamanho: tam, navegador: true })} className="px-3 py-2 text-xs" style={{ color: C.sub }}>Imprimir pelo navegador</button>
+              <button onClick={() => imprimirComAviso([etq], tam)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Printer size={15} /> Imprimir</button>
             </div>
           </div>
         ) : (
@@ -332,6 +364,7 @@ export function EtiquetasArtigo({ user, artigo, onClose }) {
                 </div>
               </div>
             ) : <button onClick={() => setAbrNova(true)} className="text-xs font-semibold mb-3" style={{ color: C.accent }}>+ Nova etiqueta (outro volume)</button>}
+            <ZebraPainel />
             <div className="flex items-center gap-2 mb-3 text-sm">
               <span style={{ color: C.sub }}>Tamanho</span>
               <Opcoes ops={Object.keys(TAMANHOS).map((k) => [k, nomeTamanho(k)])} valor={tam} onChange={setTam} />
@@ -342,7 +375,8 @@ export function EtiquetasArtigo({ user, artigo, onClose }) {
             </div>}
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={onClose} className="px-3 py-2 text-sm" style={{ color: C.sub }}>Fechar</button>
-              <button onClick={() => imprimirEtiquetas(escolhidas, { tamanho: tam })} disabled={!escolhidas.length} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: escolhidas.length ? 1 : 0.5 }}>
+              {escolhidas.length > 0 && <button onClick={() => imprimirEtiquetas(escolhidas, { tamanho: tam, navegador: true })} className="px-3 py-2 text-xs" style={{ color: C.sub }}>Imprimir pelo navegador</button>}
+              <button onClick={() => imprimirComAviso(escolhidas, tam)} disabled={!escolhidas.length} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: escolhidas.length ? 1 : 0.5 }}>
                 <Printer size={15} /> Imprimir{escolhidas.length > 1 ? ` (${escolhidas.length})` : ""}</button>
             </div>
           </div>
