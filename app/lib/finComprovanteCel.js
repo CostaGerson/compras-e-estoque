@@ -125,6 +125,12 @@ async function itensDaSemana(datas) {
 // CPF/CNPJ do comprovante (inteiro ou os 6 dígitos do meio do CPF mascarado) no cadastro / chave PIX do prestador
 const docBate = (c, docs) => { const d = so(c.documento); return d.length >= 6 && docs.some((x) => x === d || (d.length === 6 && x.length === 11 && x.slice(3, 9) === d)); };
 const nomeItem = (c, o) => o.nomes.some((n) => nomeBate(c.favorecido, n));
+// v1181 — nome parecido: alguma palavra do lançamento (≥ 4 letras) igual ou com 1 letra de diferença a uma do favorecido
+//   (TATIANA × TATIANE MARIA DE OLIVEIRA); serve para sugerir, não para a baixa automática
+const lev1 = (a, b) => { if (Math.abs(a.length - b.length) > 1) return false; let i = 0, j = 0, d = 0; while (i < a.length && j < b.length) { if (a[i] === b[j]) { i++; j++; continue; } if (++d > 1) return false; if (a.length > b.length) i++; else if (b.length > a.length) j++; else { i++; j++; } } return d + (a.length - i) + (b.length - j) <= 1; };
+const PREP = new Set(["DE", "DA", "DO", "DAS", "DOS", "E"]);
+const pals = (t) => normRegra(t).split(/\s+/).filter((w) => w.length >= 4 && !PREP.has(w));
+const nomeParecido = (c, o) => { const f = pals(c.favorecido); return f.length > 0 && o.nomes.some((n) => pals(n).some((w) => f.some((x) => x === w || (w.length >= 5 && lev1(x, w))))); };
 export function itensExatos(c, itens) {
   if (!c?.data || !c?.valor || c.propria || c.agendado) return [];
   return itens.filter((o) => o.vencimento === c.data && Math.abs(o.valor - c.valor) < 0.005 && nomeItem(c, o));
@@ -135,6 +141,7 @@ function notaItem(c, o) {
   const igual = Math.abs(o.valor - c.valor) < 0.005, nome = nomeItem(c, o), doc = docBate(c, o.docs);
   const dias = c.data && o.vencimento ? Math.abs(Math.round((new Date(c.data) - new Date(o.vencimento)) / DIA)) : 99;
   if (igual && (nome || doc)) return 3 + (dias === 0 ? 0.5 : 0);
+  if (igual && dias <= 7 && nomeParecido(c, o)) return 2.8 + (dias === 0 ? 0.5 : 0) - dias / 20;   // v1181
   if (igual && dias <= 7) return 2 - dias / 10;
   if ((nome || doc) && Math.abs(o.valor - c.valor) / c.valor <= 0.15) return 1;
   return 0;
@@ -173,11 +180,17 @@ async function baixarAlvo(o, c, arq, quem) {
   if (!r.baixadas) throw new Error(r.erros[0] || r.linhas[0] || "não consegui baixar a conta");
 }
 // melhor sugestão para o pendente: conta (pela análise dos comprovantes) ou lançamento da semana
-async function sugestao(c, arqNome, itens) {
-  const [an] = c.valor && c.data ? await analisarComprovantes([{ ...c, arquivo: arqNome, pagina: 1 }]) : [null];
-  const t = an?.alvo ? { ...an.alvo, k: `T:${an.alvo.id}`, nota: NOTA_CONF[an.alvo.confianca] || 1 } : null;
+// v1181 — melhor sugestão entre a conta (análise do comprovante) e os lançamentos da semana
+function melhor(c, alvo, itens) {
+  let t = alvo ? { ...alvo, k: `T:${alvo.id}`, nota: NOTA_CONF[alvo.confianca] || 1 } : null;
+  // conta que só bate no valor (sem nome nem CPF/CNPJ do favorecido) perde para o lançamento com nome parecido ou do mesmo dia
+  if (t && !/CNPJ\/CPF igual|nome do fornecedor/.test(t.motivo || "") && !nomeBate(c.favorecido, t.parceiro)) t = { ...t, nota: Math.min(t.nota, 1.5) - Math.min(7, Math.abs(Number(t.dias) || 0)) / 20 };
   const i = itens.map((o) => ({ ...o, nota: notaItem(c, o) })).filter((o) => o.nota > 0).sort((a, b) => b.nota - a.nota)[0] || null;
   return i && (!t || i.nota > t.nota) ? i : t;
+}
+async function sugestao(c, arqNome, itens) {
+  const [an] = c.valor && c.data ? await analisarComprovantes([{ ...c, arquivo: arqNome, pagina: 1 }]) : [null];
+  return melhor(c, an?.alvo, itens);
 }
 
 // ---------- recebimento (atalho) ----------
@@ -253,12 +266,16 @@ export async function listarPendentes() {
   return ps.map((p) => {
     const c = p.dados || {};
     const a = porK[String(p.id)];
-    const sugerida = (p.semanaItemId ? porI[p.semanaItemId] : p.tituloId ? porT[p.tituloId] : null) || null;
+    // v1181 — recalcula a melhor sugestão ao abrir (a guardada pode ter sido pior ou já estar paga)
+    const nova = c.valor && c.data ? melhor(c, a?.alvo, itens) : null;
+    const guardada = (p.semanaItemId ? porI[p.semanaItemId] : p.tituloId ? porT[p.tituloId] : null) || null;
+    const sugerida = nova ? (nova.itemId ? nova : { k: `T:${nova.id}`, id: nova.id, titulo: nova.titulo, parceiro: nova.parceiro, valor: nova.valor, vencimento: nova.vencimento, status: "ABERTO" }) : guardada;
+    const motivo = nova && guardada && nova.k !== guardada.k ? motivoPendente(c, nova, []) : p.motivo;
     const doT = ((a?.opcoes) || []).map((o) => ({ k: `T:${o.id}`, id: o.id, titulo: o.titulo, parceiro: o.parceiro, valor: o.valor, vencimento: o.vencimento, status: "ABERTO" }));
     const doI = itens.map((o) => ({ ...o, nota: notaItem(c, o) })).filter((o) => o.nota > 0).sort((x, y) => y.nota - x.nota).slice(0, 6);
     const vistos = new Set(), opcoes = [];
     for (const o of [...(sugerida ? [sugerida] : []), ...doT, ...doI]) if (!vistos.has(o.k)) { vistos.add(o.k); opcoes.push(o); }
-    return { id: p.id, nome: p.nome, mime: p.mime, tamanho: p.tamanho, dados: c, motivo: p.motivo, enviadoPor: p.enviadoPor, em: p.createdAt, tituloId: p.tituloId, sugerida, opcoes: opcoes.slice(0, 12) };
+    return { id: p.id, nome: p.nome, mime: p.mime, tamanho: p.tamanho, dados: c, motivo, enviadoPor: p.enviadoPor, em: p.createdAt, tituloId: p.tituloId, sugerida, opcoes: opcoes.slice(0, 12) };
   });
 }
 
