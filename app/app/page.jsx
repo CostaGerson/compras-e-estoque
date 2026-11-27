@@ -3292,10 +3292,10 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
             {vis("fornecedor") && <td className="px-3 py-2" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub, minWidth: 110 }}>
               {a.fornecedor ? (a.fornecedor.nome || "⚠ definir nome") : "—"}
             </td>}
-            {vis("cor") && <td className="px-3 py-2 whitespace-nowrap" style={{ color: C.sub }}><span className="flex items-center gap-1"><Bolinha cor={a.cor} /> <span className="min-w-0">{a.cor || "—"}</span></span></td>}
+            {vis("cor") && <td className="px-3 py-2" style={{ color: C.sub, minWidth: 110 }}><span className="flex items-center gap-1"><Bolinha cor={a.cor} /> <span className="min-w-0">{a.cor || "—"}</span></span></td>}
             {vis("codigo") && <td className="px-3 py-2 whitespace-nowrap tabular-nums" style={{ color: C.sub }}>{a.codigo || "—"}</td>}
             {modoEstoque && vis("saldo") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: abaixoMin(a) ? "#E5484D" : C.sub, fontWeight: abaixoMin(a) ? 700 : 400 }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}</td>}
-            {vis("composicao") && <td className="px-3 py-2 whitespace-nowrap" style={{ color: C.sub }} title={[a.composicao, a.largura && `${a.largura} m`, gramRend(a) !== "—" && gramRend(a)].filter(Boolean).join(" · ")}>{linhaTecnica(a)}</td>}
+            {vis("composicao") && <td className="px-3 py-2 whitespace-nowrap" style={{ color: C.sub, textTransform: "none", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis" }} title={[a.composicao, a.largura && `${a.largura} m`, gramRend(a) !== "—" && gramRend(a)].filter(Boolean).join(" · ")}>{linhaTecnica(a)}</td>}
             {modoEstoque && vis("movimento") && <td className="px-3 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></td>}
             {modoEstoque && master && vis("preco") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</td>}
             {modoEstoque && master && vis("valor") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: C.text, fontWeight: 600 }}>{a.valorUnitario && a.quantidade != null ? money(Number(a.valorUnitario) * Number(a.quantidade)) : "—"}</td>}
@@ -3523,8 +3523,8 @@ function ultimaCompraResto(a) {
   return partes.join(" · ");
 }
 // v1160 — composição abreviada (siglas usuais da indústria têxtil) para caber numa linha
-const SIGLAS_FIBRA = [[/POLI[EÉ]STER/g, "PES"], [/ALGOD[AÃ]O/g, "CO"], [/VISCOSE/g, "CV"], [/RAIOM|RAYON/g, "CV"], [/ELASTOMULTI[EÉ]STER/g, "EME"], [/ELASTANO|SPANDEX|LYCRA/g, "EL"],
-  [/POLIAMIDA|NYLON|N[AÁ]ILON/g, "PA"], [/ACR[IÍ]LICO/g, "PAC"], [/POLIPROPILENO/g, "PP"], [/ACETATO/g, "CA"], [/LYOCELL|TENCEL/g, "CLY"], [/MODAL/g, "CMD"],
+const SIGLAS_FIBRA = [[/(PARA|META)[\s-]*ARAMIDA/g, "AR"], [/MODACR[IÍ]LIC[AO]/g, "MAC"], [/FIBRA DE CARBONO|CARBONO/g, "CF"], [/POLI[EÉ]STER/g, "PES"], [/ALGOD[AÃ]O/g, "CO"], [/VISCOSE/g, "CV"], [/RAIOM|RAYON/g, "CV"], [/ELASTOMULTI[EÉ]STER/g, "EME"], [/ELASTANO|SPANDEX|LYCRA/g, "EL"],
+  [/POLIAMIDA|NYLON|N[AÁ]ILON/g, "PA"], [/ACR[IÍ]LIC[AO]/g, "PAC"], [/POLIPROPILENO/g, "PP"], [/ACETATO/g, "CA"], [/LYOCELL|TENCEL/g, "CLY"], [/MODAL/g, "CMD"],
   [/LINHO/g, "LI"], [/(^|\s)L[AÃ](?=\s|$)/g, "$1WO"], [/SEDA/g, "SE"], [/BAMBU/g, "BAM"], [/ARAMIDA/g, "AR"]];
 function compAbrev(c) {
   let t = String(c || "").toUpperCase();
