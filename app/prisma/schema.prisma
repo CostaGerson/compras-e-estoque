@@ -270,6 +270,7 @@ model EstoqueVolume {
   unidadesPacote Int?    // v1152 — unidade PCT: unidades dentro do pacote
   pesoKg        Decimal? @db.Decimal(14, 3)   // v1152 — tecido plano pesado no inventário (metragem calculada)
   gramatura     Decimal? @db.Decimal(10, 2)   // v1152 — g/m² usada no cálculo
+  obs           String?  // v1172 — OBS da entrada (sai na etiqueta)
   entradaEm     DateTime @default(now())
   criadoPorNome String?
   createdAt     DateTime @default(now())
@@ -331,6 +332,10 @@ model Artigo {
   origem        String?         // v404 — "FPP" quando o artigo nasceu do detalhe de uma FPP · v1152 "MANUAL" (entrada manual)
   tipoEstoque   String?         // v1152 — tipo da etiqueta: MALHA, TECIDO, AVIAMENTO, INSUMOS SILK/SUBLIMAÇÃO/DTF/BORDADO
   tipoTecido    String?         // v1152 — tecido plano: BRIM LEVE, OXFORD, … (gramatura padrão) ou OUTROS
+  tamanho        Decimal?       @db.Decimal(12, 3)   // v1172 — aviamento: tamanho (ex.: zíper 20 cm)
+  tamanhoUnidade String?        // v1172 — M, CM ou texto livre
+  tipoZiper      String?        // v1172 — zíper: FIXO ou DESTACÁVEL
+  obs            String?        // v1172 — observação do artigo
   origemFppId   Int?            // v404 — FPP que criou o cadastro
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt

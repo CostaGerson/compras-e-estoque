@@ -5,6 +5,14 @@ import { nomePadrao, chaveNome } from "@/lib/artigoPadrao";
 
 export const TIPOS_ESTOQUE = ["MALHA", "TECIDO", "AVIAMENTO", "INSUMOS SILK", "INSUMOS SUBLIMAÇÃO", "INSUMOS DTF", "INSUMOS BORDADO", "PEÇAS PRONTAS", "OUTROS"];   // v1153 — + OUTROS · v1156 — + PEÇAS PRONTAS
 export const TIPOS_TECIDO = ["BRIM LEVE", "BRIM PESADO", "BRIM MISTO LEVE", "BRIM MISTO PESADO", "BRIM NÃO IDENTIFICADO", "RIPSTOP", "OXFORD", "GABARDINE", "TACTEL", "CAMISARIA", "NYLON PARAQUEDAS", "NYLON IMPERMEÁVEL", "TACTEL REPELENTE À ÁGUA", "TWO WAY", "MATELASSÊ", "BEMBER", "AMERICANO CRU", "ECOBAG", "JEANS", "OUTROS"];
+// v1172 — nomes pré-cadastrados (OUTROS = digitar o nome)
+export const NOMES_MALHA = ["PV", "PA", "PP", "DRY FIT", "HELANCA LISA", "HELANCA FLANELADA", "SUEDINE", "MOLETOM 2CB", "MOLETOM 3CB", "MOLETOM 4CB", "PIQUET PA", "PIQUET PV", "ALGODÃO PENTEADO 30.1", "ALGODÃO CARDADO", "OUTROS"];
+export const NOMES_AVIAMENTO = ["GOLA P.A", "GOLA POLIESTER LISA", "GOLA POLIESTER PERSONALIZADA", "GOLA POLIAMIDA PERSONALIZADA", "GOLA POLIAMIDA LISA", "PUNHO PV", "PUNHO POLIESTER", "PUNHO P.A",
+  "ZIPER NYLON", "ZIPER TRATORADO", "ZIPER INVISIVEL", "ZIPER METALICO", "BOTÃO FLEXIVEL CALÇA", "BOTAO MASSA 18MM", "BOTAO MASSA 24MM", "BOTAO MASSA 26MM", "BOTAO MASSA 32MM",
+  "BOTAO PRESSAO /80", "BOTÃO PRESSÃO /100", "ELASTICO LISO", "ELASTICO COM CORDAO", "OUTROS"];
+export const TIPOS_ZIPER = ["FIXO", "DESTACÁVEL"];
+export const UNIDADES_TAMANHO = [["M", "Metros"], ["CM", "Centímetros"], ["OUTRO", "Outro"]];
+export const ehZiper = (nome) => /^Z[IÍ]PER\b/i.test(String(nome || "").trim());
 export const UNIDADES_MANUAL = [["KG", "Quilo (kg)"], ["M", "Metro"], ["L", "Litro"], ["CONE", "Cone"], ["UN", "Unidade"], ["PCT", "Pacote"]];
 export const ORIGENS = ["ESTOQUE PRÉVIO MERIDIAN", "W3"];
 const K_GRAM = "ESTQ|GRAMATURAS";
@@ -47,6 +55,18 @@ export async function entradaManual(b, quem) {
   const largura = num(b.largura);   // metros
   const construcao = tipo === "MALHA" ? (["TUBULAR", "RAMADA"].includes(b.construcao) ? b.construcao : null) : null;
   if (tipo === "MALHA" && !construcao) return { error: "Malha: escolha a construção (tubular ou ramada)." };
+  // v1172 — aviamento: tamanho + unidade (M, CM ou outra) · zíper: fixo ou destacável · OBS em todos
+  const aviam = tipo === "AVIAMENTO";
+  const tamanho = aviam ? num(b.tamanho) : null;
+  let tamanhoUnidade = null;
+  if (tamanho != null) {
+    if (!(tamanho > 0)) return { error: "Tamanho inválido." };
+    tamanhoUnidade = b.tamanhoUnidade === "OUTRO" ? up(b.tamanhoUnidadeOutro) : ["M", "CM"].includes(b.tamanhoUnidade) ? b.tamanhoUnidade : null;
+    if (!tamanhoUnidade) return { error: "Escolha a unidade do tamanho (metros, centímetros ou outra)." };
+  }
+  const tipoZiper = aviam && ehZiper(nome) ? (TIPOS_ZIPER.includes(b.tipoZiper) ? b.tipoZiper : null) : null;
+  if (aviam && ehZiper(nome) && !tipoZiper) return { error: "Zíper: escolha fixo ou destacável." };
+  const obs = up(b.obs) ? String(b.obs).trim().toLocaleUpperCase("pt-BR").slice(0, 200) : null;
   const origem = up(b.origem);
   if (!origem) return { error: "Informe a origem (estoque prévio Meridian, W3 ou outra)." };
   let unidade = UNIDADES_MANUAL.some((u) => u[0] === b.unidade) ? b.unidade : null;
@@ -74,21 +94,23 @@ export async function entradaManual(b, quem) {
   // mesmo artigo (nome normalizado, fornecedor, cor, unidade): soma; senão cria no padrão
   const kn = chaveNome(nomeStd);
   const cands = await prisma.artigo.findMany({ where: { ativo: true, categoria, fornecedorId, unidade } });
-  let art = cands.find((a) => chaveNome(a.nome) === kn && chaveNome(a.cor) === chaveNome(cor) && (!codigo || !a.codigo || chaveNome(a.codigo) === chaveNome(codigo)));
+  let art = cands.find((a) => chaveNome(a.nome) === kn && chaveNome(a.cor) === chaveNome(cor) && (!codigo || !a.codigo || chaveNome(a.codigo) === chaveNome(codigo))
+    && (!aviam || ((a.tipoZiper || null) === tipoZiper && Number(a.tamanho || 0) === Number(tamanho || 0) && (a.tamanhoUnidade || null) === tamanhoUnidade)));   // v1172 — tamanho/zíper diferentes = outro artigo
   const somado = !!art;
   if (art) {
     art = await prisma.artigo.update({ where: { id: art.id }, data: { quantidade: r3(Number(art.quantidade || 0) + quantidade),
       ...(!art.codigo && codigo ? { codigo } : {}), ...(!art.largura && largura ? { largura } : {}), ...(!art.tipoEstoque ? { tipoEstoque: tipo } : {}), ...(tecido && !art.tipoTecido ? { tipoTecido } : {}),
-      ...(gramatura && !art.gramatura ? { gramatura } : {}), ...(construcao && !art.tipoMalha ? { tipoMalha: construcao } : {}) } });
+      ...(gramatura && !art.gramatura ? { gramatura } : {}), ...(construcao && !art.tipoMalha ? { tipoMalha: construcao } : {}), ...(obs && !art.obs ? { obs } : {}) } });
   } else {
     art = await prisma.artigo.create({ data: { categoria, fornecedorId, nome: nomeStd, artigoInterno: nomeStd, cor, codigo, largura, unidade, quantidade,
-      tipoMalha: construcao, gramatura: gramatura || num(b.gramatura), tipoEstoque: tipo, tipoTecido, origem: "MANUAL", criadoPorId: Number(b.usuarioId) || null } });
+      tipoMalha: construcao, gramatura: gramatura || num(b.gramatura), tipoEstoque: tipo, tipoTecido, tamanho, tamanhoUnidade, tipoZiper, obs, origem: "MANUAL", criadoPorId: Number(b.usuarioId) || null } });
   }
   await prisma.estoqueMovimentacao.create({ data: { artigoId: art.id, tipo: "ENTRADA", quantidade, usuarioId: Number(b.usuarioId) || null,
-    observacao: `Entrada manual · origem ${origem}${pesoKg ? ` · ${pesoKg} kg × ${gramatura} g/m² × ${largura} m` : ""}${unidadesPacote ? ` · ${unidadesPacote} un/pacote` : ""}`.slice(0, 300) } });
-  const vol = await prisma.estoqueVolume.create({ data: { artigoId: art.id, quantidade, unidade, origem, unidadesPacote, pesoKg, gramatura, entradaEm: new Date(), criadoPorNome: quem || null } });
+    observacao: `Entrada manual · origem ${origem}${pesoKg ? ` · ${pesoKg} kg × ${gramatura} g/m² × ${largura} m` : ""}${unidadesPacote ? ` · ${unidadesPacote} un/pacote` : ""}${obs ? ` · OBS ${obs}` : ""}`.slice(0, 300) } });
+  const vol = await prisma.estoqueVolume.create({ data: { artigoId: art.id, quantidade, unidade, origem, unidadesPacote, pesoKg, gramatura, obs, entradaEm: new Date(), criadoPorNome: quem || null } });
   try { const { checarEstoqueMinimo } = await import("@/lib/estoqueMinimo"); await checarEstoqueMinimo(prisma, art.id, Number(b.usuarioId) || null).catch(() => null); } catch {}
   return { ok: true, artigoId: art.id, somado,
     etiqueta: { codigo: `VOL${String(vol.id).padStart(7, "0")}`, tipo: tecido ? `TECIDO · ${tipoTecido}` : tipo, artigo: art.artigoInterno || art.nome, cor: art.cor, codigoArtigo: art.codigo,
-      fornecedor: forn.nomeFantasia || forn.nome, largura: art.largura != null ? Number(art.largura) : largura, construcao, quantidade, unidade, unidadesPacote, pesoKg, gramatura, origem, entrada: vol.entradaEm } };
+      fornecedor: forn.nomeFantasia || forn.nome, largura: art.largura != null ? Number(art.largura) : largura, construcao, quantidade, unidade, unidadesPacote, pesoKg, gramatura, origem, entrada: vol.entradaEm,
+      tamanho: tamanho != null ? `${String(tamanho).replace(".", ",")} ${tamanhoUnidade}` : null, tipoZiper, obs } };
 }

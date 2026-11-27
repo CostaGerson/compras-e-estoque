@@ -49,9 +49,12 @@ export function htmlEtiquetas(etiquetas, { tamanho = TAMANHO_PADRAO, autoPrint =
       ${linha(p ? "FORN." : "FORNECEDOR", e.fornecedor)}
       ${linha(p ? "LARG." : "LARGURA", larg)}
       ${linha(p ? "CONSTR." : "CONSTRUÇÃO", e.construcao)}
+      ${linha(p ? "TAM." : "TAMANHO", e.tamanho)}
+      ${linha("ZÍPER", e.tipoZiper)}
       ${linha(p ? "QTD" : "QUANTIDADE", qt, "qtd")}
       ${linha("ORIGEM", e.origem)}
       ${p ? "" : linha("ENTRADA", dBR(e.entrada))}
+      ${linha("OBS", e.obs, "obs")}
     </table></div>
     <div class="bar">${barrasSvg(e.codigo)}</div><div class="cod">${esc(e.codigo)}</div>
   </div>`;
@@ -72,6 +75,7 @@ export function htmlEtiquetas(etiquetas, { tamanho = TAMANHO_PADRAO, autoPrint =
     th { width: ${p ? "13mm" : "28mm"}; font-size: ${p ? 6.5 : 8.5}pt; font-weight: 900; background: #fff; }
     td { font-size: ${p ? 7.5 : 11}pt; font-weight: 700; }
     tr.art td { font-size: ${p ? 8.5 : 13}pt; font-weight: 900; white-space: normal; line-height: 1.05; }
+    tr.obs td { font-size: ${p ? 6.5 : 9}pt; white-space: normal; line-height: 1.05; }
     tr.qtd td { font-size: ${p ? 10 : 17}pt; font-weight: 900; }
     .bar { flex: 0 0 ${p ? 9 : 13}mm; margin-top: ${p ? 0.8 : 1.5}mm; }
     .cod { text-align: center; font-family: Arial, Helvetica, sans-serif; font-weight: 700; font-size: ${p ? 7 : 10}pt; letter-spacing: 1px; }

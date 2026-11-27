@@ -1,4 +1,5 @@
 "use client";
+// v1172 — nomes pré-cadastrados de malha/aviamento, tamanho e zíper (aviamento), OBS
 // v1152 — entrada manual de estoque (inventário): card central com os dados da etiqueta padrão,
 // confirmação, entrada no estoque e impressão da etiqueta Zebra (10 × 8,5 cm pré-selecionada ou 5 × 5 cm).
 // Tecido plano é pesado: a metragem sai do peso, da largura e da gramatura padrão do tipo de tecido.
@@ -111,7 +112,8 @@ export default function EntradaManualEstoque({ user, onClose }) {
   const [cfg, setCfg] = useState(null);
   const [forns, setForns] = useState([]);
   const [nomes, setNomes] = useState([]);
-  const [f, setF] = useState({ tipo: "", tipoTecido: "", nome: "", cor: "", codigo: "", fornecedorId: null, largura: "", construcao: "", pesoKg: "", gramatura: "", quantidade: "", unidade: "", unidadesPacote: "", origem: "" });
+  const [f, setF] = useState({ tipo: "", tipoTecido: "", nome: "", cor: "", codigo: "", fornecedorId: null, largura: "", construcao: "", pesoKg: "", gramatura: "", quantidade: "", unidade: "", unidadesPacote: "", origem: "",
+    nomeLista: "", tamanho: "", tamanhoUnidade: "", tamanhoUnidadeOutro: "", tipoZiper: "", obs: "" });   // v1172
   const [salvando, setSalvando] = useState(false);
   const [etq, setEtq] = useState(null);   // etiqueta pronta → tela de impressão
   const [tam, setTam] = useState(TAMANHO_PADRAO);
@@ -130,6 +132,9 @@ export default function EntradaManualEstoque({ user, onClose }) {
   const gramPadrao = tecido && f.tipoTecido && f.tipoTecido !== "OUTROS" ? cfg?.gramaturas?.[f.tipoTecido] : null;
   const gramUsada = num(f.gramatura) || gramPadrao || null;
   const metros = tecido && num(f.pesoKg) > 0 && gramUsada > 0 && num(f.largura) > 0 ? (num(f.pesoKg) * 1000) / (gramUsada * num(f.largura)) : null;
+  const aviam = f.tipo === "AVIAMENTO";
+  const listaNomes = malha ? cfg?.nomesMalha : aviam ? cfg?.nomesAviamento : null;   // v1172 — nomes pré-cadastrados
+  const ziper = aviam && /^Z[IÍ]PER\b/i.test(f.nome.trim());
   const catNome = malha ? "MALHA" : tecido ? "TECIDO" : f.tipo === "AVIAMENTO" ? "AVIAMENTO" : "OUTROS";
   const sugNomes = useMemo(() => [...new Set(nomes.filter((n) => n.cat === catNome).map((n) => n.nome).filter(Boolean))].slice(0, 300), [nomes, catNome]);
 
@@ -137,7 +142,10 @@ export default function EntradaManualEstoque({ user, onClose }) {
     const l = [];
     if (!f.tipo) l.push("tipo");
     if (tecido && !f.tipoTecido) l.push("nome do tecido");
+    if (listaNomes && !f.nomeLista) l.push("nome");
     if (!f.nome.trim()) l.push("nome do artigo");
+    if (ziper && !f.tipoZiper) l.push("zíper fixo ou destacável");
+    if (aviam && f.tamanho.trim()) { if (!(num(f.tamanho) > 0)) l.push("tamanho válido"); if (!f.tamanhoUnidade || (f.tamanhoUnidade === "OUTRO" && !f.tamanhoUnidadeOutro.trim())) l.push("unidade do tamanho"); }
     if (!f.cor.trim()) l.push("cor");
     if (!f.fornecedorId) l.push("fornecedor (escolha na lista)");
     if ((malha || tecido) && !(num(f.largura) > 0)) l.push("largura");
@@ -151,7 +159,7 @@ export default function EntradaManualEstoque({ user, onClose }) {
     const l = faltas();
     if (l.length) return alerta(`Falta preencher: ${l.join(", ")}.`);
     const qtdTxt = tecido ? `${nBR(metros, 2)} m (${nBR(num(f.pesoKg), 3)} kg × ${nBR(gramUsada, 0)} g/m² × ${nBR(num(f.largura), 2)} m)` : `${f.quantidade} ${f.unidade}${f.unidade === "PCT" ? ` de ${f.unidadesPacote} un` : ""}`;
-    if (!(await confirmar(`Deseja de fato inserir no estoque?\n\n${f.nome.toUpperCase()} · ${f.cor.toUpperCase()}\n${qtdTxt}\nOrigem: ${f.origem.toUpperCase()}`, { titulo: "Entrada no estoque" }))) return;
+    if (!(await confirmar(`Deseja de fato inserir no estoque?\n\n${f.nome.toUpperCase()}${ziper ? ` ${f.tipoZiper}` : ""}${aviam && f.tamanho.trim() ? ` · ${f.tamanho} ${f.tamanhoUnidade === "OUTRO" ? f.tamanhoUnidadeOutro.toUpperCase() : f.tamanhoUnidade}` : ""} · ${f.cor.toUpperCase()}\n${qtdTxt}${f.obs.trim() ? `\nOBS: ${f.obs.toUpperCase()}` : ""}\nOrigem: ${f.origem.toUpperCase()}`, { titulo: "Entrada no estoque" }))) return;
     setSalvando(true);
     const r = await fetch("/api/estoque/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "entrar", ...f, gramatura: tecido ? gramUsada : f.gramatura }) });
     const x = await r.json().catch(() => ({})); setSalvando(false);
@@ -191,7 +199,8 @@ export default function EntradaManualEstoque({ user, onClose }) {
         ) : (
           <div className="p-5 overflow-auto">
             <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(2, minmax(0,1fr))" }}>
-              <Campo t="Tipo" obrig larg><Opcoes ops={cfg.tipos.map((t) => [t, t])} valor={f.tipo} onChange={(v) => setF((o) => ({ ...o, tipo: v, tipoTecido: v === "TECIDO" ? o.tipoTecido : "", nome: v === "TECIDO" && o.tipoTecido && o.tipoTecido !== "OUTROS" ? o.tipoTecido : o.tipo === "TECIDO" ? "" : o.nome, construcao: v === "MALHA" ? o.construcao : "" }))} /></Campo>
+              <Campo t="Tipo" obrig larg><Opcoes ops={cfg.tipos.map((t) => [t, t])} valor={f.tipo} onChange={(v) => setF((o) => ({ ...o, tipo: v, tipoTecido: v === "TECIDO" ? o.tipoTecido : "", nome: v === "TECIDO" && o.tipoTecido && o.tipoTecido !== "OUTROS" ? o.tipoTecido : o.tipo === "TECIDO" ? "" : o.nome, construcao: v === "MALHA" ? o.construcao : "",
+                ...(v !== o.tipo && (["MALHA", "AVIAMENTO"].includes(v) || ["MALHA", "AVIAMENTO"].includes(o.tipo)) ? { nome: "", nomeLista: "", tipoZiper: "" } : {}), ...(v !== "AVIAMENTO" ? { tamanho: "", tamanhoUnidade: "", tamanhoUnidadeOutro: "", tipoZiper: "" } : {}) }))} /></Campo>
               {/* v1158 — tecido: o NOME é um dos tipos cadastrados (substitui o campo nome) */}
               {tecido && <Campo t="Nome" obrig larg>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -201,8 +210,22 @@ export default function EntradaManualEstoque({ user, onClose }) {
                   <button type="button" onClick={() => setEditGram(true)} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Settings2 size={13} /> gramaturas padrão</button>
                 </div>
               </Campo>}
-              {(!tecido || f.tipoTecido === "OUTROS") && <Campo t={tecido ? "Nome (outro tecido)" : "Nome"} obrig larg>
+              {/* v1172 — malha e aviamento: nomes pré-cadastrados (OUTROS = digitar) */}
+              {listaNomes && <Campo t="Nome" obrig larg>
+                <select value={f.nomeLista} onChange={(e) => { const t = e.target.value; setF((o) => ({ ...o, nomeLista: t, nome: t && t !== "OUTROS" ? t : "", tipoZiper: "" })); }} className="px-2 rounded-lg text-sm" style={{ ...iS, height: 36, minWidth: 260 }}>
+                  <option value="">Escolha…</option>{listaNomes.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </Campo>}
+              {((!tecido && !listaNomes) || (tecido && f.tipoTecido === "OUTROS") || (listaNomes && f.nomeLista === "OUTROS")) && <Campo t={tecido ? "Nome (outro tecido)" : listaNomes ? "Nome (outro)" : "Nome"} obrig larg>
                 <InpSugest value={f.nome} onChange={(v) => s("nome", v)} opcoes={sugNomes} placeholder="só o artigo: fornecedor e cor vão nos campos próprios" />
+              </Campo>}
+              {ziper && <Campo t="Zíper" obrig larg><Opcoes ops={(cfg.tiposZiper || ["FIXO", "DESTACÁVEL"]).map((t) => [t, t === "FIXO" ? "Fixo" : "Destacável"])} valor={f.tipoZiper} onChange={(v) => s("tipoZiper", v)} /></Campo>}
+              {aviam && <Campo t="Tamanho" larg>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div style={{ width: 110 }}><Inp value={f.tamanho} onChange={(e) => s("tamanho", e.target.value)} inputMode="decimal" placeholder="ex.: 20" /></div>
+                  <Opcoes ops={cfg.unidadesTamanho || [["M", "Metros"], ["CM", "Centímetros"], ["OUTRO", "Outro"]]} valor={f.tamanhoUnidade} onChange={(v) => s("tamanhoUnidade", v)} />
+                  {f.tamanhoUnidade === "OUTRO" && <div style={{ width: 120 }}><Inp value={f.tamanhoUnidadeOutro} onChange={(e) => s("tamanhoUnidadeOutro", e.target.value.toUpperCase())} placeholder="unidade" /></div>}
+                </div>
               </Campo>}
               <Campo t="Cor" obrig><Inp value={f.cor} onChange={(e) => s("cor", e.target.value.toUpperCase())} /></Campo>
               <Campo t="Código"><Inp value={f.codigo} onChange={(e) => s("codigo", e.target.value.toUpperCase())} /></Campo>
@@ -228,6 +251,7 @@ export default function EntradaManualEstoque({ user, onClose }) {
                 <Campo t="Unidade de medida" obrig><Opcoes ops={cfg.unidades} valor={f.unidade} onChange={(v) => s("unidade", v)} /></Campo>
                 {f.unidade === "PCT" && <Campo t="Unidades dentro do pacote" obrig><Inp value={f.unidadesPacote} onChange={(e) => s("unidadesPacote", e.target.value)} inputMode="numeric" /></Campo>}
               </>}
+              <Campo t="OBS" larg><Inp value={f.obs} onChange={(e) => s("obs", e.target.value.toUpperCase())} maxLength={200} placeholder="opcional (sai na etiqueta)" /></Campo>
               <Campo t="Origem" obrig larg>
                 <InpSugest value={f.origem} onChange={(v) => s("origem", v)} opcoes={cfg.origens} placeholder="escolha ou escreva" />
               </Campo>
