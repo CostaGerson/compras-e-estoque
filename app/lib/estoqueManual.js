@@ -24,7 +24,11 @@ const up = (s) => String(s || "").trim().toLocaleUpperCase("pt-BR") || null;
 //   brim leve 200 · pesado 235 (médias dos catálogos: 200 e 255) · não identificado = média dos dois · mistos iguais · ripstop 230
 export const GRAMATURAS_INICIAIS = { "BRIM LEVE": 200, "BRIM PESADO": 235, "BRIM MISTO LEVE": 200, "BRIM MISTO PESADO": 235, "BRIM NÃO IDENTIFICADO": 217.5, "RIPSTOP": 230,
   // v1164 — médias das cartelas (Doptel/Andes, Expansione, Santista, Doptex), confirmadas pelo Igor
-  "TACTEL": 110, "CAMISARIA": 130, "JEANS": 365, "ECOBAG": 189, "OXFORD": 155, "TACTEL REPELENTE À ÁGUA": 155 };
+  "TACTEL": 110, "CAMISARIA": 130, "JEANS": 365, "ECOBAG": 189, "OXFORD": 155, "TACTEL REPELENTE À ÁGUA": 155,
+  // v1186 — pelo Catálogo Meridian (cartelas de 27/11/2026): Gabardine Paris (ACR) 170 · Nylon paraquedas (Jetfio) 127 ·
+  //   impermeável = média de Tecnology WR 64, Roma Austri 136 e Techno reversível WR 140 · Two Way (ACR 240, ADAR 210 e 230) ·
+  //   Matelassê nylon (Jetfio) 154 · Americano cru = tecido cru 100% algodão (Expansione) 80 · Bember: sem referência no catálogo
+  "GABARDINE": 170, "NYLON PARAQUEDAS": 127, "NYLON IMPERMEÁVEL": 113, "TWO WAY": 227, "MATELASSÊ": 154, "AMERICANO CRU": 80 };
 export async function gramaturasPadrao() {
   const c = await prisma.finConfig.findUnique({ where: { chave: K_GRAM } }).catch(() => null);
   let salvo = {}; try { salvo = JSON.parse(c?.valor || "{}"); } catch {}
@@ -147,4 +151,16 @@ export async function novaEtiquetaArtigo(b, quem) {
   const obs = up(b.obs) ? String(b.obs).trim().toLocaleUpperCase("pt-BR").slice(0, 200) : null;
   const v = await prisma.estoqueVolume.create({ data: { artigoId: a.id, quantidade, unidade: a.unidade, origem: up(b.origem) || "ESTOQUE", obs, entradaEm: new Date(), criadoPorNome: quem || null } });
   return { ok: true, etiqueta: await etiquetaDoVolume(v, a) };
+}
+
+// v1186 — excluir um artigo do estoque: zera o saldo com uma movimentação de AJUSTE (fica no histórico);
+//   o cadastro continua em Artigos registrados
+export async function excluirDoEstoque(artigoId, quem, usuarioId) {
+  const a = await prisma.artigo.findUnique({ where: { id: Number(artigoId) }, select: { id: true, nome: true, cor: true, quantidade: true, unidade: true } });
+  if (!a) return { error: "Artigo não encontrado." };
+  const q = r3(Number(a.quantidade || 0));
+  if (q) await prisma.estoqueMovimentacao.create({ data: { artigoId: a.id, tipo: "AJUSTE", quantidade: -q, usuarioId: Number(usuarioId) || null,
+    observacao: `EXCLUÍDO DO ESTOQUE (saldo ${q} ${a.unidade} zerado)${quem ? ` por ${quem}` : ""}`.slice(0, 300) } });
+  await prisma.artigo.update({ where: { id: a.id }, data: { quantidade: 0, abaixoMinimoAvisado: false } });
+  return { ok: true, texto: `${a.nome}${a.cor ? ` · ${a.cor}` : ""} excluído do estoque (${q} ${a.unidade} zerado).` };
 }

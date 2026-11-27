@@ -3113,6 +3113,14 @@ function ArtigosPane(props) {   // v625 — abas Artigos | Artigos internos
   );
 }
 function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEstoque }) {
+  const excluirDoEstoque = async (a) => {   // v1186
+    const q = `${Number(a.quantidade || 0).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} ${a.unidade || ""}`.trim();
+    if (!(await confirmar(`Excluir ${a.nome}${a.cor ? ` · ${a.cor}` : ""} do estoque?\n\nO saldo de ${q} é zerado (fica registrado como ajuste no histórico). O cadastro continua em Artigos registrados.`, { titulo: "Excluir do estoque" }))) return;
+    const r = await fetch("/api/estoque/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: sessaoId(), acao: "excluir", artigoId: a.id }) });
+    const x = await r.json().catch(() => ({}));
+    if (!r.ok || x.error) return alerta(x.error || "Não foi possível excluir do estoque.");
+    onSaved();
+  };
   const [novo, setNovo] = useState(false);
   const [editando, setEditando] = useState(null);
   const [verMov, setVerMov] = useState(null);
@@ -3284,6 +3292,7 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
               {modoEstoque && master && Th({ k: "preco", label: "Preço", campoKey: "preco", dir: "right" })}
               {modoEstoque && master && Th({ k: "valor", label: "Valor total", campoKey: "valor", dir: "right" })}
               {!modoEstoque && Th({ k: "ultima", label: "Última compra", campoKey: "dataCompra" })}
+              {modoEstoque && <th className="px-2 py-2" />}
             </tr>
           </thead>
           <tbody>
@@ -3317,6 +3326,9 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
                 ) : "—"}
               </td>
             )}
+            {/* v1186 — excluir do estoque (zera o saldo; o cadastro continua em Artigos registrados) */}
+            {modoEstoque && <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+              <button title="Excluir do estoque" onClick={() => excluirDoEstoque(a)} style={{ color: C.sub }}><Trash2 size={14} /></button></td>}
           </tr>
         ))}
           </tbody>
