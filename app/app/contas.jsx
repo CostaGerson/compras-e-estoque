@@ -2733,6 +2733,8 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
                   <td className="px-2 py-1.5">
                     <div className="font-semibold">{it.nome}{it.pago && <span className="ml-1 px-1.5 rounded text-[10px] font-bold" style={{ background: C.greenSoft, color: C.green }}>PAGO {dBR(String(it.dataPagamento).slice(0, 10))}</span>}</div>
                     <div style={{ color: C.sub }}>{it.grupoNome || rotGrupo(d, it.grupo)} · PIX <b style={{ color: C.text }}>{it.chavePix}</b></div>
+                    {/* v1179 — no celular o valor fica junto do botão de copiar o PIX (a coluna Valor fica fora da tela) */}
+                    <div className="md:hidden mt-1 text-sm font-bold tabular-nums" style={{ color: C.text }}>Valor: {moeda(it.valor)}</div>
                     {!it.pago && it.chavePix && <div className="mt-1"><BotaoPix chave={it.chavePix} grande /></div>}   {/* v930 */}
                   </td>
                   <td className="px-2 py-1.5">{it.setorNome}</td>
