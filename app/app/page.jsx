@@ -4324,7 +4324,10 @@ function FornecedorFullModal({ fornecedor, onClose, onSaved }) {
     logradouro: v(fornecedor.logradouro), numero: v(fornecedor.numero), complemento: v(fornecedor.complemento),
     bairro: v(fornecedor.bairro), municipio: v(fornecedor.municipio), uf: v(fornecedor.uf), cep: v(fornecedor.cep),
     preposto: v(fornecedor.preposto), telefones: v(fornecedor.telefones), emailNf: v(fornecedor.emailNf), obs: v(fornecedor.obs), chavePix: v(fornecedor.chavePix),
+    grupoNome: v(fornecedor.grupo?.nome),   // v1157
   });
+  const [grupos, setGrupos] = useState([]);   // v1157 — grupos já criados (sugestão)
+  useEffect(() => { fetch("/api/fornecedores").then((r) => r.json()).then((l) => setGrupos([...new Set((Array.isArray(l) ? l : []).map((x) => x.grupo?.nome).filter(Boolean))].sort())).catch(() => {}); }, []);
   const [cnpjs, setCnpjs] = useState(fornecedor.cnpjs?.length ? fornecedor.cnpjs.map((c) => ({ cnpj: c.cnpj, razaoSocial: c.razaoSocial || "" })) : [{ cnpj: "", razaoSocial: "" }]);
   const set = (k, val) => setF((s) => ({ ...s, [k]: val }));
   const setC = (i, campo, val) => setCnpjs((cs) => cs.map((c, j) => (j === i ? { ...c, [campo]: val } : c)));
@@ -4385,6 +4388,12 @@ function FornecedorFullModal({ fornecedor, onClose, onSaved }) {
             <In label="Telefone(s)" value={f.telefones} onChange={(e) => set("telefones", e.target.value)} placeholder="Separe vários por ;" />
             <div className="col-span-2"><In label="E-mail p/ NFs e Boletos" value={f.emailNf} onChange={(e) => set("emailNf", e.target.value)} /></div>
             <div className="col-span-2"><In label="Chave PIX" value={f.chavePix} onChange={(e) => set("chavePix", e.target.value)} placeholder="CNPJ, e-mail, telefone ou aleatória" /></div>
+            {/* v1157 — grupo: NFs de qualquer fornecedor do grupo sugerem artigos das cartelas de todos */}
+            <div className="col-span-2">
+              <In label="Grupo de fornecedores" value={f.grupoNome} onChange={(e) => set("grupoNome", e.target.value.toUpperCase())} placeholder="ex.: SANTANENSE (vários CNPJs/marcas com as mesmas cartelas)" list="grupos-forn" />
+              <datalist id="grupos-forn">{grupos.map((g) => <option key={g} value={g} />)}</datalist>
+              <div className="text-[11px] mt-0.5" style={{ color: C.sub }}>Escolha um grupo existente ou escreva um nome novo. Vazio = sem grupo.</div>
+            </div>
           </div>
 
           <div>

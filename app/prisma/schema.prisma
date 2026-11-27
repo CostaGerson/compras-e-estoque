@@ -168,6 +168,8 @@ model Fornecedor {
   emailNf           String?
   obs               String?
   chavePix          String?   // v698 — lembrada das contas comuns do financeiro
+  grupoId           Int?      // v1157 — grupo de fornecedores (CNPJs/marcas diferentes, mesmas cartelas)
+  grupo             FornecedorGrupo? @relation(fields: [grupoId], references: [id], onDelete: SetNull)
   ativo     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -796,6 +798,14 @@ model Cliente {
 }
 
 // v647 — grupo de clientes: nome e, se tiver, CNPJ próprio (ex.: holding)
+// v1157 — grupo de fornecedores: NF de qualquer fornecedor do grupo sugere artigos das cartelas de todos
+model FornecedorGrupo {
+  id           Int          @id @default(autoincrement())
+  nome         String       @unique
+  createdAt    DateTime     @default(now())
+  fornecedores Fornecedor[]
+}
+
 model ClienteGrupo {
   id            Int       @id @default(autoincrement())
   nome          String

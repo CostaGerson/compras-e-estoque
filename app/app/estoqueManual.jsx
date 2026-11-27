@@ -15,7 +15,7 @@ const nBR = (n, d = 2) => Number(n || 0).toLocaleString("pt-BR", { maximumFracti
 const nomeF = (f) => f.nomeFantasia || f.nome || f.razaoSocial || `#${f.id}`;
 const iS = { background: "#fff", border: `1px solid ${C.line}`, color: C.text };
 
-function Campo({ t, obrig, children, larg }) {
+export function Campo({ t, obrig, children, larg }) {
   return (
     <div style={larg ? { gridColumn: "1 / -1" } : undefined}>
       <div className="text-[11px] font-semibold mb-1" style={{ color: C.sub }}>{t}{obrig && <span style={{ color: C.red }}> *</span>}</div>
@@ -23,8 +23,8 @@ function Campo({ t, obrig, children, larg }) {
     </div>
   );
 }
-const Inp = (p) => <input {...p} className="w-full px-2.5 rounded-lg text-sm outline-none" style={{ ...iS, height: 36, ...(p.style || {}) }} />;
-function Opcoes({ ops, valor, onChange }) {
+export const Inp = (p) => <input {...p} className="w-full px-2.5 rounded-lg text-sm outline-none" style={{ ...iS, height: 36, ...(p.style || {}) }} />;
+export function Opcoes({ ops, valor, onChange }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {ops.map(([k, t]) => (
@@ -36,7 +36,7 @@ function Opcoes({ ops, valor, onChange }) {
 }
 
 // v1154 — sugestões em lista própria (rolável, do tamanho do card) no lugar da lista do navegador
-function InpSugest({ value, onChange, opcoes, placeholder }) {
+export function InpSugest({ value, onChange, opcoes, placeholder }) {
   const [ab, setAb] = useState(false);
   const q = String(value || "").trim().toUpperCase();
   const l = (q ? opcoes.filter((o) => o.toUpperCase().includes(q) && o.toUpperCase() !== q) : opcoes).slice(0, 80);
@@ -52,7 +52,7 @@ function InpSugest({ value, onChange, opcoes, placeholder }) {
   );
 }
 // fornecedor: busca nos cadastrados; parecido com um existente não pode ser cadastrado de novo
-function FornecedorBusca({ forns, valor, onEscolher, onCriado }) {
+export function FornecedorBusca({ forns, valor, onEscolher, onCriado }) {
   const [q, setQ] = useState(""), [ab, setAb] = useState(false), [criando, setCriando] = useState(false);
   const sel = forns.find((f) => f.id === valor);
   const lista = q.trim() ? forns.filter((f) => [f.nome, f.nomeFantasia, f.razaoSocial].filter(Boolean).join(" ").toUpperCase().includes(q.trim().toUpperCase())).slice(0, 12) : forns.slice(0, 12);

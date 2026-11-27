@@ -5,6 +5,13 @@ const soDigitos = (s) => (s || "").replace(/\D/g, "");
 const up = (v) => (v == null || String(v).trim() === "" ? null : String(v).trim().toUpperCase());
 const RICOS = ["razaoSocial", "nomeFantasia", "inscricaoEstadual", "logradouro", "numero", "complemento", "bairro", "municipio", "uf", "cep", "preposto", "telefones", "emailNf", "obs", "chavePix"];
 
+// v1157 — grupo de fornecedores pelo nome (vazio = sem grupo; nome novo cria o grupo)
+async function grupoIdDe(nome) {
+  const n = String(nome || "").trim().toLocaleUpperCase("pt-BR");
+  if (!n) return null;
+  const g = await prisma.fornecedorGrupo.upsert({ where: { nome: n }, create: { nome: n }, update: {} });
+  return g.id;
+}
 function camposRicos(b) {
   const d = {};
   for (const k of RICOS) {
@@ -20,7 +27,7 @@ function camposRicos(b) {
 export async function GET() {
   const fornecedores = await prisma.fornecedor.findMany({
     where: { ativo: true },
-    include: { cnpjs: true, _count: { select: { artigos: true, nfs: true } } },
+    include: { cnpjs: true, grupo: true, _count: { select: { artigos: true, nfs: true } } },
     orderBy: { nome: "asc" },
   });
   return Response.json(fornecedores);
@@ -42,6 +49,7 @@ export async function POST(req) {
         telefone: b.telefone || null,
         email: b.email || null,
         ...camposRicos(b),
+        ...(b.grupoNome !== undefined ? { grupoId: await grupoIdDe(b.grupoNome) } : {}),
         cnpjs: { create: cnpjs },
       },
       include: { cnpjs: true },

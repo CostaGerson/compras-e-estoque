@@ -2,9 +2,9 @@
 // v619 — parametrização da NF de compra: cada item da NF → artigo interno (dados do cadastro) e entrada no estoque.
 // A equivalência (fornecedor + nome na NF → artigo interno) fica salva para as próximas NFs.
 import React, { useEffect, useState } from "react";
-import { Loader2, X, PackageCheck, Link2 } from "lucide-react";
+import { Loader2, X, PackageCheck, Link2, ExternalLink } from "lucide-react";
 import { alerta, confirmar, perguntar } from "./dialogo";
-import { SeletorTipo, ehCategoriaTipo, sugerirTipo, carregarTipos } from "./artigosInternos";   // v625
+import { Campo as MCampo, Inp, Opcoes, InpSugest, FornecedorBusca } from "./estoqueManual";   // v1157 — mesmos campos da entrada manual
 
 const C = { panel: "#FFFFFF", panel2: "#F1F3F5", line: "#E4E7EC", text: "#1F2733", sub: "#667085", accent: "#FF6B1A", accentSoft: "#FFF0E6",
   green: "#12A150", greenSoft: "#E7F6EE", blue: "#2E7CD6", blueSoft: "#EAF2FC", navy: "#001E41", red: "#D92D20" };
@@ -16,100 +16,161 @@ const fmt = (v) => (v == null ? "" : String(v).replace(".", ","));
 
 const Campo = ({ rot, children, cls = "" }) => <label className={`block text-xs ${cls}`} style={{ color: C.sub }}><span className="block mb-1">{rot}</span>{children}</label>;
 
+// v1157 — cada item da NF é vinculado ao artigo interno no MESMO card da entrada manual de estoque, já preenchido
+// com os dados da NF; o catálogo (cartelas do fornecedor e do grupo dele) sugere o artigo e completa largura, gramatura e composição.
+const TIPOS = ["MALHA", "TECIDO", "AVIAMENTO", "INSUMOS SILK", "INSUMOS SUBLIMAÇÃO", "INSUMOS DTF", "INSUMOS BORDADO", "PEÇAS PRONTAS", "OUTROS"];
+const UNS_NF = ["M", "KG", "UN", "PC", "CM", "L", "CONE", "PCT"];
+const catDoTipo = (t) => (t === "MALHA" ? "MALHA" : t === "TECIDO" ? "TECIDO" : t === "AVIAMENTO" ? "AVIAMENTO" : "OUTROS");
+const tipoDaCat = (c) => (c === "MALHA" || c === "TECIDO" || c === "AVIAMENTO" ? c : "");
+const faltasItem = (v) => [!v.tipoEstoque && "tipo", v.tipoEstoque === "TECIDO" && !v.tipoTecido && "tipo do tecido", !String(v.artigoInterno || "").trim() && "nome do artigo",
+  !String(v.cor || "").trim() && "cor", !v.fornecedorId && "fornecedor", !(Number(String(v.quantidade || "").replace(",", ".")) > 0) && "quantidade"].filter(Boolean);
+const linhaCat = (c) => [c.cor, c.codigo && `cód. ${c.codigo}`, c.largura && `${fmt(c.largura)} m`, c.gramatura && `${fmt(c.gramatura)} g/m²`, c.composicao].filter(Boolean).join(" · ");
+
+function CatalogoItem({ user, it, v, onUsar }) {
+  const [q, setQ] = useState(""), [todos, setTodos] = useState(false), [res, setRes] = useState(null), [st, setSt] = useState(false);
+  const buscar = async () => {
+    setSt(true);
+    const x = await fetch(`/api/fiscal/estoque?u=${user.id}&catalogo=1&fornecedorId=${v.fornecedorId || ""}&q=${encodeURIComponent(q || it.xProd)}&cor=${encodeURIComponent(v.cor || "")}${todos ? "&todos=1" : ""}`).then((r) => r.json()).catch(() => ({}));
+    setSt(false); setRes(x.itens || []);
+  };
+  const lista = res || it.catalogo || [];
+  return (
+    <div className="rounded-lg p-3 mb-3" style={{ background: C.blueSoft, border: `1px solid ${C.blue}33` }}>
+      <div className="text-[11px] font-semibold mb-1.5" style={{ color: C.blue }}>Do catálogo {res ? "· resultado da busca" : "· sugestões pelo nome da NF (fornecedor e grupo)"}</div>
+      {lista.length === 0 ? <div className="text-xs" style={{ color: C.sub }}>Nenhum item parecido nas cartelas{todos ? "" : " deste fornecedor/grupo"}.</div>
+        : <div className="space-y-1 overflow-auto" style={{ maxHeight: 170 }}>{lista.map((c) => {
+          const sel = v.artigoId === c.id;
+          return <button key={c.id} type="button" onClick={() => onUsar(c)} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-2"
+            style={{ background: sel ? C.green : "#fff", color: sel ? "#fff" : C.text, border: `1px solid ${sel ? C.green : C.line}` }}>
+            <b className="truncate">{c.nome}</b><span className="truncate flex-1" style={{ opacity: 0.8 }}>{linhaCat(c)}</span>
+            {c.fornecedor && <span className="shrink-0" style={{ opacity: 0.7 }}>{c.fornecedor}</span>}{sel && <span className="shrink-0 font-bold">✓ vinculado</span>}</button>;
+        })}</div>}
+      <div className="flex gap-1.5 mt-2 items-center">
+        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && buscar()} placeholder="buscar outro item do catálogo" className="flex-1 px-2 py-1 rounded-lg text-xs outline-none" style={{ background: "#fff", border: `1px solid ${C.line}` }} />
+        <label className="text-[11px] flex items-center gap-1" style={{ color: C.sub }}><input type="checkbox" checked={todos} onChange={(e) => setTodos(e.target.checked)} /> todos os fornecedores</label>
+        <button type="button" onClick={buscar} disabled={st} className="px-2.5 py-1 rounded-lg text-xs font-semibold" style={{ background: C.blue, color: "#fff" }}>{st ? "…" : "Buscar"}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function ParametrizarNf({ user, id, onFim }) {
   const [d, setD] = useState(null), [erro, setErro] = useState(""), [forns, setForns] = useState([]), [st, setSt] = useState(false), [fim, setFim] = useState(null), [vols, setVols] = useState(false);
+  const [pos, setPos] = useState(0), [cfg, setCfg] = useState(null), [nomes, setNomes] = useState([]);
   useEffect(() => {
     fetch(`/api/fiscal/estoque?u=${user.id}&id=${id}`).then((r) => r.json()).then((x) => { if (x.error) throw new Error(x.error);
-      // v625 — malha/tecido: o artigo interno vira o TIPO (sugerido pelo nome da NF se ainda não for um tipo)
-      carregarTipos().then((tipos) => setD((s) => s && ({ ...s, itens: s.itens.map((it) => ehCategoriaTipo(it.dados.categoria) && !tipos.some((t) => t.categoria === it.dados.categoria && t.nome === it.dados.artigoInterno)
-        ? { ...it, dados: { ...it.dados, artigoInterno: sugerirTipo(it.dados.artigoInterno, it.dados.categoria, tipos) || sugerirTipo(it.xProd, it.dados.categoria, tipos) || it.dados.artigoInterno } } : it) })));
-      setD({ ...x, itens: x.itens.map((it) => ({ ...it, dados: { ...it.dados, quantidade: fmt(it.dados.quantidade), largura: fmt(it.dados.largura), gramatura: fmt(it.dados.gramatura), valorUnitario: fmt(it.dados.valorUnitario) } })) }); })
+      setD({ ...x, itens: x.itens.map((it) => ({ ...it, dados: { ...it.dados, tipoEstoque: it.dados.tipoEstoque || tipoDaCat(it.dados.categoria), tipoTecido: it.dados.tipoTecido || "", tipoMalha: it.dados.tipoMalha || "",
+        artigoInterno: it.origem === "NF" ? "" : it.dados.artigoInterno || "", quantidade: fmt(it.dados.quantidade), largura: fmt(it.dados.largura), gramatura: fmt(it.dados.gramatura), valorUnitario: fmt(it.dados.valorUnitario) } })) }); })
       .catch((e) => setErro(e.message));
     fetch("/api/fornecedores").then((r) => r.json()).then((x) => setForns(Array.isArray(x) ? x : [])).catch(() => {});
+    fetch(`/api/estoque/manual?u=${user.id}`).then((r) => r.json()).then(setCfg).catch(() => {});
+    fetch("/api/artigos?estoque=1").then((r) => r.json()).then((l) => setNomes(Array.isArray(l) ? l.map((a) => ({ nome: a.artigoInterno || a.nome, cat: a.categoria })) : [])).catch(() => null);
   }, [id]);
-  const set = (i, k, v) => setD((s) => ({ ...s, itens: s.itens.map((it, j) => (j === i ? { ...it, dados: { ...it.dados, [k]: v } } : it)) }));
-  const enviar = async (dispensar) => {
-    // v625 — malha/tecido: artigo interno precisa ser um dos tipos (Cadastros › Artigos › Artigos internos)
-    if (!dispensar) {
-      const tipos = await carregarTipos();
-      const fora = d.itens.filter((it) => !it.dados.ignorar && ehCategoriaTipo(it.dados.categoria) && !tipos.some((t) => t.categoria === it.dados.categoria && t.nome === it.dados.artigoInterno));
-      if (fora.length) return alerta(`Escolha o tipo (artigo interno) de: ${fora.map((it) => it.xProd).join("; ")}.`);
-    }
-    if (dispensar && !(await confirmar("Dispensar a parametrização? Os itens entram no estoque com o nome da NF como artigo interno (nada é salvo como equivalência).")))
-      return;
+  useEffect(() => {   // voltou da guia do cadastro: recarrega os fornecedores
+    const h = () => fetch("/api/fornecedores").then((r) => r.json()).then((l) => Array.isArray(l) && setForns(l)).catch(() => null);
+    window.addEventListener("focus", h); return () => window.removeEventListener("focus", h);
+  }, []);
+  // editar nome, cor ou unidade desfaz o vínculo direto com o item do catálogo
+  const set = (i, k, val) => setD((s) => ({ ...s, itens: s.itens.map((it, j) => (j === i ? { ...it, dados: { ...it.dados, [k]: val, ...(["artigoInterno", "cor", "unidade"].includes(k) ? { artigoId: null } : {}) } } : it)) }));
+  const usarCatalogo = (i, c) => setD((s) => ({ ...s, itens: s.itens.map((it, j) => {
+    if (j !== i) return it;
+    const v = it.dados, mesmaCor = !v.cor || !c.cor || String(v.cor).trim().toUpperCase() === String(c.cor).trim().toUpperCase();
+    return { ...it, dados: { ...v, artigoInterno: c.nome, cor: v.cor || c.cor || "", codigo: c.codigo || v.codigo || "", composicao: c.composicao || v.composicao || "",
+      largura: c.largura != null ? fmt(c.largura) : v.largura, gramatura: c.gramatura != null ? fmt(c.gramatura) : v.gramatura, tipoMalha: c.tipoMalha || v.tipoMalha,
+      tipoEstoque: v.tipoEstoque || tipoDaCat(c.categoria), fornecedorId: v.fornecedorId || c.fornecedorId,
+      artigoId: mesmaCor && (!c.unidade || c.unidade === v.unidade) ? c.id : null } };
+  }) }));
+  const enviar = async () => {
+    const pend = d.itens.map((it, i) => [i, faltasItem(it.dados)]).filter(([, l]) => l.length);
+    if (pend.length) { setPos(pend[0][0]); return alerta(`Todo item da NF precisa do artigo interno.\n\n${pend.map(([i, l]) => `Item ${i + 1}: falta ${l.join(", ")}`).join("\n")}`); }
+    if (!(await confirmar(`Dar entrada no estoque dos ${d.itens.length} item(ns) da NF ${d.numero}?`, { titulo: "Entrada no estoque" }))) return;
     setSt(true);
     const r = await fetch("/api/fiscal/estoque", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usuarioId: user.id, id, dispensar, itens: d.itens.map((it) => ({ idx: it.idx, dados: it.dados })) }) });
+      body: JSON.stringify({ usuarioId: user.id, id, itens: d.itens.map((it) => ({ idx: it.idx, dados: { ...it.dados, categoria: catDoTipo(it.dados.tipoEstoque) } })) }) });
     const x = await r.json().catch(() => ({})); setSt(false);
     if (!r.ok || x.error) return alerta(x.error || "Não foi possível dar entrada no estoque.");
     setFim(x);
   };
   if (vols) return <VolumesNf user={user} id={id} onFim={() => onFim(fim)} />;   // v620
-  const inp = "w-full px-2 py-1.5 rounded-lg outline-none text-sm";
-  const iS = { background: C.panel2, border: `1px solid ${C.line}`, color: C.text };
+  const it = d?.itens?.[pos], v = it?.dados;
+  const tecido = v?.tipoEstoque === "TECIDO", malha = v?.tipoEstoque === "MALHA";
+  const sugNomes = v ? [...new Set(nomes.filter((n) => n.cat === catDoTipo(v.tipoEstoque)).map((n) => n.nome).filter(Boolean))].slice(0, 300) : [];
+  const editando = d && !fim && d.estoqueStatus !== "LANCADO";
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }}>
-      <div className="w-full rounded-xl overflow-hidden flex flex-col anim-modal" style={{ maxWidth: 980, maxHeight: "92vh", background: C.panel, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+      <div className="w-full rounded-xl overflow-hidden flex flex-col anim-modal" style={{ maxWidth: 820, maxHeight: "94vh", background: C.panel, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           <PackageCheck size={18} style={{ color: C.accent }} />
-          <div className="flex-1 min-w-0"><div className="font-semibold" style={{ color: C.navy }}>Parametrização da NF{d ? ` ${d.numero}` : ""} · entrada no estoque</div>
+          <div className="flex-1 min-w-0"><div className="font-semibold" style={{ color: C.navy }}>Entrada no estoque · NF{d ? ` ${d.numero}` : ""}</div>
             {d && <div className="text-xs truncate" style={{ color: C.sub }}>{d.parceiro}{d.emissao ? ` · emissão ${String(d.emissao).slice(0, 10).split("-").reverse().join("/")}` : ""} · {d.itens.length} item(ns)</div>}</div>
           <button onClick={() => onFim(fim)} style={{ color: C.sub }} title="Fechar (a NF fica pendente)"><X size={18} /></button>
         </div>
-        <div className="flex-1 overflow-y-auto p-5" style={{ background: "#F7F8FA" }}>
+        {editando && d.itens.length > 1 && <div className="flex gap-1 px-5 py-2 overflow-x-auto" style={{ borderBottom: `1px solid ${C.line}`, background: "#F7F8FA" }}>
+          {d.itens.map((x, i) => { const ok = !faltasItem(x.dados).length;
+            return <button key={x.idx} onClick={() => setPos(i)} title={x.xProd} className="shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold"
+              style={i === pos ? { background: C.navy, color: "#fff" } : { background: ok ? C.greenSoft : "#fff", color: ok ? C.green : C.sub, border: `1px solid ${ok ? C.green + "55" : C.line}` }}>{ok ? "✓ " : ""}{i + 1}</button>; })}
+        </div>}
+        <div className="flex-1 overflow-y-auto p-5">
           {erro && <div className="text-sm" style={{ color: C.red }}>{erro}</div>}
           {!d && !erro && <div className="flex items-center gap-2 text-sm" style={{ color: C.sub }}><Loader2 size={15} className="animate-spin" /> Lendo os itens da NF…</div>}
           {fim && <div className="rounded-lg p-4 text-sm" style={{ background: C.greenSoft, color: C.text }}>
             {fim.jaNoEstoque ? <b>Esta NF já tinha dado entrada no estoque (importada pela tela de Estoque).</b> : <>
-              <b style={{ color: C.green }}>✓ Entrada no estoque feita.</b> {fim.criados} artigo(s) novo(s) · {fim.somados} somado(s) a artigos iguais já existentes{fim.equivalencias ? ` · ${fim.equivalencias} equivalência(s) salva(s) para as próximas NFs` : ""}.
-              <div className="mt-2 text-xs space-y-0.5">{(fim.detalhe || []).map((x, k) => <div key={k}>{x.situacao === "IGNORADO" ? "—" : x.situacao === "SOMADO" ? "＋" : "•"} {x.xProd}{x.artigoInterno ? <> → <b>{x.artigoInterno}</b> · {fmt(x.quantidade)} {String(x.unidade || "").toLowerCase()}</> : ` (${x.situacao.toLowerCase()})`}{x.situacao === "SOMADO" ? " (somado)" : ""}</div>)}</div></>}
+              <b style={{ color: C.green }}>✓ Entrada no estoque feita.</b> {fim.criados} artigo(s) novo(s) · {fim.somados} somado(s) a artigos já existentes{fim.equivalencias ? ` · ${fim.equivalencias} vínculo(s) salvo(s) para as próximas NFs` : ""}.
+              <div className="mt-2 text-xs space-y-0.5">{(fim.detalhe || []).map((x, k) => <div key={k}>{x.situacao === "SOMADO" ? "＋" : "•"} {x.xProd}{x.artigoInterno ? <> → <b>{x.artigoInterno}</b> · {fmt(x.quantidade)} {String(x.unidade || "").toLowerCase()}</> : ` (${String(x.situacao || "").toLowerCase()})`}{x.situacao === "SOMADO" ? " (somado)" : ""}</div>)}</div></>}
           </div>}
           {d && !fim && d.estoqueStatus === "LANCADO" && <div className="text-sm" style={{ color: C.sub }}>Esta NF já deu entrada no estoque.</div>}
-          {d && !fim && d.estoqueStatus !== "LANCADO" && d.itens.map((it, i) => {
-            const v = it.dados, [ot, oc, of] = ORIGEM[it.origem] || ORIGEM.NF;
-            return (
-              <div key={it.idx} className="rounded-xl p-4 mb-3" style={{ background: C.panel, border: `1px solid ${C.line}`, opacity: v.ignorar ? 0.55 : 1 }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-bold rounded-full flex items-center justify-center" style={{ width: 20, height: 20, background: C.navy, color: "#fff" }}>{i + 1}</span>
-                  <span className="text-sm font-semibold flex-1 min-w-0 truncate" style={{ color: C.text }} title={it.xProd}>{it.xProd}{it.cProd ? <span className="font-normal" style={{ color: C.sub }}> · cód. {it.cProd}</span> : null}</span>
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: of, color: oc }}>{it.origem === "EQUIVALENCIA" && <Link2 size={11} />}{ot}</span>
-                  <label className="text-[11px] flex items-center gap-1 cursor-pointer" style={{ color: C.sub }}><input type="checkbox" checked={!!v.ignorar} onChange={(e) => set(i, "ignorar", e.target.checked)} /> não entra no estoque</label>
-                </div>
-                {!v.ignorar && <>
-                  <div className="flex gap-1 mb-3">{CATS.map(([k, t]) => <button key={k} type="button" onClick={async () => { set(i, "categoria", k); if (ehCategoriaTipo(k)) { const tipos = await carregarTipos();
-                      if (!tipos.some((t) => t.categoria === k && t.nome === v.artigoInterno)) set(i, "artigoInterno", sugerirTipo(it.xProd, k, tipos) || ""); } }} className="px-3 py-1.5 rounded-lg text-sm"
-                    style={v.categoria === k ? { background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}`, fontWeight: 600 } : { background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>{t}</button>)}</div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <Campo rot="Fornecedor"><select value={v.fornecedorId || ""} onChange={(e) => set(i, "fornecedorId", Number(e.target.value) || null)} className={inp} style={iS}>
-                      {!forns.some((f) => f.id === v.fornecedorId) && v.fornecedorId && <option value={v.fornecedorId}>{d.fornecedor ? nomeF(d.fornecedor) : `#${v.fornecedorId}`}</option>}
-                      {forns.map((f) => <option key={f.id} value={f.id}>{nomeF(f)}</option>)}</select></Campo>
-                    <Campo rot="Artigo NF (vem da nota)"><div className={inp} style={{ ...iS, color: C.sub }} title={it.xProd}><span className="block truncate">{it.xProd}</span></div></Campo>
-                    <Campo rot={ehCategoriaTipo(v.categoria) ? `Artigo interno (tipo de ${v.categoria === "MALHA" ? "malha" : "plano"})` : "Artigo interno"}>{ehCategoriaTipo(v.categoria)
-                      ? <SeletorTipo categoria={v.categoria} valor={v.artigoInterno} sugestao={it.xProd} onChange={(x) => set(i, "artigoInterno", x)} className={inp} style={{ ...iS, background: "#fff", borderColor: C.accent + "88" }} />
-                      : <input value={v.artigoInterno || ""} onChange={(e) => set(i, "artigoInterno", e.target.value)} className={inp} style={{ ...iS, background: "#fff", borderColor: C.accent + "88" }} />}</Campo>
-                    <Campo rot="Cor"><input value={v.cor || ""} onChange={(e) => set(i, "cor", e.target.value)} className={inp} style={iS} /></Campo>
-                    <Campo rot="Código"><input value={v.codigo || ""} onChange={(e) => set(i, "codigo", e.target.value)} className={inp} style={iS} /></Campo>
-                    <Campo rot="Quantidade"><div className="flex gap-1"><input value={v.quantidade} onChange={(e) => set(i, "quantidade", e.target.value)} className={inp} style={iS} />
-                      <select value={v.unidade} onChange={(e) => set(i, "unidade", e.target.value)} className="px-1 rounded-lg text-sm outline-none" style={iS}>{UNS.map((u) => <option key={u}>{u}</option>)}</select></div></Campo>
-                    <Campo rot="Composição"><input value={v.composicao || ""} onChange={(e) => set(i, "composicao", e.target.value)} className={inp} style={iS} /></Campo>
-                    <Campo rot="Largura (m)"><input value={v.largura} onChange={(e) => set(i, "largura", e.target.value)} className={inp} style={iS} /></Campo>
-                    <Campo rot="Gramatura (g/m²)"><input value={v.gramatura} onChange={(e) => set(i, "gramatura", e.target.value)} className={inp} style={iS} /></Campo>
-                    <Campo rot="Preço (R$)"><input value={v.valorUnitario} onChange={(e) => set(i, "valorUnitario", e.target.value)} className={inp} style={iS} /></Campo>
-                  </div>
-                </>}
+          {editando && it && (() => { const [ot, oc, of] = ORIGEM[it.origem] || ORIGEM.NF; return <>
+            <div className="rounded-lg p-3 mb-3" style={{ background: C.panel2 }}>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold rounded-full flex items-center justify-center shrink-0" style={{ width: 22, height: 22, background: C.navy, color: "#fff" }}>{pos + 1}</span>
+                <span className="text-[11px] font-semibold" style={{ color: C.sub }}>Item na NF</span>
+                <span className="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: of, color: oc }}>{it.origem === "EQUIVALENCIA" && <Link2 size={11} />}{it.origem === "EQUIVALENCIA" ? "vínculo salvo" : ot}</span>
               </div>
-            );
-          })}
+              <div className="text-sm font-semibold mt-1" style={{ color: C.text }}>{it.xProd}</div>
+              <div className="text-xs" style={{ color: C.sub }}>{[it.cProd && `cód. ${it.cProd}`, `${fmt(it.quantidade)} ${String(it.uCom || "").toLowerCase()}`, it.valorUnitario != null && `R$ ${fmt(it.valorUnitario)}`].filter(Boolean).join(" · ")}</div>
+            </div>
+            <CatalogoItem key={it.idx} user={user} it={it} v={v} onUsar={(c) => usarCatalogo(pos, c)} />
+            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(2, minmax(0,1fr))" }}>
+              <MCampo t="Tipo" obrig larg><Opcoes ops={TIPOS.map((t) => [t, t])} valor={v.tipoEstoque} onChange={(x) => { set(pos, "tipoEstoque", x); if (x !== "TECIDO") set(pos, "tipoTecido", ""); }} /></MCampo>
+              {tecido && <MCampo t="Tipo do tecido" obrig larg>
+                <select value={v.tipoTecido} onChange={(e) => { const t = e.target.value; set(pos, "tipoTecido", t); if (!v.gramatura && cfg?.gramaturas?.[t]) set(pos, "gramatura", fmt(cfg.gramaturas[t])); }}
+                  className="px-2 rounded-lg text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, height: 36, minWidth: 260 }}>
+                  <option value="">Escolha…</option>{(cfg?.tecidos || []).map((t) => <option key={t} value={t}>{t}{cfg?.gramaturas?.[t] ? ` · ${cfg.gramaturas[t]} g/m²` : ""}</option>)}
+                </select></MCampo>}
+              <MCampo t="Nome do artigo (padrão interno)" obrig larg>
+                <InpSugest value={v.artigoInterno || ""} onChange={(x) => set(pos, "artigoInterno", x)} opcoes={sugNomes} placeholder="só o artigo: fornecedor e cor vão nos campos próprios" />
+              </MCampo>
+              <MCampo t="Cor" obrig><Inp value={v.cor || ""} onChange={(e) => set(pos, "cor", e.target.value.toUpperCase())} /></MCampo>
+              <MCampo t="Código"><Inp value={v.codigo || ""} onChange={(e) => set(pos, "codigo", e.target.value.toUpperCase())} /></MCampo>
+              <MCampo t="Fornecedor" obrig larg>
+                <div className="flex gap-2">
+                  <div className="flex-1 min-w-0"><FornecedorBusca forns={forns} valor={v.fornecedorId} onEscolher={(x) => set(pos, "fornecedorId", x)} onCriado={(x) => setForns((l) => [...l, x])} /></div>
+                  <button type="button" onClick={() => window.open("/?v=fornecedores", "_blank")} title="Abrir o cadastro de fornecedores em outra guia" className="flex items-center gap-1 px-3 rounded-lg text-xs font-semibold shrink-0" style={{ height: 36, border: `1px solid ${C.accent}`, color: C.accent, background: "#fff" }}><ExternalLink size={13} /> Cadastro</button>
+                </div>
+              </MCampo>
+              {(malha || tecido) && <MCampo t="Largura (m)"><Inp value={v.largura || ""} onChange={(e) => set(pos, "largura", e.target.value)} inputMode="decimal" placeholder="ex.: 1,60" /></MCampo>}
+              {malha && <MCampo t="Construção"><Opcoes ops={[["TUBULAR", "Tubular"], ["RAMADA", "Ramada"]]} valor={v.tipoMalha} onChange={(x) => set(pos, "tipoMalha", x)} /></MCampo>}
+              {(malha || tecido) && <MCampo t="Gramatura (g/m²)"><Inp value={v.gramatura || ""} onChange={(e) => set(pos, "gramatura", e.target.value)} inputMode="decimal" /></MCampo>}
+              {(malha || tecido) && <MCampo t="Composição"><Inp value={v.composicao || ""} onChange={(e) => set(pos, "composicao", e.target.value.toUpperCase())} /></MCampo>}
+              <MCampo t="Quantidade (da NF)" obrig><Inp value={v.quantidade} onChange={(e) => set(pos, "quantidade", e.target.value)} inputMode="decimal" /></MCampo>
+              <MCampo t="Unidade de medida" obrig><Opcoes ops={UNS_NF.map((u) => [u, u])} valor={v.unidade} onChange={(x) => set(pos, "unidade", x)} /></MCampo>
+              <MCampo t="Preço unitário (R$)"><Inp value={v.valorUnitario || ""} onChange={(e) => set(pos, "valorUnitario", e.target.value)} inputMode="decimal" /></MCampo>
+              <MCampo t="Origem"><Inp value={`NF ${d.numero}`} readOnly style={{ color: C.sub, background: C.panel2 }} /></MCampo>
+            </div>
+            <div className="text-[11px] mt-3" style={{ color: C.sub }}>{v.artigoId ? "Vinculado ao item do catálogo: a entrada soma nele." : "Artigo igual já no estoque (tipo, fornecedor, nome, cor, código, unidade e largura) soma a quantidade."} O vínculo fica salvo para as próximas NFs deste fornecedor.</div>
+          </>; })()}
         </div>
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>
           {fim ? <><span className="flex-1" /><button onClick={() => onFim(fim)} className="px-3 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Fechar</button>
             {!fim.jaNoEstoque && <button onClick={() => setVols(true)} className="px-4 py-2 rounded-lg text-sm font-semibold text-white" style={{ background: C.accent }}>Identificar volumes e imprimir etiquetas</button>}</> : <>
-            <button disabled={!d || st || d?.estoqueStatus === "LANCADO"} onClick={() => enviar(true)} className="px-3 py-2 rounded-lg text-sm" style={{ color: C.sub, border: `1px solid ${C.line}`, background: C.panel }}
-              title="Entra no estoque com o nome da NF como artigo interno">Dispensar parametrização</button>
-            <span className="flex-1 text-[11px]" style={{ color: C.sub }}>Artigo igual já no estoque (categoria, fornecedor, artigo interno, cor, código, unidade e largura) soma a quantidade.</span>
             <button onClick={() => onFim(null)} className="px-3 py-2 rounded-lg text-sm" style={{ color: C.sub }}>Depois</button>
-            <button disabled={!d || st || d?.estoqueStatus === "LANCADO"} onClick={() => enviar(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-1.5" style={{ background: C.accent, opacity: st ? 0.6 : 1 }}>
-              {st && <Loader2 size={14} className="animate-spin" />} Salvar e dar entrada no estoque</button>
+            <span className="flex-1" />
+            {editando && d.itens.length > 1 && <>
+              <button disabled={pos === 0} onClick={() => setPos((p) => p - 1)} className="px-3 py-2 rounded-lg text-sm" style={{ color: C.sub, border: `1px solid ${C.line}`, opacity: pos === 0 ? 0.4 : 1 }}>‹ Anterior</button>
+              {pos < d.itens.length - 1 && <button onClick={() => setPos((p) => p + 1)} className="px-3 py-2 rounded-lg text-sm font-semibold" style={{ color: C.navy, border: `1px solid ${C.navy}` }}>Próximo ›</button>}
+            </>}
+            <button disabled={!editando || st} onClick={enviar} className="px-4 py-2 rounded-lg text-sm font-semibold text-white flex items-center gap-1.5" style={{ background: C.accent, opacity: st || !editando ? 0.6 : 1 }}>
+              {st && <Loader2 size={14} className="animate-spin" />} Concluir e dar entrada</button>
           </>}
         </div>
       </div>

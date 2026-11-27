@@ -1,7 +1,7 @@
 // v619 — entrada no estoque das NFs de compra (parametrização: nome da NF → artigo interno)
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
-import { itensParaParametrizar, darEntrada, pendentesEstoque, volumesDaNf, salvarVolumes } from "@/lib/nfEstoque";
+import { itensParaParametrizar, darEntrada, pendentesEstoque, volumesDaNf, salvarVolumes, sugestoesCatalogo } from "@/lib/nfEstoque";
 
 const usuario = async (id) => { const u = await prisma.usuario.findUnique({ where: { id: Number(id) || 0 }, select: { id: true, nome: true, sobrenome: true, ativo: true } }); return u?.ativo ? u : null; };
 const nomeU = (u) => [u?.nome, u?.sobrenome].filter(Boolean).join(" ").toUpperCase();
@@ -11,6 +11,7 @@ export async function GET(req) {
   const sp = new URL(req.url).searchParams;
   if (!(await usuario(sp.get("u")))) return Response.json({ error: "Usuário inválido." }, { status: 403 });
   try {
+    if (sp.get("catalogo")) return Response.json({ itens: await sugestoesCatalogo({ fornecedorId: sp.get("fornecedorId"), texto: sp.get("q") || "", cor: sp.get("cor") || "", limite: 25, todosFornecedores: sp.get("todos") === "1" }) });   // v1157
     if (sp.get("volumes")) return Response.json(await volumesDaNf(sp.get("volumes")));   // v620
     if (sp.get("id")) return Response.json(await itensParaParametrizar(sp.get("id")));
     return Response.json({ pendentes: await pendentesEstoque() });

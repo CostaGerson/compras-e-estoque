@@ -5,6 +5,13 @@ const soDigitos = (s) => (s || "").replace(/\D/g, "");
 const up = (v) => (v == null || String(v).trim() === "" ? null : String(v).trim().toUpperCase());
 const RICOS = ["razaoSocial", "nomeFantasia", "inscricaoEstadual", "logradouro", "numero", "complemento", "bairro", "municipio", "uf", "cep", "preposto", "telefones", "emailNf", "obs", "chavePix"];
 
+// v1157 — grupo de fornecedores pelo nome (vazio = sem grupo; nome novo cria o grupo)
+async function grupoIdDe(nome) {
+  const n = String(nome || "").trim().toLocaleUpperCase("pt-BR");
+  if (!n) return null;
+  const g = await prisma.fornecedorGrupo.upsert({ where: { nome: n }, create: { nome: n }, update: {} });
+  return g.id;
+}
 function camposRicos(b) {
   const d = {};
   for (const k of RICOS) {
@@ -28,6 +35,7 @@ export async function PATCH(req, { params }) {
              .filter((c) => c.cnpj)
     : [];
 
+  const gid = b.grupoNome !== undefined ? await grupoIdDe(b.grupoNome) : undefined;   // v1157
   try {
     const forn = await prisma.$transaction(async (tx) => {
       await tx.fornecedor.update({
@@ -38,6 +46,7 @@ export async function PATCH(req, { params }) {
           telefone: b.telefone || null,
           email: b.email || null,
           ...camposRicos(b),
+          ...(gid !== undefined ? { grupoId: gid } : {}),
         },
       });
       await tx.fornecedorCnpj.deleteMany({ where: { fornecedorId: id } });
