@@ -114,3 +114,37 @@ export async function entradaManual(b, quem) {
       fornecedor: forn.nomeFantasia || forn.nome, largura: art.largura != null ? Number(art.largura) : largura, construcao, quantidade, unidade, unidadesPacote, pesoKg, gramatura, origem, entrada: vol.entradaEm,
       tamanho: tamanho != null ? `${String(tamanho).replace(".", ",")} ${tamanhoUnidade}` : null, tipoZiper, obs } };
 }
+
+// v1173 — etiquetas de um artigo (card do estoque): reimprime os volumes e gera volume novo só de etiqueta (não mexe no saldo)
+const nomeForn = (f) => (f ? f.nomeFantasia || f.nome : null);
+async function etiquetaDoVolume(v, a) {
+  let ordem = null, total = null;
+  if (v.fiscalNotaId) {
+    const ids = (await prisma.estoqueVolume.findMany({ where: { fiscalNotaId: v.fiscalNotaId }, select: { id: true }, orderBy: { id: "asc" } })).map((x) => x.id);
+    ordem = ids.indexOf(v.id) + 1; total = ids.length;
+  }
+  const tipo = a.tipoEstoque || a.categoria;
+  return { volumeId: v.id, codigo: `VOL${String(v.id).padStart(7, "0")}`, tipo: tipo === "TECIDO" && a.tipoTecido ? `TECIDO · ${a.tipoTecido}` : tipo,
+    artigo: a.artigoInterno || a.nome, cor: a.cor, codigoArtigo: a.codigo, fornecedor: nomeForn(a.fornecedor),
+    largura: a.largura != null ? Number(a.largura) : null, construcao: a.categoria === "MALHA" ? a.tipoMalha : null,
+    quantidade: Number(v.quantidade), unidade: v.unidade, unidadesPacote: v.unidadesPacote, pesoKg: v.pesoKg != null ? Number(v.pesoKg) : null,
+    gramatura: v.gramatura != null ? Number(v.gramatura) : null, origem: v.origem || (v.nfNumero ? `NF ${v.nfNumero}` : null), entrada: v.entradaEm,
+    tamanho: a.tamanho != null ? `${String(Number(a.tamanho)).replace(".", ",")} ${a.tamanhoUnidade || ""}`.trim() : null, tipoZiper: a.tipoZiper, obs: v.obs || a.obs, ordem, total };
+}
+export async function etiquetasArtigo(artigoId) {
+  const a = await prisma.artigo.findUnique({ where: { id: Number(artigoId) }, include: { fornecedor: { select: { nome: true, nomeFantasia: true } } } });
+  if (!a) return { error: "Artigo não encontrado." };
+  const vols = await prisma.estoqueVolume.findMany({ where: { artigoId: a.id }, orderBy: { id: "desc" }, take: 200 });
+  const etiquetas = [];
+  for (const v of vols) etiquetas.push(await etiquetaDoVolume(v, a));
+  return { etiquetas, saldo: Number(a.quantidade || 0), unidade: a.unidade };
+}
+export async function novaEtiquetaArtigo(b, quem) {
+  const a = await prisma.artigo.findUnique({ where: { id: Number(b.artigoId) }, include: { fornecedor: { select: { nome: true, nomeFantasia: true } } } });
+  if (!a) return { error: "Artigo não encontrado." };
+  const quantidade = num(b.quantidade);
+  if (!(quantidade > 0)) return { error: "Informe a quantidade do volume." };
+  const obs = up(b.obs) ? String(b.obs).trim().toLocaleUpperCase("pt-BR").slice(0, 200) : null;
+  const v = await prisma.estoqueVolume.create({ data: { artigoId: a.id, quantidade, unidade: a.unidade, origem: up(b.origem) || "ESTOQUE", obs, entradaEm: new Date(), criadoPorNome: quem || null } });
+  return { ok: true, etiqueta: await etiquetaDoVolume(v, a) };
+}

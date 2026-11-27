@@ -268,3 +268,86 @@ export default function EntradaManualEstoque({ user, onClose }) {
     </div>
   );
 }
+
+// v1173 — etiquetas de um artigo (botão "Imprimir etiqueta" no card do estoque): reimprime os volumes ou gera um volume só de etiqueta
+export function EtiquetasArtigo({ user, artigo, onClose }) {
+  const [d, setD] = useState(null);
+  const [sel, setSel] = useState([]);
+  const [tam, setTam] = useState(TAMANHO_PADRAO);
+  const [nova, setNova] = useState({ quantidade: "", origem: "", obs: "" });
+  const [abrNova, setAbrNova] = useState(false);
+  const [st, setSt] = useState(false);
+  const carregar = () => fetch(`/api/estoque/manual?u=${user.id}&artigo=${artigo.id}`).then((r) => r.json()).then((x) => {
+    setD(x); if (Array.isArray(x.etiquetas)) setSel(x.etiquetas.length ? [x.etiquetas[0].volumeId] : []);
+    if (!x.etiquetas?.length) { setAbrNova(true); setNova((o) => ({ ...o, quantidade: x.saldo > 0 ? String(x.saldo).replace(".", ",") : "" })); }
+  }).catch(() => setD({ error: "Não carregou as etiquetas." }));
+  useEffect(() => { carregar(); }, [artigo.id]);
+  const lista = d?.etiquetas || [];
+  const escolhidas = lista.filter((e) => sel.includes(e.volumeId));
+  const preview = useMemo(() => (escolhidas[0] ? htmlEtiquetas([escolhidas[0]], { tamanho: tam, autoPrint: false }) : ""), [escolhidas[0]?.volumeId, tam, d]);
+  const [W, H] = TAMANHOS[tam] || TAMANHOS[TAMANHO_PADRAO];
+  const escala = 3.2;
+  const gerar = async () => {
+    if (!(num(nova.quantidade) > 0)) return alerta("Informe a quantidade do volume.");
+    setSt(true);
+    const r = await fetch("/api/estoque/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "etiqueta", artigoId: artigo.id, ...nova }) });
+    const x = await r.json().catch(() => ({})); setSt(false);
+    if (!r.ok || x.error) return alerta(x.error || "Não gerou a etiqueta.");
+    setD((o) => ({ ...o, etiquetas: [x.etiqueta, ...(o?.etiquetas || [])] })); setSel([x.etiqueta.volumeId]); setAbrNova(false); setNova({ quantidade: "", origem: "", obs: "" });
+  };
+  const tog = (id) => setSel((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }} onClick={(e) => { e.stopPropagation(); onClose(); }}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full rounded-xl overflow-hidden flex flex-col" style={{ maxWidth: 760, maxHeight: "94vh", background: C.panel, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+        <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <Printer size={18} style={{ color: C.accent }} />
+          <b style={{ color: C.navy }}>Etiqueta · {artigo.artigoInterno || artigo.nome}{artigo.cor ? ` · ${artigo.cor}` : ""}</b>
+          <button className="ml-auto" onClick={onClose} title="Fechar"><X size={18} /></button>
+        </div>
+        {!d ? <div className="p-6 text-sm flex items-center gap-2" style={{ color: C.sub }}><Loader2 size={14} className="animate-spin" /> Carregando…</div>
+          : d.error ? <div className="p-6 text-sm" style={{ color: C.red }}>{d.error}</div> : (
+          <div className="p-5 overflow-auto">
+            {lista.length > 0 && <>
+              <div className="text-xs font-semibold mb-1.5" style={{ color: C.sub }}>Volumes deste artigo ({lista.length}) · marque os que vai imprimir</div>
+              <div className="rounded-lg overflow-auto mb-3" style={{ border: `1px solid ${C.line}`, maxHeight: 170 }}>
+                {lista.map((e) => (
+                  <label key={e.volumeId} className="flex items-center gap-2 px-3 py-1.5 text-sm cursor-pointer" style={{ borderBottom: `1px solid ${C.line}`, background: sel.includes(e.volumeId) ? C.accentSoft : "#fff" }}>
+                    <input type="checkbox" checked={sel.includes(e.volumeId)} onChange={() => tog(e.volumeId)} />
+                    <b className="font-mono text-xs">{e.codigo}</b>
+                    <span>{nBR(e.quantidade, 3)} {e.unidade}</span>
+                    <span className="text-xs" style={{ color: C.sub }}>{e.origem || ""}{e.entrada ? ` · ${new Date(e.entrada).toLocaleDateString("pt-BR")}` : ""}</span>
+                  </label>
+                ))}
+              </div>
+            </>}
+            {!lista.length && <div className="text-sm mb-2" style={{ color: C.sub }}>Este artigo ainda não tem volume etiquetado. Gere uma etiqueta (não altera o saldo).</div>}
+            {abrNova ? (
+              <div className="rounded-lg p-3 mb-3 grid gap-2" style={{ background: C.panel2, gridTemplateColumns: "repeat(3, minmax(0,1fr))" }}>
+                <Campo t={`Quantidade do volume (${d.unidade || ""})`} obrig><Inp value={nova.quantidade} onChange={(e) => setNova((o) => ({ ...o, quantidade: e.target.value }))} inputMode="decimal" /></Campo>
+                <Campo t="Origem"><Inp value={nova.origem} onChange={(e) => setNova((o) => ({ ...o, origem: e.target.value.toUpperCase() }))} placeholder="ESTOQUE" /></Campo>
+                <Campo t="OBS"><Inp value={nova.obs} onChange={(e) => setNova((o) => ({ ...o, obs: e.target.value.toUpperCase() }))} maxLength={200} /></Campo>
+                <div className="flex justify-end gap-2" style={{ gridColumn: "1 / -1" }}>
+                  {lista.length > 0 && <button onClick={() => setAbrNova(false)} className="px-3 py-1.5 text-sm" style={{ color: C.sub }}>Cancelar</button>}
+                  <button onClick={gerar} disabled={st} className="px-4 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.navy, color: "#fff" }}>{st ? "Gerando…" : "Gerar etiqueta"}</button>
+                </div>
+              </div>
+            ) : <button onClick={() => setAbrNova(true)} className="text-xs font-semibold mb-3" style={{ color: C.accent }}>+ Nova etiqueta (outro volume)</button>}
+            <div className="flex items-center gap-2 mb-3 text-sm">
+              <span style={{ color: C.sub }}>Tamanho</span>
+              <Opcoes ops={Object.keys(TAMANHOS).map((k) => [k, nomeTamanho(k)])} valor={tam} onChange={setTam} />
+            </div>
+            {preview && <div className="flex justify-center p-4 rounded-lg" style={{ background: C.panel2 }}>
+              <iframe title="Prévia da etiqueta" srcDoc={preview} style={{ width: W * escala, height: H * escala, border: "1px solid #bbb", background: "#fff" }}
+                onLoad={(e) => { try { e.target.contentDocument.body.style.zoom = String(escala / (96 / 25.4)); } catch {} }} />
+            </div>}
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={onClose} className="px-3 py-2 text-sm" style={{ color: C.sub }}>Fechar</button>
+              <button onClick={() => imprimirEtiquetas(escolhidas, { tamanho: tam })} disabled={!escolhidas.length} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: escolhidas.length ? 1 : 0.5 }}>
+                <Printer size={15} /> Imprimir{escolhidas.length > 1 ? ` (${escolhidas.length})` : ""}</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

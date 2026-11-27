@@ -1,5 +1,5 @@
 "use client";
-import EntradaManualEstoque from "./estoqueManual";   // v1152
+import EntradaManualEstoque, { EtiquetasArtigo } from "./estoqueManual";   // v1152 · v1173 etiquetas do artigo
 import React, { useState, useEffect, useRef } from "react";
 import { useMobile, useGaveta } from "./useMobile";   // v550
 import { COMPONENTES, TAMANHOS } from "@/lib/componentesPedido";   // v1006
@@ -3402,6 +3402,7 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
     estoqueMinimoAtivo: !!artigo.estoqueMinimoAtivo,
     estoqueMinimo: val(artigo.estoqueMinimo),
   });
+  const [verEtq, setVerEtq] = useState(false);   // v1173
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
@@ -3509,13 +3510,18 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
         </div>
 
         <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: `1px solid ${C.line}`, background: C.panel2 }}>
-          <button onClick={inativar} className="text-xs" style={{ color: "#B42318" }}>Inativar artigo</button>
+          <div className="flex items-center gap-3">
+            <button onClick={inativar} className="text-xs" style={{ color: "#B42318" }}>Inativar artigo</button>
+            {/* v1173 — etiqueta Zebra do artigo (volumes existentes ou nova) */}
+            <button onClick={() => setVerEtq(true)} className="flex items-center gap-1.5 px-3 py-2 rounded text-sm font-semibold" style={{ background: C.panel, color: C.accent, border: `1px solid ${C.accent}` }}><Printer size={14} /> Imprimir etiqueta</button>
+          </div>
           <div className="flex gap-2">
             <button onClick={onClose} className="px-4 py-2 rounded" style={{ background: C.panel, color: C.sub, border: `1px solid ${C.line}` }}>Cancelar</button>
             <button onClick={salvar} disabled={salvando} className="px-4 py-2 rounded font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.6 : 1 }}>{salvando ? "Salvando…" : "Salvar"}</button>
           </div>
         </div>
       </div>
+      {verEtq && <EtiquetasArtigo user={{ id: sessaoId() }} artigo={artigo} onClose={() => setVerEtq(false)} />}
     </div>
   );
 }
