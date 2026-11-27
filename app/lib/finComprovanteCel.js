@@ -220,8 +220,9 @@ export async function receberComprovantes(u, arquivos) {
           const o = exatas[0];
           try {
             await baixarAlvo(o, c, { nome: arqNome, conteudo, mime }, `${quem} (CELULAR)`);
-            await prisma.finComprovanteEnvio.create({ data: { status: "BAIXADO", usuarioId: u.id, enviadoPor: quem, nome: arqNome, mime, tamanho: buf.length, conteudo: "", hashArquivo: hA, hashChave, dados: c, tituloId: o.id, semanaItemId: o.itemId || null, motivo: "BAIXA AUTOMÁTICA", resolvidoPor: "AUTOMÁTICO", resolvidoEm: new Date() } });
-            linhas.push(`✅ Baixada: ${o.titulo} · ${brl(c.valor)} · pago em ${dBR(c.data)}. Comprovante anexado.`);
+            const env = await prisma.finComprovanteEnvio.create({ data: { status: "BAIXADO", usuarioId: u.id, enviadoPor: quem, nome: arqNome, mime, tamanho: buf.length, conteudo: "", hashArquivo: hA, hashChave, dados: c, tituloId: o.id, semanaItemId: o.itemId || null, motivo: "BAIXA AUTOMÁTICA", resolvidoPor: "AUTOMÁTICO", resolvidoEm: new Date() } });
+            const whats = await enviarAoBaixar(env.id, c);   // v1180
+            linhas.push(`✅ Baixada: ${o.titulo} · ${brl(c.valor)} · pago em ${dBR(c.data)}. Comprovante anexado.${whats}`);
             continue;
           } catch { /* segue como pendente */ }
         }
@@ -282,6 +283,20 @@ export async function buscarContas(q) {
 
 // confirmar: baixa a conta / o lançamento da semana (ou só anexa, se já estava pago) e o comprovante vai para a conta
 // alvo: "T:<id da conta>" | "I:<id do lançamento da semana>" (tituloId sozinho = conta)
+
+// v1180 — ao baixar (confirmação ou baixa automática) o comprovante já vai pelo WhatsApp da empresa ao favorecido.
+//   Sem telefone no cadastro: fica na fila de envio (Integrações › Comprovantes). WhatsApp desconectado ou erro: também fica na fila.
+async function enviarAoBaixar(envioId, dados) {
+  if (!envioId || (dados || {}).propria) return "";
+  try {
+    const { enviarWhats } = await import("@/lib/finWhats");
+    const r = await enviarWhats(envioId);
+    return ` Comprovante enviado pelo WhatsApp (${String(r.fone).replace(/^55/, "")}).`;
+  } catch (e) {
+    return /Sem telefone/i.test(e.message) ? " Sem telefone cadastrado: o comprovante ficou na fila de envio do WhatsApp." : ` WhatsApp não enviado (${e.message}): ficou na fila de envio.`;
+  }
+}
+
 export async function confirmarPendente(id, { alvo, tituloId, data, valor }, u) {
   const p = await prisma.finComprovanteEnvio.findUnique({ where: { id: Number(id) } });
   if (!p || p.status !== "PENDENTE") throw new Error("Comprovante não está mais pendente.");
@@ -308,7 +323,8 @@ export async function confirmarPendente(id, { alvo, tituloId, data, valor }, u) 
     await baixarAlvo(o, c, { nome: p.nome, conteudo: p.conteudo, mime: p.mime }, quem);
   } else throw new Error("Conta cancelada.");
   await prisma.finComprovanteEnvio.update({ where: { id: p.id }, data: { status: "BAIXADO", conteudo: "", tituloId: o.id, semanaItemId: o.itemId || null, dados: c, resolvidoPor: quem, resolvidoEm: new Date() } });
-  return { ok: true, texto: o.status === "PAGO" ? `Comprovante anexado em ${o.titulo} (já estava pago).` : `${o.titulo} baixado em ${dBR(c.data)} · ${brl(c.valor)}. Comprovante anexado.` };
+  const whats = await enviarAoBaixar(p.id, c);   // v1180
+  return { ok: true, whats, texto: (o.status === "PAGO" ? `Comprovante anexado em ${o.titulo} (já estava pago).` : `${o.titulo} baixado em ${dBR(c.data)} · ${brl(c.valor)}. Comprovante anexado.`) + whats };
 }
 
 // rejeitar: o comprovante é apagado e a conta fica como estava
