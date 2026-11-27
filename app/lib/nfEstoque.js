@@ -66,6 +66,16 @@ export async function sugestoesCatalogo({ fornecedorId, texto, cProd, cor, limit
     largura: a.largura != null ? Number(a.largura) : null, gramatura: a.gramatura != null ? Number(a.gramatura) : null, tipoMalha: a.tipoMalha, unidade: a.unidade,
     fornecedorId: a.fornecedorId, fornecedor: a.fornecedor?.nomeFantasia || a.fornecedor?.nome || null, pontos: p }));
 }
+const CORES_COMUNS = ["AZUL MARINHO", "AZUL ROYAL", "AZUL CLARO", "AZUL BEBE", "VERDE BANDEIRA", "VERDE MUSGO", "VERDE LIMAO", "VERDE MILITAR", "VERDE AGUA", "CINZA MESCLA", "CINZA CHUMBO",
+  "MESCLA", "MARINHO", "ROYAL", "PRETO", "BRANCO", "VERMELHO", "AMARELO", "LARANJA", "ROSA", "PINK", "LILAS", "ROXO", "VINHO", "BORDO", "BEGE", "CAQUI", "MARROM", "CINZA", "CHUMBO",
+  "GRAFITE", "TURQUESA", "AZUL", "VERDE", "OFF WHITE", "CRU", "NATURAL", "CAREBE", "PETROLEO"];
+function corDoTexto(tx, coresCat = []) {
+  const t = ` ${String(tx).replace(/[^A-Z0-9]+/g, " ")} `;
+  const cands = [...new Set([...coresCat.filter(Boolean).map((c) => norm(c)), ...CORES_COMUNS])].sort((a, b) => b.length - a.length);
+  const c = cands.find((x) => x.length >= 3 && t.includes(` ${x.replace(/[^A-Z0-9]+/g, " ").trim()} `));
+  if (!c) return null;
+  return coresCat.find((x) => x && norm(x) === c) || c;
+}
 // itens da NF com a sugestão de parametrização (equivalência salva, artigo do fornecedor com o mesmo código, ou o texto da NF)
 export async function itensParaParametrizar(id) {
   const n = await notaComXml(id);
@@ -88,16 +98,19 @@ export async function itensParaParametrizar(id) {
     const base = eq?.dados || (art ? { categoria: art.categoria, artigoInterno: art.artigoInterno || art.nome, cor: art.cor, codigo: art.codigo, composicao: art.composicao,
       tipoEstoque: art.tipoEstoque, tipoTecido: art.tipoTecido, tipoMalha: art.tipoMalha,
       largura: art.largura != null ? Number(art.largura) : null, gramatura: art.gramatura != null ? Number(art.gramatura) : null, unidade: art.unidade } : null);
+    // v1162 — cor que aparece no nome do item da NF (cores do catálogo do fornecedor/grupo ou cores comuns)
+    const catalogo = await sugestoesCatalogo({ fornecedorId: eq?.fornecedorId || fornecedorId, texto: `${it.xProd} ${it.infAdProd || ""}`, cProd: it.cProd, cor: base?.cor }).catch(() => []);
+    const corNf = base?.cor ? null : corDoTexto(tx, catalogo.map((c) => c.cor));
     itens.push({
       idx, xProd: it.xProd || "", cProd: it.cProd || null, quantidade: it.qCom ?? 0, uCom: it.uCom || null, valorUnitario: it.vUn ?? null,
       origem: eq ? "EQUIVALENCIA" : art ? "ARTIGO" : "NF",
       equivalencia: eq ? { em: eq.updatedAt, por: eq.criadoPorNome || null, outroCnpj: eq.documento !== doc } : null,   // v1159
-      catalogo: await sugestoesCatalogo({ fornecedorId: eq?.fornecedorId || fornecedorId, texto: `${it.xProd} ${it.infAdProd || ""}`, cProd: it.cProd, cor: base?.cor }).catch(() => []),   // v1157
+      catalogo,   // v1157
       dados: {
         tipoEstoque: base?.tipoEstoque || null, tipoTecido: base?.tipoTecido || null, tipoMalha: base?.tipoMalha || null,   // v1157
         fornecedorId: eq?.fornecedorId || fornecedorId || null,
         categoria: base?.categoria || campos.categoria, artigoInterno: base?.artigoInterno || eq?.artigoInterno || up(it.xProd),
-        cor: base?.cor || null, codigo: base?.codigo || null, composicao: base?.composicao || up(campos.composicao),
+        cor: base?.cor || corNf || null, codigo: base?.codigo || null, composicao: base?.composicao || up(campos.composicao),
         largura: base?.largura ?? campos.largura ?? null, gramatura: base?.gramatura ?? campos.gramatura ?? null,
         unidade: base?.unidade || unidadeDoUCom(it.uCom), quantidade: it.qCom ?? 0, valorUnitario: it.vUn ?? null,
         artigoId: artEq?.id || null,   // v1159
