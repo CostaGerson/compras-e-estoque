@@ -79,10 +79,11 @@ export default function ParametrizarNf({ user, id, onFim }) {
   const usarCatalogo = (i, c) => setD((s) => ({ ...s, itens: s.itens.map((it, j) => {
     if (j !== i) return it;
     const v = it.dados, mesmaCor = !v.cor || !c.cor || String(v.cor).trim().toUpperCase() === String(c.cor).trim().toUpperCase();
-    const tt = (v.tipoEstoque || tipoDaCat(c.categoria)) === "TECIDO" ? (v.tipoTecido && v.tipoTecido !== "OUTROS" ? v.tipoTecido : "OUTROS") : v.tipoTecido;   // v1158 — tecido: nome = tipo
+    const tipoC = tipoDaCat(c.categoria) || v.tipoEstoque;   // v1163 — o catálogo define o tipo
+    const tt = tipoC === "TECIDO" ? (v.tipoTecido && v.tipoTecido !== "OUTROS" ? v.tipoTecido : "OUTROS") : v.tipoTecido;   // v1158 — tecido: nome = tipo
     return { ...it, dados: { ...v, tipoTecido: tt, artigoInterno: tt && tt !== "OUTROS" ? tt : c.nome, cor: v.cor || c.cor || "", codigo: c.codigo || v.codigo || "", composicao: c.composicao || v.composicao || "",
       largura: c.largura != null ? fmt(c.largura) : v.largura, gramatura: c.gramatura != null ? fmt(c.gramatura) : v.gramatura, tipoMalha: c.tipoMalha || v.tipoMalha,
-      tipoEstoque: v.tipoEstoque || tipoDaCat(c.categoria), fornecedorId: v.fornecedorId || c.fornecedorId,
+      tipoEstoque: tipoC, fornecedorId: v.fornecedorId || c.fornecedorId,
       artigoId: mesmaCor && (!c.unidade || c.unidade === v.unidade) ? c.id : null } };
   }) }));
   const enviar = async () => {
