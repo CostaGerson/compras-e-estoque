@@ -16,7 +16,20 @@ async function tiposIniciais() {
   await prisma.artigoTipoInterno.createMany({ data: Object.entries(ini).flatMap(([categoria, ns]) => ns.map((nome) => ({ categoria, nome }))), skipDuplicates: true });
 }
 
+// v1166 — artigos da cartela que ficaram sem fornecedor (fornecedor excluído/mesclado) voltam para o fornecedor da cartela
+async function reatribuir(cat) {
+  const nomes = [...new Set(cat.artigos.map((a) => a.nome))];
+  const orfaos = await prisma.artigo.count({ where: { fornecedorId: null, origem: "CARTELA", nome: { in: nomes } } });
+  if (!orfaos) return;
+  const busca = sa(cat.fornecedor.busca || cat.fornecedor.nome).replace(/\s/g, "");
+  let forn = (await prisma.fornecedor.findMany()).find((f) => [f.nome, f.nomeFantasia, f.razaoSocial].some((n) => sa(n).replace(/\s/g, "").includes(busca)));
+  if (!forn) forn = await prisma.fornecedor.create({ data: { nome: cat.fornecedor.nome, nomeFantasia: cat.fornecedor.nomeFantasia || null, obs: cat.fornecedor.obs || null } });
+  const r = await prisma.artigo.updateMany({ where: { fornecedorId: null, origem: "CARTELA", nome: { in: nomes } }, data: { fornecedorId: forn.id } });
+  console.log(`Seed cartelas · ${cat.fornecedor.nome}: ${r.count} artigo(s) sem fornecedor voltaram para ${forn.nome}.`);
+}
+
 async function carregar(cat) {
+  await reatribuir(cat).catch((e) => console.log("reatribuir:", e.message));
   if (await prisma.finConfig.findUnique({ where: { chave: cat.flag } })) return;
   await tiposIniciais();
   for (const t of cat.tiposNovos || []) await prisma.artigoTipoInterno.upsert({ where: { categoria_nome: t }, update: {}, create: t });
