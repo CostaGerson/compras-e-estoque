@@ -216,6 +216,7 @@ export default function EntradaManualEstoque({ user, onClose }) {
               </Campo>
               {(malha || tecido) && <Campo t="Largura (m)" obrig><Inp value={f.largura} onChange={(e) => s("largura", e.target.value)} inputMode="decimal" placeholder="ex.: 1,60" /></Campo>}
               {malha && <Campo t="Construção" obrig><Opcoes ops={[["TUBULAR", "Tubular"], ["RAMADA", "Ramada"]]} valor={f.construcao} onChange={(v) => s("construcao", v)} /></Campo>}
+              {malha && <Campo t="Gramatura (g/m²)"><Inp value={f.gramatura} onChange={(e) => s("gramatura", e.target.value)} inputMode="decimal" placeholder="opcional" /></Campo>}
               {tecido ? <>
                 <Campo t="Peso (kg)" obrig><Inp value={f.pesoKg} onChange={(e) => s("pesoKg", e.target.value)} inputMode="decimal" placeholder="peso na balança" /></Campo>
                 <Campo t={`Gramatura (g/m²)${gramPadrao ? ` · padrão ${gramPadrao}` : ""}`} obrig={!gramPadrao}><Inp value={f.gramatura} onChange={(e) => s("gramatura", e.target.value)} inputMode="decimal" placeholder={gramPadrao ? String(gramPadrao) : "informe"} /></Campo>

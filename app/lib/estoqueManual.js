@@ -14,11 +14,13 @@ const up = (s) => String(s || "").trim().toLocaleUpperCase("pt-BR") || null;
 
 // v1155 — padrões definidos pelo Igor (27/11/2026); o que for salvo na tela de gramaturas vale por cima
 //   brim leve 200 · pesado 235 (médias dos catálogos: 200 e 255) · não identificado = média dos dois · mistos iguais · ripstop 230
-export const GRAMATURAS_INICIAIS = { "BRIM LEVE": 200, "BRIM PESADO": 235, "BRIM MISTO LEVE": 200, "BRIM MISTO PESADO": 235, "BRIM NÃO IDENTIFICADO": 217.5, "RIPSTOP": 230 };
+export const GRAMATURAS_INICIAIS = { "BRIM LEVE": 200, "BRIM PESADO": 235, "BRIM MISTO LEVE": 200, "BRIM MISTO PESADO": 235, "BRIM NÃO IDENTIFICADO": 217.5, "RIPSTOP": 230,
+  // v1164 — médias das cartelas (Doptel/Andes, Expansione, Santista, Doptex), confirmadas pelo Igor
+  "TACTEL": 110, "CAMISARIA": 130, "JEANS": 365, "ECOBAG": 189, "OXFORD": 155, "TACTEL REPELENTE À ÁGUA": 155 };
 export async function gramaturasPadrao() {
   const c = await prisma.finConfig.findUnique({ where: { chave: K_GRAM } }).catch(() => null);
   let salvo = {}; try { salvo = JSON.parse(c?.valor || "{}"); } catch {}
-  return { ...GRAMATURAS_INICIAIS, ...salvo };
+  return { ...GRAMATURAS_INICIAIS, ...Object.fromEntries(Object.entries(salvo).filter(([, v]) => Number(v) > 0)) };   // v1164 — salvo vazio não apaga o padrão
 }
 export async function salvarGramaturas(g) {
   const atual = await gramaturasPadrao();
@@ -59,6 +61,7 @@ export async function entradaManual(b, quem) {
     if (!(gramatura > 0)) return { error: tipoTecido === "OUTROS" ? "Tecido OUTROS: informe a gramatura (g/m²)." : `Sem gramatura padrão para ${tipoTecido}: informe a gramatura (g/m²).` };
     quantidade = metrosDoPeso(pesoKg, gramatura, largura); unidade = "M";
   } else {
+    if (tipo === "MALHA") gramatura = num(b.gramatura) > 0 ? num(b.gramatura) : null;   // v1164 — malha: gramatura opcional
     if (!unidade) return { error: "Escolha a unidade de medida." };
     if (!(quantidade > 0)) return { error: "Informe a quantidade." };
     if (unidade === "PCT") { unidadesPacote = Math.round(num(b.unidadesPacote) || 0); if (!(unidadesPacote > 0)) return { error: "Pacote: informe quantas unidades há dentro." }; }
@@ -76,10 +79,10 @@ export async function entradaManual(b, quem) {
   if (art) {
     art = await prisma.artigo.update({ where: { id: art.id }, data: { quantidade: r3(Number(art.quantidade || 0) + quantidade),
       ...(!art.codigo && codigo ? { codigo } : {}), ...(!art.largura && largura ? { largura } : {}), ...(!art.tipoEstoque ? { tipoEstoque: tipo } : {}), ...(tecido && !art.tipoTecido ? { tipoTecido } : {}),
-      ...(tecido && !art.gramatura ? { gramatura } : {}), ...(construcao && !art.tipoMalha ? { tipoMalha: construcao } : {}) } });
+      ...(gramatura && !art.gramatura ? { gramatura } : {}), ...(construcao && !art.tipoMalha ? { tipoMalha: construcao } : {}) } });
   } else {
     art = await prisma.artigo.create({ data: { categoria, fornecedorId, nome: nomeStd, artigoInterno: nomeStd, cor, codigo, largura, unidade, quantidade,
-      tipoMalha: construcao, gramatura: tecido ? gramatura : num(b.gramatura), tipoEstoque: tipo, tipoTecido, origem: "MANUAL", criadoPorId: Number(b.usuarioId) || null } });
+      tipoMalha: construcao, gramatura: gramatura || num(b.gramatura), tipoEstoque: tipo, tipoTecido, origem: "MANUAL", criadoPorId: Number(b.usuarioId) || null } });
   }
   await prisma.estoqueMovimentacao.create({ data: { artigoId: art.id, tipo: "ENTRADA", quantidade, usuarioId: Number(b.usuarioId) || null,
     observacao: `Entrada manual · origem ${origem}${pesoKg ? ` · ${pesoKg} kg × ${gramatura} g/m² × ${largura} m` : ""}${unidadesPacote ? ` · ${unidadesPacote} un/pacote` : ""}`.slice(0, 300) } });

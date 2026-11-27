@@ -40,14 +40,14 @@ function CatalogoItem({ user, it, v, onUsar }) {
   const lista = res || it.catalogo || [];
   return (
     <div className="rounded-lg p-3 mb-3" style={{ background: C.blueSoft, border: `1px solid ${C.blue}33` }}>
-      <div className="text-[11px] font-semibold mb-1.5" style={{ color: C.blue }}>Do catálogo {res ? "· resultado da busca" : "· sugestões pelo nome da NF (fornecedor e grupo)"}</div>
+      <div className="text-[11px] font-semibold mb-1.5" style={{ color: C.blue }}>Casamento com o catálogo {res ? "· resultado da busca" : "· sugerido pelo nome da NF (cartelas do fornecedor e do grupo)"} — clique para aceitar e importar cor, código, largura, gramatura e composição</div>
       {lista.length === 0 ? <div className="text-xs" style={{ color: C.sub }}>Nenhum item parecido nas cartelas{todos ? "" : " deste fornecedor/grupo"}.</div>
         : <div className="space-y-1 overflow-auto" style={{ maxHeight: 170 }}>{lista.map((c) => {
-          const sel = v.artigoId === c.id;
+          const sel = v.catalogoId === c.id, top = !res && lista[0]?.id === c.id && !v.catalogoId;
           return <button key={c.id} type="button" onClick={() => onUsar(c)} className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-2"
             style={{ background: sel ? C.green : "#fff", color: sel ? "#fff" : C.text, border: `1px solid ${sel ? C.green : C.line}` }}>
             <b className="truncate">{c.nome}</b><span className="truncate flex-1" style={{ opacity: 0.8 }}>{linhaCat(c)}</span>
-            {c.fornecedor && <span className="shrink-0" style={{ opacity: 0.7 }}>{c.fornecedor}</span>}{sel && <span className="shrink-0 font-bold">✓ vinculado</span>}</button>;
+            {c.fornecedor && <span className="shrink-0" style={{ opacity: 0.7 }}>{c.fornecedor}</span>}{top && <span className="shrink-0 font-bold px-1.5 rounded" style={{ background: C.blue, color: "#fff" }}>sugerido · aceitar</span>}{sel && <span className="shrink-0 font-bold">✓ parâmetros importados</span>}</button>;
         })}</div>}
       <div className="flex gap-1.5 mt-2 items-center">
         <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && buscar()} placeholder="buscar outro item do catálogo" className="flex-1 px-2 py-1 rounded-lg text-xs outline-none" style={{ background: "#fff", border: `1px solid ${C.line}` }} />
@@ -78,13 +78,14 @@ export default function ParametrizarNf({ user, id, onFim }) {
   const set = (i, k, val) => setD((s) => ({ ...s, itens: s.itens.map((it, j) => (j === i ? { ...it, dados: { ...it.dados, [k]: val, ...(["artigoInterno", "cor", "unidade"].includes(k) ? { artigoId: null } : {}) } } : it)) }));
   const usarCatalogo = (i, c) => setD((s) => ({ ...s, itens: s.itens.map((it, j) => {
     if (j !== i) return it;
-    const v = it.dados, mesmaCor = !v.cor || !c.cor || String(v.cor).trim().toUpperCase() === String(c.cor).trim().toUpperCase();
+    const v = it.dados;
     const tipoC = tipoDaCat(c.categoria) || v.tipoEstoque;   // v1163 — o catálogo define o tipo
     const tt = tipoC === "TECIDO" ? (v.tipoTecido && v.tipoTecido !== "OUTROS" ? v.tipoTecido : "OUTROS") : v.tipoTecido;   // v1158 — tecido: nome = tipo
-    return { ...it, dados: { ...v, tipoTecido: tt, artigoInterno: tt && tt !== "OUTROS" ? tt : c.nome, cor: v.cor || c.cor || "", codigo: c.codigo || v.codigo || "", composicao: c.composicao || v.composicao || "",
+    // v1164 — o catálogo traz os parâmetros; o nome interno só é preenchido se estiver vazio (não soma no item do catálogo)
+    return { ...it, dados: { ...v, tipoTecido: tt, artigoInterno: tt && tt !== "OUTROS" ? tt : String(v.artigoInterno || "").trim() ? v.artigoInterno : c.nome, codigo: c.codigo || v.codigo || "", composicao: c.composicao || v.composicao || "",
       largura: c.largura != null ? fmt(c.largura) : v.largura, gramatura: c.gramatura != null ? fmt(c.gramatura) : v.gramatura, tipoMalha: c.tipoMalha || v.tipoMalha,
       tipoEstoque: tipoC, fornecedorId: v.fornecedorId || c.fornecedorId,
-      artigoId: mesmaCor && (!c.unidade || c.unidade === v.unidade) ? c.id : null } };
+      cor: c.cor || v.cor || "", catalogoId: c.id, artigoId: null } };
   }) }));
   const enviar = async () => {
     const pend = d.itens.map((it, i) => [i, faltasItem(it.dados)]).filter(([, l]) => l.length);
@@ -166,7 +167,7 @@ export default function ParametrizarNf({ user, id, onFim }) {
               <MCampo t="Preço unitário (R$)"><Inp value={v.valorUnitario || ""} onChange={(e) => set(pos, "valorUnitario", e.target.value)} inputMode="decimal" /></MCampo>
               <MCampo t="Origem"><Inp value={`NF ${d.numero}`} readOnly style={{ color: C.sub, background: C.panel2 }} /></MCampo>
             </div>
-            <div className="text-[11px] mt-3" style={{ color: C.sub }}>{v.artigoId ? "Vinculado ao item do catálogo: a entrada soma nele." : "Artigo igual já no estoque (tipo, fornecedor, nome, cor, código, unidade e largura) soma a quantidade."} O vínculo fica salvo para as próximas NFs deste fornecedor.</div>
+            <div className="text-[11px] mt-3" style={{ color: C.sub }}>No estoque aparece o nome interno. Artigo igual já no estoque (tipo, fornecedor, nome, cor, código, unidade e largura) soma a quantidade. O vínculo fica salvo para as próximas NFs deste fornecedor.</div>
           </>; })()}
         </div>
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderTop: `1px solid ${C.line}` }}>

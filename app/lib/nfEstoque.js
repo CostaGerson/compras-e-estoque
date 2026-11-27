@@ -95,7 +95,7 @@ export async function itensParaParametrizar(id) {
     const tx = norm(`${it.xProd} ${it.infAdProd || ""}`), un0 = unidadeDoUCom(it.uCom);
     if (/MALHA|PIQUET|DRY ?FIT|HELANCA|RIBANA|MOLETOM|SUEDINE|PV\b|PA\b|MEIA MALHA/.test(tx) || (campos.categoria === "AVIAMENTO" && un0 === "KG")) campos.categoria = "MALHA";
     else if (campos.categoria === "AVIAMENTO" && un0 === "M" && (/TECIDO|MATELAS|TRICOLINE|DENIM|BRIM|TACTEL|OXFORD|SARJA|GABARDINE|LINHO|CREPE|TNT|NYLON|POLIESTER|ALGODAO/.test(tx) || /\d[,.]\d{2}\s*M?\b/.test(tx) && /X\s*\d[,.]\d/.test(tx))) campos.categoria = "TECIDO";
-    const base = eq?.dados || (art ? { categoria: art.categoria, artigoInterno: art.artigoInterno || art.nome, cor: art.cor, codigo: art.codigo, composicao: art.composicao,
+    const base = eq?.dados || (art ? { categoria: art.categoria, artigoInterno: art.artigoInterno || null,   // v1164 — nome da NF não vira nome interno cor: art.cor, codigo: art.codigo, composicao: art.composicao,
       tipoEstoque: art.tipoEstoque, tipoTecido: art.tipoTecido, tipoMalha: art.tipoMalha,
       largura: art.largura != null ? Number(art.largura) : null, gramatura: art.gramatura != null ? Number(art.gramatura) : null, unidade: art.unidade } : null);
     // v1162 — cor que aparece no nome do item da NF (cores do catálogo do fornecedor/grupo ou cores comuns)
@@ -109,7 +109,7 @@ export async function itensParaParametrizar(id) {
       dados: {
         tipoEstoque: base?.tipoEstoque || null, tipoTecido: base?.tipoTecido || null, tipoMalha: base?.tipoMalha || null,   // v1157
         fornecedorId: eq?.fornecedorId || fornecedorId || null,
-        categoria: base?.categoria || campos.categoria, artigoInterno: base?.artigoInterno || eq?.artigoInterno || up(it.xProd),
+        categoria: base?.categoria || campos.categoria, artigoInterno: base?.artigoInterno || eq?.artigoInterno || null,
         cor: base?.cor || corNf || null, codigo: base?.codigo || null, composicao: base?.composicao || up(campos.composicao),
         largura: base?.largura ?? campos.largura ?? null, gramatura: base?.gramatura ?? campos.gramatura ?? null,
         unidade: base?.unidade || unidadeDoUCom(it.uCom), quantidade: it.qCom ?? 0, valorUnitario: it.vUn ?? null,
@@ -195,7 +195,7 @@ export async function darEntrada(id, { itens: editados = [], dispensar: _d = fal
       r.somados++;
     } else {
       art = await prisma.artigo.create({ data: {
-        categoria: d.categoria, fornecedorId: d.fornecedorId, nfId: nota.id, codigoFornecedor: s.cProd ? String(s.cProd) : null, nome: up(s.xProd) || "ARTIGO SEM NOME",
+        categoria: d.categoria, fornecedorId: d.fornecedorId, nfId: nota.id, codigoFornecedor: s.cProd ? String(s.cProd) : null, nome: d.artigoInterno || up(s.xProd) || "ARTIGO SEM NOME",   // v1164 — no estoque aparece o nome interno; o da NF fica no item da NF / vínculo
         artigoInterno: d.artigoInterno, cor: d.cor, codigo: d.codigo, composicao: d.composicao, largura: d.largura, gramatura: d.gramatura, unidade: d.unidade,
         quantidade: d.quantidade, valorUnitario: d.valorUnitario, dataCompra, criadoPorId: quemId || null, ...extras } });
       r.criados++;
