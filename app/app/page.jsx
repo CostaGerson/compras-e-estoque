@@ -646,7 +646,7 @@ function CardsGrupo({ grupo, ir, user }) {
         {grupo.key === "estoqueGrp" && <button onClick={() => setEntManual(true)} className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={16} /> Entrada manual</button>}
       </div>
       {entManual && <EntradaManualEstoque user={user} onClose={() => setEntManual(false)} />}
-      {grupo.key === "estoqueGrp" && <div className="mb-4" style={{ maxWidth: 560 }}><CatalogoCard /></div>}   {/* v1165 */}
+
       {/* v284 — análises: 8 colunas compactas (5 setores + bruta + líquida + vaga do bordado) */}
       <div className={`grid ${an ? "gap-3" : "gap-4"}`} style={{ gridTemplateColumns: an ? "repeat(8, minmax(0, 1fr))" : grupo.key === "compras" ? "repeat(auto-fit, minmax(170px, 1fr))" : "repeat(auto-fill, minmax(240px, 1fr))" }}>
         {grupo.filhos.map((f) => {
@@ -672,6 +672,7 @@ function CardsGrupo({ grupo, ir, user }) {
             </button>
           );
         })}
+        {grupo.key === "estoqueGrp" && <CatalogoCard card />}   {/* v1165 · v1184 — card igual aos outros */}
         {/* v266 — total ao lado do último card de setor */}
         {volta && (
           <div className="rounded-2xl p-3.5 flex flex-col min-w-0" style={{ background: C.sidebar, color: "#fff" }}>
