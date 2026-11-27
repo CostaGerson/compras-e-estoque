@@ -2729,16 +2729,17 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
             </tr></thead>
             <tbody>
               {d.itens.map((it) => (
-                <tr key={it.id} style={{ borderTop: `1px solid ${C.line}` }}>
-                  <td className="px-2 py-1.5">
-                    <div className="font-semibold">{it.nome}{it.pago && <span className="ml-1 px-1.5 rounded text-[10px] font-bold" style={{ background: C.greenSoft, color: C.green }}>PAGO {dBR(String(it.dataPagamento).slice(0, 10))}</span>}</div>
+                <tr key={it.id} style={{ borderTop: `1px solid ${C.line}`, verticalAlign: "top" }}>
+                  <td className="px-2 py-2" style={{ width: 210, minWidth: 210 }}>
+                    <div className="font-semibold">{it.nome}</div>
+                    {it.pago && <div className="mt-0.5"><span className="inline-block px-1.5 rounded text-[10px] font-bold whitespace-nowrap" style={{ background: C.greenSoft, color: C.green }}>PAGO {dBR(String(it.dataPagamento).slice(0, 10))}</span></div>}   {/* v1183 — PAGO e data numa linha só */}
                     <div style={{ color: C.sub }}>{it.grupoNome || rotGrupo(d, it.grupo)} · PIX <b style={{ color: C.text }}>{it.chavePix}</b></div>
                     {/* v1179 — no celular o valor fica junto do botão de copiar o PIX (a coluna Valor fica fora da tela) */}
                     <div className="md:hidden mt-1 text-sm font-bold tabular-nums" style={{ color: C.text }}>Valor: {moeda(it.valor)}</div>
                     {!it.pago && it.chavePix && <div className="mt-1"><BotaoPix chave={it.chavePix} grande /></div>}   {/* v930 */}
                   </td>
-                  <td className="px-2 py-1.5">{it.setorNome}</td>
-                  <td className="px-2 py-1.5" style={{ color: C.sub }}>
+                  <td className="px-2 py-2">{it.setorNome}</td>
+                  <td className="px-2 py-2" style={{ color: C.sub }}>
                     {it.grupo === "FREELANCER"
                       ? <>
                           <div>{it.dias} dia(s) × {moeda((it.diaria || 0) + (it.transporte || 0))}{it.transporte ? ` (diária ${moeda(it.diaria)} + transporte ${moeda(it.transporte)})` : ""}</div>
@@ -2755,7 +2756,7 @@ function SemanaModal({ user, tituloId, onClose, onMudou }) {
                     {it.observacao && <div>{it.observacao}</div>}
                   </td>
                   <td className="px-2 py-1.5 text-right font-semibold tabular-nums whitespace-nowrap">{moeda(it.valor)}</td>
-                  <td className="px-2 whitespace-nowrap">
+                  <td className="px-2 py-2 whitespace-nowrap">
                     {it.pago
                       ? <button onClick={() => desfazer(it)} title="Desfazer a baixa" className="mr-2" style={{ color: C.sub }}><Undo2 size={13} /></button>
                       : <>
