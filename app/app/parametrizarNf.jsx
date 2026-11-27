@@ -22,7 +22,7 @@ const TIPOS = ["MALHA", "TECIDO", "AVIAMENTO", "INSUMOS SILK", "INSUMOS SUBLIMA�
 const UNS_NF = ["M", "KG", "UN", "PC", "CM", "L", "CONE", "PCT"];
 const catDoTipo = (t) => (t === "MALHA" ? "MALHA" : t === "TECIDO" ? "TECIDO" : t === "AVIAMENTO" ? "AVIAMENTO" : "OUTROS");
 const tipoDaCat = (c) => (c === "MALHA" || c === "TECIDO" || c === "AVIAMENTO" ? c : "");
-const faltasItem = (v) => [!v.tipoEstoque && "tipo", v.tipoEstoque === "TECIDO" && !v.tipoTecido && "tipo do tecido", !String(v.artigoInterno || "").trim() && "nome do artigo",
+const faltasItem = (v) => [!v.tipoEstoque && "tipo", v.tipoEstoque === "TECIDO" && !v.tipoTecido && "nome do tecido", !String(v.artigoInterno || "").trim() && "nome do artigo",
   !String(v.cor || "").trim() && "cor", !v.fornecedorId && "fornecedor", !(Number(String(v.quantidade || "").replace(",", ".")) > 0) && "quantidade"].filter(Boolean);
 const linhaCat = (c) => [c.cor, c.codigo && `cód. ${c.codigo}`, c.largura && `${fmt(c.largura)} m`, c.gramatura && `${fmt(c.gramatura)} g/m²`, c.composicao].filter(Boolean).join(" · ");
 
@@ -75,7 +75,8 @@ export default function ParametrizarNf({ user, id, onFim }) {
   const usarCatalogo = (i, c) => setD((s) => ({ ...s, itens: s.itens.map((it, j) => {
     if (j !== i) return it;
     const v = it.dados, mesmaCor = !v.cor || !c.cor || String(v.cor).trim().toUpperCase() === String(c.cor).trim().toUpperCase();
-    return { ...it, dados: { ...v, artigoInterno: c.nome, cor: v.cor || c.cor || "", codigo: c.codigo || v.codigo || "", composicao: c.composicao || v.composicao || "",
+    const tt = (v.tipoEstoque || tipoDaCat(c.categoria)) === "TECIDO" ? (v.tipoTecido && v.tipoTecido !== "OUTROS" ? v.tipoTecido : "OUTROS") : v.tipoTecido;   // v1158 — tecido: nome = tipo
+    return { ...it, dados: { ...v, tipoTecido: tt, artigoInterno: tt && tt !== "OUTROS" ? tt : c.nome, cor: v.cor || c.cor || "", codigo: c.codigo || v.codigo || "", composicao: c.composicao || v.composicao || "",
       largura: c.largura != null ? fmt(c.largura) : v.largura, gramatura: c.gramatura != null ? fmt(c.gramatura) : v.gramatura, tipoMalha: c.tipoMalha || v.tipoMalha,
       tipoEstoque: v.tipoEstoque || tipoDaCat(c.categoria), fornecedorId: v.fornecedorId || c.fornecedorId,
       artigoId: mesmaCor && (!c.unidade || c.unidade === v.unidade) ? c.id : null } };
@@ -131,15 +132,16 @@ export default function ParametrizarNf({ user, id, onFim }) {
             </div>
             <CatalogoItem key={it.idx} user={user} it={it} v={v} onUsar={(c) => usarCatalogo(pos, c)} />
             <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(2, minmax(0,1fr))" }}>
-              <MCampo t="Tipo" obrig larg><Opcoes ops={TIPOS.map((t) => [t, t])} valor={v.tipoEstoque} onChange={(x) => { set(pos, "tipoEstoque", x); if (x !== "TECIDO") set(pos, "tipoTecido", ""); }} /></MCampo>
-              {tecido && <MCampo t="Tipo do tecido" obrig larg>
-                <select value={v.tipoTecido} onChange={(e) => { const t = e.target.value; set(pos, "tipoTecido", t); if (!v.gramatura && cfg?.gramaturas?.[t]) set(pos, "gramatura", fmt(cfg.gramaturas[t])); }}
+              <MCampo t="Tipo" obrig larg><Opcoes ops={TIPOS.map((t) => [t, t])} valor={v.tipoEstoque} onChange={(x) => { set(pos, "tipoEstoque", x); if (x !== "TECIDO" && v.tipoTecido) { set(pos, "tipoTecido", ""); set(pos, "artigoInterno", ""); } }} /></MCampo>
+              {/* v1158 — tecido: o NOME é um dos tipos cadastrados (substitui o campo nome) */}
+              {tecido && <MCampo t="Nome" obrig larg>
+                <select value={v.tipoTecido} onChange={(e) => { const t = e.target.value; set(pos, "tipoTecido", t); set(pos, "artigoInterno", t && t !== "OUTROS" ? t : ""); if (!v.gramatura && cfg?.gramaturas?.[t]) set(pos, "gramatura", fmt(cfg.gramaturas[t])); }}
                   className="px-2 rounded-lg text-sm" style={{ background: "#fff", border: `1px solid ${C.line}`, height: 36, minWidth: 260 }}>
                   <option value="">Escolha…</option>{(cfg?.tecidos || []).map((t) => <option key={t} value={t}>{t}{cfg?.gramaturas?.[t] ? ` · ${cfg.gramaturas[t]} g/m²` : ""}</option>)}
                 </select></MCampo>}
-              <MCampo t="Nome do artigo (padrão interno)" obrig larg>
+              {(!tecido || v.tipoTecido === "OUTROS") && <MCampo t={tecido ? "Nome (outro tecido)" : "Nome"} obrig larg>
                 <InpSugest value={v.artigoInterno || ""} onChange={(x) => set(pos, "artigoInterno", x)} opcoes={sugNomes} placeholder="só o artigo: fornecedor e cor vão nos campos próprios" />
-              </MCampo>
+              </MCampo>}
               <MCampo t="Cor" obrig><Inp value={v.cor || ""} onChange={(e) => set(pos, "cor", e.target.value.toUpperCase())} /></MCampo>
               <MCampo t="Código"><Inp value={v.codigo || ""} onChange={(e) => set(pos, "codigo", e.target.value.toUpperCase())} /></MCampo>
               <MCampo t="Fornecedor" obrig larg>

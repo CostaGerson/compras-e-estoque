@@ -35,7 +35,7 @@ export async function entradaManual(b, quem) {
   if (!tipo) return { error: "Escolha o tipo." };
   const tecido = tipo === "TECIDO";
   const tipoTecido = tecido ? (TIPOS_TECIDO.includes(b.tipoTecido) ? b.tipoTecido : null) : null;
-  if (tecido && !tipoTecido) return { error: "Escolha o tipo do tecido." };
+  if (tecido && !tipoTecido) return { error: "Escolha o nome do tecido." };
   const nome = String(b.nome || "").trim();
   if (!nome) return { error: "Informe o nome do artigo." };
   const fornecedorId = Number(b.fornecedorId) || null;

@@ -136,7 +136,7 @@ export default function EntradaManualEstoque({ user, onClose }) {
   const faltas = () => {
     const l = [];
     if (!f.tipo) l.push("tipo");
-    if (tecido && !f.tipoTecido) l.push("tipo do tecido");
+    if (tecido && !f.tipoTecido) l.push("nome do tecido");
     if (!f.nome.trim()) l.push("nome do artigo");
     if (!f.cor.trim()) l.push("cor");
     if (!f.fornecedorId) l.push("fornecedor (escolha na lista)");
@@ -191,18 +191,19 @@ export default function EntradaManualEstoque({ user, onClose }) {
         ) : (
           <div className="p-5 overflow-auto">
             <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(2, minmax(0,1fr))" }}>
-              <Campo t="Tipo" obrig larg><Opcoes ops={cfg.tipos.map((t) => [t, t])} valor={f.tipo} onChange={(v) => setF((o) => ({ ...o, tipo: v, tipoTecido: v === "TECIDO" ? o.tipoTecido : "", construcao: v === "MALHA" ? o.construcao : "" }))} /></Campo>
-              {tecido && <Campo t="Tipo do tecido" obrig larg>
+              <Campo t="Tipo" obrig larg><Opcoes ops={cfg.tipos.map((t) => [t, t])} valor={f.tipo} onChange={(v) => setF((o) => ({ ...o, tipo: v, tipoTecido: v === "TECIDO" ? o.tipoTecido : "", nome: v === "TECIDO" && o.tipoTecido && o.tipoTecido !== "OUTROS" ? o.tipoTecido : o.tipo === "TECIDO" ? "" : o.nome, construcao: v === "MALHA" ? o.construcao : "" }))} /></Campo>
+              {/* v1158 — tecido: o NOME é um dos tipos cadastrados (substitui o campo nome) */}
+              {tecido && <Campo t="Nome" obrig larg>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <select value={f.tipoTecido} onChange={(e) => s("tipoTecido", e.target.value)} className="px-2 rounded-lg text-sm" style={{ ...iS, height: 36, minWidth: 240 }}>
+                  <select value={f.tipoTecido} onChange={(e) => { const t = e.target.value; setF((o) => ({ ...o, tipoTecido: t, nome: t && t !== "OUTROS" ? t : "" })); }} className="px-2 rounded-lg text-sm" style={{ ...iS, height: 36, minWidth: 240 }}>
                     <option value="">Escolha…</option>{cfg.tecidos.map((t) => <option key={t} value={t}>{t}{cfg.gramaturas?.[t] ? ` · ${cfg.gramaturas[t]} g/m²` : ""}</option>)}
                   </select>
                   <button type="button" onClick={() => setEditGram(true)} className="flex items-center gap-1 text-xs font-semibold" style={{ color: C.accent }}><Settings2 size={13} /> gramaturas padrão</button>
                 </div>
               </Campo>}
-              <Campo t="Nome do artigo" obrig larg>
+              {(!tecido || f.tipoTecido === "OUTROS") && <Campo t={tecido ? "Nome (outro tecido)" : "Nome"} obrig larg>
                 <InpSugest value={f.nome} onChange={(v) => s("nome", v)} opcoes={sugNomes} placeholder="só o artigo: fornecedor e cor vão nos campos próprios" />
-              </Campo>
+              </Campo>}
               <Campo t="Cor" obrig><Inp value={f.cor} onChange={(e) => s("cor", e.target.value.toUpperCase())} /></Campo>
               <Campo t="Código"><Inp value={f.codigo} onChange={(e) => s("codigo", e.target.value.toUpperCase())} /></Campo>
               <Campo t="Fornecedor" obrig larg>
