@@ -26,9 +26,10 @@ export const GRAMATURAS_INICIAIS = { "BRIM LEVE": 200, "BRIM PESADO": 235, "BRIM
   // v1164 — médias das cartelas (Doptel/Andes, Expansione, Santista, Doptex), confirmadas pelo Igor
   "TACTEL": 110, "CAMISARIA": 130, "JEANS": 365, "ECOBAG": 189, "OXFORD": 155, "TACTEL REPELENTE À ÁGUA": 155,
   // v1186 — pelo Catálogo Meridian (cartelas de 27/11/2026): Gabardine Paris (ACR) 170 · Nylon paraquedas (Jetfio) 127 ·
-  //   impermeável = média de Tecnology WR 64, Roma Austri 136 e Techno reversível WR 140 · Two Way (ACR 240, ADAR 210 e 230) ·
-  //   Matelassê nylon (Jetfio) 154 · Americano cru = tecido cru 100% algodão (Expansione) 80 · Bember: sem referência no catálogo
-  "GABARDINE": 170, "NYLON PARAQUEDAS": 127, "NYLON IMPERMEÁVEL": 113, "TWO WAY": 227, "MATELASSÊ": 154, "AMERICANO CRU": 80 };
+  //   impermeável 140 (Igor; Techno reversível WR ADAR) · Two Way (ACR 240, ADAR 210 e 230) ·
+  //   Matelassê nylon (Jetfio) 154 · Americano cru = tecido cru 100% algodão (Expansione) 80 ·
+  //   Bember = Poly Taffeta ADAR 155.Y17 (forro leve, tem verde brasil) 46
+  "GABARDINE": 170, "NYLON PARAQUEDAS": 127, "NYLON IMPERMEÁVEL": 140, "TWO WAY": 227, "MATELASSÊ": 154, "AMERICANO CRU": 80, "BEMBER": 46 };
 export async function gramaturasPadrao() {
   const c = await prisma.finConfig.findUnique({ where: { chave: K_GRAM } }).catch(() => null);
   let salvo = {}; try { salvo = JSON.parse(c?.valor || "{}"); } catch {}
