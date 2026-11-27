@@ -114,6 +114,7 @@ export async function itensParaParametrizar(id) {
         largura: base?.largura ?? campos.largura ?? null, gramatura: base?.gramatura ?? campos.gramatura ?? null,
         unidade: base?.unidade || unidadeDoUCom(it.uCom), quantidade: it.qCom ?? 0, valorUnitario: it.vUn ?? null,
         artigoId: artEq?.id || null,   // v1159
+        catalogoId: base?.catalogoId || null,   // v1169
       },
     });
   }
@@ -177,7 +178,8 @@ export async function darEntrada(id, { itens: editados = [], dispensar: _d = fal
       valorUnitario: num(e.valorUnitario) ?? s.dados.valorUnitario,
       tipoEstoque: e.tipoEstoque || s.dados.tipoEstoque || null, tipoTecido: e.tipoTecido || null,   // v1157
       tipoMalha: ["TUBULAR", "RAMADA"].includes(e.tipoMalha) ? e.tipoMalha : s.dados.tipoMalha || null,
-      artigoId: Number(e.artigoId) || null,   // v1157 — item do catálogo escolhido (mesma cor): a entrada soma nele
+      artigoId: Number(e.artigoId) || null,   // v1157
+      catalogoId: Number(e.catalogoId) || s.dados.catalogoId || null,   // v1169 — item do catálogo casado (preços no Catálogo Meridian)
     };
     if (d.tipoEstoque) d.categoria = d.tipoEstoque === "MALHA" ? "MALHA" : d.tipoEstoque === "TECIDO" ? "TECIDO" : d.tipoEstoque === "AVIAMENTO" ? "AVIAMENTO" : "OUTROS";   // v1157
     if (!d.artigoId) {   // v1157 — mesmo padrão de nomenclatura do catálogo / entrada manual
@@ -206,7 +208,7 @@ export async function darEntrada(id, { itens: editados = [], dispensar: _d = fal
     // equivalência para as próximas NFs deste fornecedor
     if (!dispensar && doc) {
       const dados = { categoria: d.categoria, artigoInterno: d.artigoInterno, cor: d.cor, codigo: d.codigo, composicao: d.composicao, largura: d.largura, gramatura: d.gramatura, unidade: d.unidade,
-        tipoEstoque: d.tipoEstoque, tipoTecido: d.tipoTecido, tipoMalha: d.tipoMalha };   // v1157
+        tipoEstoque: d.tipoEstoque, tipoTecido: d.tipoTecido, tipoMalha: d.tipoMalha, catalogoId: d.catalogoId || null };   // v1157 · v1169 catalogoId
       await prisma.artigoEquivalencia.upsert({ where: { documento_nomeNf: { documento: doc, nomeNf: norm(s.xProd) } },
         create: { documento: doc, nomeNf: norm(s.xProd), cProd: s.cProd ? String(s.cProd) : null, fornecedorId: d.fornecedorId, artigoId: art.id, artigoInterno: d.artigoInterno, dados, criadoPorNome: quem || null },
         update: { cProd: s.cProd ? String(s.cProd) : null, fornecedorId: d.fornecedorId, artigoId: art.id, artigoInterno: d.artigoInterno, dados } });

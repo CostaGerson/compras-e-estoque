@@ -24,20 +24,42 @@ export async function dadosCatalogo() {
     select: { id: true, nome: true, artigoInterno: true, codigoFornecedor: true, categoria: true, composicao: true, largura: true, gramatura: true, rendimento: true,
       tipoMalha: true, unidade: true, especificacao: true, cor: true, fornecedor: { select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true } } },
     orderBy: [{ nome: "asc" }] });
-  const forns = new Map();
+  const forns = new Map(), famDe = new Map();
   for (const a of arts) {
     const fn = (a.fornecedor?.nomeFantasia || a.fornecedor?.nome || a.fornecedor?.razaoSocial || "SEM FORNECEDOR").trim();   // v1168 — + razão social
     if (!forns.has(fn)) forns.set(fn, new Map());
     const m = forns.get(fn);
     const ch = [a.nome, a.codigoFornecedor, a.composicao, num(a.largura), num(a.gramatura)].join("|");
     if (!m.has(ch)) m.set(ch, { n: a.nome, i: a.artigoInterno || null, r: a.codigoFornecedor || null, c: a.categoria, p: a.composicao || null, l: num(a.largura), g: num(a.gramatura),
-      d: num(a.rendimento), t: a.tipoMalha || null, u: a.unidade || null, e: null, k: [] });
+      d: num(a.rendimento), t: a.tipoMalha || null, u: a.unidade || null, e: null, k: [], ids: [] });
     const x = m.get(ch);
+    x.ids.push(a.id); famDe.set(a.id, x);
     if (a.cor && !x.k.includes(a.cor)) x.k.push(a.cor);
     // especificação comum (sem o detalhe da cor)
     if (!x.e && a.especificacao) x.e = String(a.especificacao).split(" · ").filter((s) => !/ACRÉSCIMO/i.test(s)).join(" · ") || null;
   }
-  return [...forns.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt-BR")).map(([f, m]) => ({ f, a: [...m.values()] }));
+  await ultimasCompras(famDe).catch((e) => console.log("catálogo/preços:", e.message));
+  return [...forns.entries()].sort((a, b) => a[0].localeCompare(b[0], "pt-BR")).map(([f, m]) => ({ f, a: [...m.values()].map(({ ids, ...x }) => x) }));
+}
+
+// v1169 — últimos valores pagos: NFs que entraram no próprio item do catálogo ou em artigo interno casado com ele (vínculo NF × catálogo)
+async function ultimasCompras(famDe) {
+  const ids = [...famDe.keys()];
+  if (!ids.length) return;
+  const eqs = await prisma.artigoEquivalencia.findMany({ where: { artigoId: { not: null } }, select: { artigoId: true, dados: true } });
+  const porArtigo = new Map();   // artigo (interno ou do catálogo) → famílias do catálogo
+  const liga = (artId, fam) => { if (!porArtigo.has(artId)) porArtigo.set(artId, new Set()); porArtigo.get(artId).add(fam); };
+  for (const id of ids) liga(id, famDe.get(id));
+  for (const e of eqs) { const c = Number(e.dados?.catalogoId); if (c && famDe.has(c)) liga(e.artigoId, famDe.get(c)); }
+  const itens = await prisma.nfItem.findMany({ where: { artigoId: { in: [...porArtigo.keys()] }, valorUnitario: { not: null } },
+    select: { artigoId: true, valorUnitario: true, descricaoNf: true, nf: { select: { numero: true, dataEmissao: true } }, artigo: { select: { cor: true, unidade: true } } } });
+  for (const it of itens) for (const fam of porArtigo.get(it.artigoId) || []) {
+    (fam.$ ||= []).push([Number(it.valorUnitario), it.artigo?.unidade || fam.u || null, it.nf?.numero || null, it.nf?.dataEmissao ? it.nf.dataEmissao.toISOString().slice(0, 10) : null, it.artigo?.cor || null]);
+  }
+  for (const fam of new Set(famDe.values())) if (fam.$) {
+    const vistos = new Set();
+    fam.$ = fam.$.sort((a, b) => String(b[3] || "").localeCompare(String(a[3] || ""))).filter((p) => { const k = `${p[2]}|${p[4]}`; if (vistos.has(k)) return false; vistos.add(k); return true; }).slice(0, 3);
+  }
 }
 
 export function htmlCatalogo(dados, geradoEm = new Date()) {
@@ -77,6 +99,8 @@ h2{font-size:16px;color:var(--navy);margin:6px 0 12px;display:flex;align-items:c
 .row .n{font-weight:700;color:var(--navy)}.row .fo{color:var(--or);font-weight:700;font-size:11px}.row .mut{color:var(--sub)}
 .idx{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}.idx a{font-weight:800;color:var(--navy);text-decoration:none;padding:3px 7px;border-radius:6px;background:var(--pn);border:1px solid var(--ln);font-size:12px}
 .vazio{color:var(--sub);padding:40px;text-align:center}
+.pr{background:#FFF7F0;border:1px solid #FFE0CC;border-radius:8px;padding:6px 8px;font-size:11.5px}.pr i{display:block;font-style:normal;font-size:10px;color:var(--sub);text-transform:uppercase}.pr b{color:var(--or)}.row .pr{background:none;border:none;padding:0}
+.row.cab{background:none;border:none;font-size:10px;font-weight:700;color:var(--sub);text-transform:uppercase;padding:2px 12px;margin:0}.mut{color:var(--sub);font-size:10.5px}
 @media(max-width:800px){nav.side{display:none}.row{grid-template-columns:1fr 1fr}.bar{top:110px}header{position:static}.bar{position:static}}
 @media print{header,.bar,nav.side{position:static}nav.side{display:none}}
 </style></head><body>
@@ -88,36 +112,56 @@ h2{font-size:16px;color:var(--navy);margin:6px 0 12px;display:flex;align-items:c
 <script>
 const D=${json};
 const ALL=[];D.forEach(x=>x.a.forEach(a=>ALL.push(Object.assign({fo:x.f},a))));
-let modo='F',forn=null,cat='',q='';
-const sa=s=>String(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toUpperCase();
+let modo='F',forn=null,cat='',Q=[];
+const sa=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+const norm=s=>sa(s).replace(/(\\b[A-Z])\\.(?=[A-Z]\\b)/g,'$1').replace(/[^A-Z0-9%]+/g,' ').trim();
 const e=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const nf=(v,d)=>v==null?'—':Number(v).toLocaleString('pt-BR',{maximumFractionDigits:d});
-const ok=a=>(!cat||a.c===cat)&&(!q||sa([a.n,a.i,a.r,a.p,a.fo,a.e,a.k.join(' ')].join(' ')).includes(q));
-function cores(a,lim){const k=a.k;if(!k.length)return'';const v=lim?k.slice(0,lim):k;return '<div class="cores">'+v.map(c=>'<span>'+e(c)+'</span>').join('')+(lim&&k.length>lim?'<button class="mais" onclick="this.parentNode.outerHTML=window.__c['+a.__i+']">+'+(k.length-lim)+' cores</button>':'')+'</div>';}
+const brl=v=>Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL',minimumFractionDigits:2,maximumFractionDigits:4});
+const dbr=d=>d?d.split('-').reverse().join('/'):'';
+// busca igual à da FPP: casa nome, artigo interno, referência, composição, fornecedor e construção; prefixo, trecho e 1 letra de diferença; palavras que só casam com cores filtram as cores
+function lev1(a,b){if(Math.abs(a.length-b.length)>1)return false;let i=0,j=0,d=0;while(i<a.length&&j<b.length){if(a[i]===b[j]){i++;j++;continue;}if(++d>1)return false;if(a.length>b.length)i++;else if(b.length>a.length)j++;else{i++;j++;}}return d+(a.length-i)+(b.length-j)<=1;}
+function casaTok(t,toks){for(const h of toks){if(h===t)return 3;if(h.startsWith(t))return 2;if(t.length>=4&&h.includes(t))return 1.5;if(t.length>=5&&h.length>=5&&lev1(t,h))return 1;}return 0;}
+ALL.forEach(a=>{const t=norm([a.n,a.i,a.r,a.p,a.fo,a.t,a.e,a.c].join(' ')).split(' ').filter(Boolean);for(let i=0,n=t.length;i<n-1;i++)t.push(t[i]+t[i+1]);a.T=t;a.KT=a.k.map(c=>norm(c).split(' ').filter(Boolean));});
+function avalia(a){if(!Q.length)return{s:0,todas:1,k:a.k};let s=0,ok=0;const tc=[];
+ for(const t of Q){const x=casaTok(t,a.T);if(x){s+=x;ok++;continue;}if(a.KT.some(ct=>casaTok(t,ct))){tc.push(t);s+=1;ok++;}}
+ if(ok<Math.max(1,Math.ceil(Q.length*0.6)))return null;
+ let k=a.k;if(tc.length){const f=a.k.filter((c,i)=>tc.every(t=>casaTok(t,a.KT[i])));if(f.length)k=f;}
+ return{s,todas:ok===Q.length?1:0,k};}
+function lista(filtroForn){const r=[];for(const a of ALL){if(cat&&a.c!==cat)continue;if(filtroForn&&a.fo!==filtroForn)continue;const v=avalia(a);if(v)r.push(Object.assign(a,{V:v}));}
+ if(Q.length)r.sort((x,y)=>(y.V.todas-x.V.todas)||(y.V.s-x.V.s)||x.n.localeCompare(y.n));return r;}
 window.__c=[];
-function card(a){a.__i=window.__c.length;window.__c.push(cores(a,0));
- const rend=a.d?nf(a.d,2)+' m/kg':'—';
+function cores(a,lim){const k=a.V?a.V.k:a.k;if(!k.length)return'';const v=lim?k.slice(0,lim):k;const id=window.__c.length;window.__c.push(k);
+ return '<div class="cores">'+v.map(c=>'<span>'+e(c)+'</span>').join('')+(lim&&k.length>lim?'<button class="mais" onclick="this.parentNode.outerHTML=tdc('+id+')">+'+(k.length-lim)+' cores</button>':'')+(a.V&&a.V.k.length<a.k.length?'<span class="mut">('+a.V.k.length+' de '+a.k.length+')</span>':'')+'</div>';}
+window.tdc=i=>'<div class="cores">'+window.__c[i].map(c=>'<span>'+e(c)+'</span>').join('')+'</div>';
+function precos(a,curto){if(!a.$||!a.$.length)return curto?'<span class="mut">—</span>':'';
+ const l=a.$.map(p=>'<div><b>'+brl(p[0])+'</b>'+(p[1]?'/'+e(String(p[1]).toLowerCase()):'')+' · NF '+e(p[2]||'?')+(p[3]?' · '+dbr(p[3]):'')+(p[4]&&!curto?' · '+e(p[4]):'')+'</div>');
+ return curto?'<div class="pr">'+l[0]+'</div>':'<div class="pr"><i>Últimos valores pagos</i>'+l.join('')+'</div>';}
+function card(a){const rend=a.d?nf(a.d,2)+' m/kg':'—';
  return '<div class="card"><div><span class="tag '+e(a.c)+'">'+e(a.c)+'</span>'+(a.t?'<span class="tag">'+e(a.t)+'</span>':'')+(a.r?'<span class="tag">REF '+e(a.r)+'</span>':'')+'</div>'
  +'<div class="t">'+e(a.n)+'</div>'+(modo==='A'||!forn?'<div class="f">'+e(a.fo)+'</div>':'')
  +(a.p?'<div class="comp">'+e(a.p)+'</div>':'')
  +'<div class="sp"><div><i>Largura</i><b>'+(a.l?nf(a.l,2)+' m':'—')+'</b></div><div><i>Gramatura</i><b>'+(a.g?nf(a.g,1)+' g/m²':'—')+'</b></div><div><i>Rendimento</i><b>'+rend+'</b></div></div>'
- +(a.e?'<div class="esp">'+e(a.e)+'</div>':'')+(a.i?'<div class="esp">Artigo interno: <b>'+e(a.i)+'</b></div>':'')
+ +precos(a)+(a.e?'<div class="esp">'+e(a.e)+'</div>':'')+(a.i?'<div class="esp">Artigo interno: <b>'+e(a.i)+'</b></div>':'')
  +'<div class="esp">'+a.k.length+' cor(es)</div>'+cores(a,14)+'</div>';}
 function side(){const s=document.getElementById('side');if(modo!=='F'){s.innerHTML='';s.style.display='none';return;}s.style.display='';
- s.innerHTML='<a class="'+(forn?'':'on')+'" data-f="">Todos os fornecedores<span>'+ALL.filter(ok).length+'</span></a>'+D.map(x=>{const n=x.a.filter(a=>ok(Object.assign({fo:x.f},a))).length;return n?'<a class="'+(forn===x.f?'on':'')+'" data-f="'+e(x.f)+'">'+e(x.f)+'<span>'+n+'</span></a>':'';}).join('');
+ const tot=lista(null);const cont={};tot.forEach(a=>cont[a.fo]=(cont[a.fo]||0)+1);
+ s.innerHTML='<a class="'+(forn?'':'on')+'" data-f="">Todos os fornecedores<span>'+tot.length+'</span></a>'+D.map(x=>cont[x.f]?'<a class="'+(forn===x.f?'on':'')+'" data-f="'+e(x.f)+'">'+e(x.f)+'<span>'+cont[x.f]+'</span></a>':'').join('');
  s.querySelectorAll('a').forEach(a=>a.onclick=()=>{forn=a.dataset.f||null;render();window.scrollTo(0,0);});}
+const semRef=n=>n.replace(/^[0-9A-Z]{0,3}[0-9]+[ .-]*/,'');
+function row(a){return '<div class="row"><div><div class="n">'+e(a.n)+'</div>'+(a.r?'<div class="mut">REF '+e(a.r)+'</div>':'')+'</div><div class="fo">'+e(a.fo)+'</div><div>'+e(a.p||'—')+'</div><div>'+(a.l?nf(a.l,2)+' m':'—')+'</div><div>'+(a.g?nf(a.g,1)+' g/m²':'—')+'</div><div>'+precos(a,true)+'</div><div>'+cores(a,6)+'</div></div>';}
 function render(){window.__c=[];side();const m=document.getElementById('main');
- if(modo==='F'){const grupos=D.filter(x=>!forn||x.f===forn).map(x=>[x.f,ALL.filter(a=>a.fo===x.f&&ok(a))]).filter(g=>g[1].length);
+ if(modo==='F'){const l=lista(forn);const grupos=D.filter(x=>!forn||x.f===forn).map(x=>[x.f,l.filter(a=>a.fo===x.f)]).filter(g=>g[1].length);
   m.innerHTML=grupos.length?grupos.map(([f,l])=>'<h2>'+e(f)+' <small>'+l.length+' artigo(s)</small></h2><div class="grid">'+l.map(card).join('')+'</div>').join('<div style="height:18px"></div>'):'<div class="vazio">Nada encontrado.</div>';return;}
- const l=ALL.filter(ok).sort((a,b)=>sa(a.n.replace(/^[0-9A-Z]{0,3}[0-9]+[ .-]*/,'')).localeCompare(sa(b.n.replace(/^[0-9A-Z]{0,3}[0-9]+[ .-]*/,'')))||a.fo.localeCompare(b.fo));
- if(!l.length){m.innerHTML='<div class="vazio">Nada encontrado.</div>';return;}
- const L=a=>{const c=sa(a.n.replace(/^[0-9A-Z]{0,3}[0-9]+[ .-]*/,''))[0]||'#';return /[A-Z]/.test(c)?c:'#';};
- const letras=[...new Set(l.map(L))];
- m.innerHTML='<div class="idx">'+letras.map(x=>'<a href="#L'+x+'">'+x+'</a>').join('')+'</div>'+letras.map(x=>'<div class="letra" id="L'+x+'">'+x+'</div>'+l.filter(a=>L(a)===x).map(a=>{a.__i=window.__c.length;window.__c.push(cores(a,0));
-  return '<div class="row"><div><div class="n">'+e(a.n)+'</div>'+(a.r?'<div class="mut">REF '+e(a.r)+'</div>':'')+'</div><div class="fo">'+e(a.fo)+'</div><div>'+e(a.p||'—')+'</div><div>'+(a.l?nf(a.l,2)+' m':'—')+'</div><div>'+(a.g?nf(a.g,1)+' g/m²':'—')+'</div><div class="mut">'+e(a.c)+'</div><div>'+cores(a,6)+'</div></div>';}).join('')).join('');}
+ const l=lista(null);if(!l.length){m.innerHTML='<div class="vazio">Nada encontrado.</div>';return;}
+ const cab='<div class="row cab"><div>Artigo</div><div>Fornecedor</div><div>Composição</div><div>Largura</div><div>Gramatura</div><div>Última compra</div><div>Cores</div></div>';
+ if(Q.length){m.innerHTML='<h2>'+l.length+' resultado(s) <small>ordenados pela semelhança com a busca</small></h2>'+cab+l.slice(0,400).map(row).join('');return;}
+ l.sort((a,b)=>sa(semRef(a.n)).localeCompare(sa(semRef(b.n)))||a.fo.localeCompare(b.fo));
+ const L=a=>{const c=sa(semRef(a.n))[0]||'#';return /[A-Z]/.test(c)?c:'#';};const letras=[...new Set(l.map(L))];
+ m.innerHTML='<div class="idx">'+letras.map(x=>'<a href="#L'+x+'">'+x+'</a>').join('')+'</div>'+cab+letras.map(x=>'<div class="letra" id="L'+x+'">'+x+'</div>'+l.filter(a=>L(a)===x).map(row).join('')).join('');}
 document.getElementById('tF').onclick=()=>{modo='F';tF.classList.add('on');tA.classList.remove('on');render();};
 document.getElementById('tA').onclick=()=>{modo='A';tA.classList.add('on');tF.classList.remove('on');render();};
-let tm;document.getElementById('q').oninput=ev=>{clearTimeout(tm);tm=setTimeout(()=>{q=sa(ev.target.value.trim());render();},150);};
+let tm;document.getElementById('q').oninput=ev=>{clearTimeout(tm);tm=setTimeout(()=>{Q=norm(ev.target.value).split(' ').filter(Boolean);render();},150);};
 document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{cat=c.dataset.c;document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===c));render();});
 render();
 </script></body></html>`;
