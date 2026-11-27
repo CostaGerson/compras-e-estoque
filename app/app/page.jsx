@@ -3251,11 +3251,10 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
           {(() => { const g = gruposDuplicados(artigos); return g.length > 0 ? (
             <button onClick={() => setVerDup(true)} className="px-3 py-1.5 rounded-md font-medium text-sm flex items-center gap-1" style={{ background: C.accentSoft, color: C.accent, border: `1px solid ${C.accent}` }}><AlertTriangle size={14} /> Mesclar duplicados ({g.length})</button>
           ) : null; })()}
-          <button onClick={() => setNovo((v) => !v)} className="px-3 py-1.5 rounded-md font-medium text-sm" style={{ background: novo ? C.panel : C.accent, color: novo ? C.sub : "#fff", border: `1px solid ${novo ? C.line : C.accent}` }}>{novo ? "Fechar" : "+ Novo artigo"}</button>
+          {/* v1160 — sem "+ Novo artigo": artigos entram só pela entrada manual e pelas NFs (já parametrizadas) */}
         </div>
       </div>
 
-      {novo && <ArtigoForm fornecedores={fornecedores} master={master} onSaved={() => { setNovo(false); onSaved(); }} />}
 
       {ocultas.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 mb-2 text-xs" style={{ color: C.sub }}>
@@ -3283,24 +3282,21 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
             </tr>
           </thead>
           <tbody>
-        {lista.length === 0 && <tr><td colSpan={12} className="px-4 py-6 text-sm normal-case" style={{ color: C.sub }}>Nenhum artigo ainda. Clique em “Novo artigo”.</td></tr>}
+        {lista.length === 0 && <tr><td colSpan={12} className="px-4 py-6 text-sm normal-case" style={{ color: C.sub }}>Nenhum artigo ainda. Use a entrada manual ou suba uma NF.</td></tr>}
         {lista.map((a) => (
-          <tr key={a.id} onClick={() => setEditando(a)} className="cursor-pointer hover:bg-gray-50 align-top" style={{ borderTop: `1px solid ${C.line}`, overflowWrap: "anywhere" }}>
-            {vis("categoria") && <td className="px-3 py-2"><span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></td>}
+          <tr key={a.id} onClick={() => setEditando(a)} className="cursor-pointer hover:bg-gray-50 align-middle" style={{ borderTop: `1px solid ${C.line}`, overflowWrap: "break-word", verticalAlign: "middle" }}>
+            {vis("categoria") && <td className="px-3 py-2 whitespace-nowrap"><span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: C.accentSoft, color: C.accent }}>{a.categoria}</span></td>}
             {vis("nome") && <td className="px-3 py-2 font-medium" style={{ color: modoEstoque && abaixoMin(a) ? "#E5484D" : C.text, minWidth: 160 }}>{/* v1143 — C verde: veio do catálogo · M vermelho: cadastrado manualmente */}
               <span title={a.origem === "CARTELA" ? "Do catálogo do fornecedor" : "Cadastrado manualmente"} className="inline-flex items-center justify-center rounded text-[10px] font-black mr-1.5 align-middle" style={{ width: 16, height: 16, background: a.origem === "CARTELA" ? "#12A150" : "#D92D20", color: "#fff" }}>{a.origem === "CARTELA" ? "C" : "M"}</span>{a.nome}{a.origem === "FPP" && <span title="Cadastrado a partir de uma FPP" className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style={{ background: C.panel2, color: C.sub, border: `1px solid ${C.line}` }}>FPP{a.origemFppNumero ? ` ${String(a.origemFppNumero).padStart(5, "0")}` : ""}</span>}</td>}
             {vis("interno") && <td className="px-3 py-2" style={{ color: internoDe(a) ? C.text : C.sub, minWidth: 120 }} title={semInterno(a.categoria) ? "Aviamentos e outros não têm artigo interno: vale o nome da NF" : ""}>{internoDe(a) || "—"}</td>}
             {vis("fornecedor") && <td className="px-3 py-2" style={{ color: a.fornecedor && !a.fornecedor.nome ? C.accent : C.sub, minWidth: 110 }}>
               {a.fornecedor ? (a.fornecedor.nome || "⚠ definir nome") : "—"}
             </td>}
-            {vis("cor") && <td className="px-3 py-2" style={{ color: C.sub }}><span className="flex items-center gap-1"><Bolinha cor={a.cor} /> <span className="min-w-0">{a.cor || "—"}</span></span></td>}
+            {vis("cor") && <td className="px-3 py-2 whitespace-nowrap" style={{ color: C.sub }}><span className="flex items-center gap-1"><Bolinha cor={a.cor} /> <span className="min-w-0">{a.cor || "—"}</span></span></td>}
             {vis("codigo") && <td className="px-3 py-2 whitespace-nowrap tabular-nums" style={{ color: C.sub }}>{a.codigo || "—"}</td>}
             {modoEstoque && vis("saldo") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: abaixoMin(a) ? "#E5484D" : C.sub, fontWeight: abaixoMin(a) ? 700 : 400 }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}</td>}
-            {vis("composicao") && <td className="px-3 py-2" style={{ color: C.sub, minWidth: 120 }}>
-              <div>{a.composicao || "—"}</div>
-              {(a.largura || gramRend(a) !== "—") && <div className="text-[11px]">{[a.largura ? `${a.largura} m` : "", gramRend(a) !== "—" ? gramRend(a) : ""].filter(Boolean).join(" · ")}</div>}
-            </td>}
-            {modoEstoque && vis("movimento") && <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></td>}
+            {vis("composicao") && <td className="px-3 py-2 whitespace-nowrap" style={{ color: C.sub }} title={[a.composicao, a.largura && `${a.largura} m`, gramRend(a) !== "—" && gramRend(a)].filter(Boolean).join(" · ")}>{linhaTecnica(a)}</td>}
+            {modoEstoque && vis("movimento") && <td className="px-3 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></td>}
             {modoEstoque && master && vis("preco") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</td>}
             {modoEstoque && master && vis("valor") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: C.text, fontWeight: 600 }}>{a.valorUnitario && a.quantidade != null ? money(Number(a.valorUnitario) * Number(a.quantidade)) : "—"}</td>}
             {!modoEstoque && vis("ultima") && (
@@ -3525,6 +3521,21 @@ function ultimaCompraResto(a) {
   if (a.dataCompra) partes.push(fmtData(a.dataCompra));
   if (a.nf?.numero) partes.push("NF " + a.nf.numero);
   return partes.join(" · ");
+}
+// v1160 — composição abreviada (siglas usuais da indústria têxtil) para caber numa linha
+const SIGLAS_FIBRA = [[/POLI[EÉ]STER/g, "PES"], [/ALGOD[AÃ]O/g, "CO"], [/VISCOSE/g, "CV"], [/RAIOM|RAYON/g, "CV"], [/ELASTOMULTI[EÉ]STER/g, "EME"], [/ELASTANO|SPANDEX|LYCRA/g, "EL"],
+  [/POLIAMIDA|NYLON|N[AÁ]ILON/g, "PA"], [/ACR[IÍ]LICO/g, "PAC"], [/POLIPROPILENO/g, "PP"], [/ACETATO/g, "CA"], [/LYOCELL|TENCEL/g, "CLY"], [/MODAL/g, "CMD"],
+  [/LINHO/g, "LI"], [/(^|\s)L[AÃ](?=\s|$)/g, "$1WO"], [/SEDA/g, "SE"], [/BAMBU/g, "BAM"], [/ARAMIDA/g, "AR"]];
+function compAbrev(c) {
+  let t = String(c || "").toUpperCase();
+  if (!t.trim()) return "";
+  for (const [re, sg] of SIGLAS_FIBRA) t = t.replace(re, sg);
+  return t.replace(/\s*%\s*/g, "% ").replace(/\s*[/,+-]\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+const nLarg = (v) => Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function linhaTecnica(a) {
+  const g = a.gramatura ? `${String(a.gramatura).replace(".", ",")} g/m²` : a.categoria === "MALHA" && a.rendimento ? `Rend. ${a.rendimento}` : a.categoria !== "MALHA" && a.categoria !== "TECIDO" ? a.especificacao : "";
+  return [compAbrev(a.composicao), a.largura ? `${nLarg(a.largura)} m` : "", g].filter(Boolean).join(" · ") || "—";
 }
 function gramRend(a) {
   if (a.categoria === "MALHA") return a.rendimento ? `Rend. ${a.rendimento}` : "—";
