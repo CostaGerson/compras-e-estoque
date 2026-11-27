@@ -3,7 +3,7 @@
 // confirmação, entrada no estoque e impressão da etiqueta Zebra (10 × 8,5 cm pré-selecionada ou 5 × 5 cm).
 // Tecido plano é pesado: a metragem sai do peso, da largura e da gramatura padrão do tipo de tecido.
 import React, { useEffect, useMemo, useState } from "react";
-import { Loader2, X, PackagePlus, Printer, Settings2 } from "lucide-react";
+import { Loader2, X, PackagePlus, Printer, Settings2, ExternalLink, RefreshCw } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { fornecedoresParecidos } from "@/lib/artigoPadrao";
 import { htmlEtiquetas, imprimirEtiquetas, TAMANHOS, TAMANHO_PADRAO, nomeTamanho } from "./etiquetaZebra";
@@ -35,6 +35,22 @@ function Opcoes({ ops, valor, onChange }) {
   );
 }
 
+// v1154 — sugestões em lista própria (rolável, do tamanho do card) no lugar da lista do navegador
+function InpSugest({ value, onChange, opcoes, placeholder }) {
+  const [ab, setAb] = useState(false);
+  const q = String(value || "").trim().toUpperCase();
+  const l = (q ? opcoes.filter((o) => o.toUpperCase().includes(q) && o.toUpperCase() !== q) : opcoes).slice(0, 80);
+  return (
+    <div className="relative">
+      <Inp value={value} onChange={(e) => { onChange(e.target.value.toUpperCase()); setAb(true); }} onFocus={() => setAb(true)} onBlur={() => setTimeout(() => setAb(false), 180)} placeholder={placeholder} />
+      {ab && l.length > 0 && (
+        <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg shadow-lg overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}`, maxHeight: 200 }}>
+          {l.map((o) => <button key={o} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(o); setAb(false); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50" style={{ color: C.text }}>{o}</button>)}
+        </div>
+      )}
+    </div>
+  );
+}
 // fornecedor: busca nos cadastrados; parecido com um existente não pode ser cadastrado de novo
 function FornecedorBusca({ forns, valor, onEscolher, onCriado }) {
   const [q, setQ] = useState(""), [ab, setAb] = useState(false), [criando, setCriando] = useState(false);
@@ -54,7 +70,7 @@ function FornecedorBusca({ forns, valor, onEscolher, onCriado }) {
       <Inp value={ab ? q : sel ? nomeF(sel) : q} placeholder="buscar fornecedor" onFocus={() => { setAb(true); setQ(""); }} onBlur={() => setTimeout(() => setAb(false), 200)}
         onChange={(e) => { setQ(e.target.value); onEscolher(null); setAb(true); }} style={{ borderColor: valor ? C.green : C.line }} />
       {ab && (
-        <div className="absolute z-10 left-0 right-0 mt-1 rounded-lg shadow-lg max-h-56 overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+        <div className="absolute z-20 left-0 right-0 mt-1 rounded-lg shadow-lg overflow-auto" style={{ background: "#fff", border: `1px solid ${C.line}`, maxHeight: 200 }}>
           {lista.map((f) => <button key={f.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onEscolher(f.id); setQ(""); setAb(false); }} className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50">{nomeF(f)}</button>)}
           {q.trim() && !exato && parecidos.length > 0 && <div className="px-3 py-2 text-[11px] font-semibold" style={{ color: C.red, borderTop: `1px solid ${C.line}` }}>Já existe fornecedor parecido: escolha da lista.</div>}
           {q.trim() && !exato && !parecidos.length && <button type="button" disabled={criando} onMouseDown={(e) => e.preventDefault()} onClick={criar} className="w-full text-left px-3 py-2 text-sm font-semibold" style={{ color: C.accent, borderTop: `1px solid ${C.line}` }}>{criando ? "Cadastrando…" : `+ Cadastrar "${q.trim().toUpperCase()}"`}</button>}
@@ -105,6 +121,10 @@ export default function EntradaManualEstoque({ user, onClose }) {
     fetch(`/api/estoque/manual?u=${user.id}`).then((r) => r.json()).then(setCfg).catch(() => setCfg({ error: true }));
     fetch("/api/fornecedores").then((r) => r.json()).then((l) => setForns(Array.isArray(l) ? l : [])).catch(() => null);
     fetch("/api/artigos?estoque=1").then((r) => r.json()).then((l) => setNomes(Array.isArray(l) ? l.map((a) => ({ nome: a.artigoInterno || a.nome, cat: a.categoria })) : [])).catch(() => null);
+  }, []);
+  useEffect(() => {   // v1154 — voltou da guia do cadastro: recarrega os fornecedores
+    const h = () => fetch("/api/fornecedores").then((r) => r.json()).then((l) => Array.isArray(l) && setForns(l)).catch(() => null);
+    window.addEventListener("focus", h); return () => window.removeEventListener("focus", h);
   }, []);
   const tecido = f.tipo === "TECIDO", malha = f.tipo === "MALHA";
   const gramPadrao = tecido && f.tipoTecido && f.tipoTecido !== "OUTROS" ? cfg?.gramaturas?.[f.tipoTecido] : null;
@@ -181,12 +201,18 @@ export default function EntradaManualEstoque({ user, onClose }) {
                 </div>
               </Campo>}
               <Campo t="Nome do artigo" obrig larg>
-                <Inp value={f.nome} onChange={(e) => s("nome", e.target.value.toUpperCase())} list="em-nomes" placeholder="só o artigo: fornecedor e cor vão nos campos próprios" />
-                <datalist id="em-nomes">{sugNomes.map((n) => <option key={n} value={n} />)}</datalist>
+                <InpSugest value={f.nome} onChange={(v) => s("nome", v)} opcoes={sugNomes} placeholder="só o artigo: fornecedor e cor vão nos campos próprios" />
               </Campo>
               <Campo t="Cor" obrig><Inp value={f.cor} onChange={(e) => s("cor", e.target.value.toUpperCase())} /></Campo>
               <Campo t="Código"><Inp value={f.codigo} onChange={(e) => s("codigo", e.target.value.toUpperCase())} /></Campo>
-              <Campo t="Fornecedor" obrig larg><FornecedorBusca forns={forns} valor={f.fornecedorId} onEscolher={(id) => s("fornecedorId", id)} onCriado={(x) => setForns((l) => [...l, x])} /></Campo>
+              <Campo t="Fornecedor" obrig larg>
+                <div className="flex gap-2">
+                  <div className="flex-1 min-w-0"><FornecedorBusca forns={forns} valor={f.fornecedorId} onEscolher={(id) => s("fornecedorId", id)} onCriado={(x) => setForns((l) => [...l, x])} /></div>
+                  {/* v1154 — cadastro de fornecedores em outra guia; ao voltar, a lista recarrega */}
+                  <button type="button" onClick={() => window.open("/?v=fornecedores", "_blank")} title="Abrir o cadastro de fornecedores em outra guia" className="flex items-center gap-1 px-3 rounded-lg text-xs font-semibold shrink-0" style={{ height: 36, border: `1px solid ${C.accent}`, color: C.accent, background: "#fff" }}><ExternalLink size={13} /> Cadastro</button>
+                  <button type="button" onClick={() => fetch("/api/fornecedores").then((r) => r.json()).then((l) => setForns(Array.isArray(l) ? l : [])).catch(() => null)} title="Recarregar a lista de fornecedores" className="flex items-center justify-center rounded-lg shrink-0" style={{ width: 36, height: 36, border: `1px solid ${C.line}`, color: C.sub }}><RefreshCw size={14} /></button>
+                </div>
+              </Campo>
               {(malha || tecido) && <Campo t="Largura (m)" obrig><Inp value={f.largura} onChange={(e) => s("largura", e.target.value)} inputMode="decimal" placeholder="ex.: 1,60" /></Campo>}
               {malha && <Campo t="Construção" obrig><Opcoes ops={[["TUBULAR", "Tubular"], ["RAMADA", "Ramada"]]} valor={f.construcao} onChange={(v) => s("construcao", v)} /></Campo>}
               {tecido ? <>
@@ -201,8 +227,7 @@ export default function EntradaManualEstoque({ user, onClose }) {
                 {f.unidade === "PCT" && <Campo t="Unidades dentro do pacote" obrig><Inp value={f.unidadesPacote} onChange={(e) => s("unidadesPacote", e.target.value)} inputMode="numeric" /></Campo>}
               </>}
               <Campo t="Origem" obrig larg>
-                <Inp value={f.origem} onChange={(e) => s("origem", e.target.value.toUpperCase())} list="em-origens" placeholder="escolha ou escreva" />
-                <datalist id="em-origens">{cfg.origens.map((o) => <option key={o} value={o} />)}</datalist>
+                <InpSugest value={f.origem} onChange={(v) => s("origem", v)} opcoes={cfg.origens} placeholder="escolha ou escreva" />
               </Campo>
             </div>
             <div className="text-[11px] mt-3" style={{ color: C.sub }}>Cada entrada manual é um volume e gera uma etiqueta.</div>
