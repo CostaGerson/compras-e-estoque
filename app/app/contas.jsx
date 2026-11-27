@@ -4386,6 +4386,12 @@ function CartaoPendenteCel({ user, p, onFeito }) {
       </Campo>
       {achadas && !achadas.length && <div className="text-[11px] mt-1" style={{ color: C.sub }}>Nenhuma conta encontrada com "{busca}".</div>}
       {escolhida?.status === "PAGO" && <div className="text-[11px] mt-1" style={{ color: C.blue }}>Já está pago: confirmar só anexa o comprovante na conta.</div>}
+      {/* v1182 — comprovante menor que a conta: baixa parcial */}
+      {escolhida && escolhida.status !== "PAGO" && lerNum(valor) > 0 && lerNum(valor) < Number(escolhida.valor) - 0.01 && (
+        <div className="text-[11px] mt-1 font-semibold" style={{ color: C.yellow }}>
+          Baixa PARCIAL: paga {brl(lerNum(valor))} de {brl(Number(escolhida.valor))} · o saldo de {brl(Number(escolhida.valor) - lerNum(valor))} continua em aberto.
+        </div>
+      )}
       {erro && <div className="text-xs mt-1.5" style={{ color: C.red }}>{erro}</div>}
       <div className="flex justify-end gap-2 mt-2.5">
         <button disabled={ocupado} onClick={rejeitarC} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: C.panel, color: C.red, border: `1px solid ${C.red}66` }}><X size={14} /> Rejeitar</button>

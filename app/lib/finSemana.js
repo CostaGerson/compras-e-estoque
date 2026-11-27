@@ -557,6 +557,42 @@ export async function baixarItemManual({ itemId, data, pedidos = null, dias = nu
   return { ok: true, parcial, ...st };
 }
 
+// v1182 — baixa pelo valor de um comprovante: inteira; parcial em dias/pedidos inteiros quando o valor fecha;
+//   senão parcial pelo valor (a parte paga vira um lançamento próprio, pago; o saldo continua no lançamento)
+export async function baixarItemPorValor({ itemId, data, valor, observacao = null, quem }) {
+  const it = await prisma.finSemanaItem.findUnique({ where: { id: Number(itemId) } });
+  if (!it) return { ok: false, erro: "Lançamento não encontrado." };
+  const v = r2(valor), total = Number(it.valor);
+  if (!(v > 0) || v >= total - 0.01) return baixarItemManual({ itemId, data, observacao, quem });
+  const sug = await sugerirBaixaParcial(itemId, v);
+  if (sug.ok && sug.valor > 0 && Math.abs(sug.valor - v) <= 0.01) {
+    const r = await baixarItemManual({ itemId, data, observacao, quem, ...(sug.tipo === "DIAS" ? { dias: sug.dias } : { pedidos: sug.pedidos.filter((p) => p.sugerido).map((p) => p.pedido) }) });
+    return { ...r, saldo: r2(total - v) };
+  }
+  if (it.pago) return { ok: false, erro: `${it.nome} já está pago.` };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(data || ""))) return { ok: false, erro: "Informe a data do pagamento." };
+  const quando = String(data).split("-").reverse().join("/");
+  const obs = (extra) => [it.observacao, extra, observacao ? String(observacao).trim().toUpperCase() : null].filter(Boolean).join(" · ").slice(0, 500);
+  const { id: _id, createdAt, updatedAt, titulo, prestador, ...base } = it;
+  const saldo = r2(total - v);
+  if (it.grupo === "FREELANCER") {
+    // valor = diária × dias + extra: a parte paga é só "extra" e o saldo desconta o mesmo valor do extra
+    await prisma.finSemanaItem.create({ data: { ...base, dias: 0, custoExtra: v, valor: v, pago: true, dataPagamento: dataUTC(data), lancamentoId: null,
+      observacao: obs(`BAIXA PARCIAL EM ${quando} · R$ ${v.toFixed(2).replace(".", ",")} (PELO VALOR DO COMPROVANTE)`), criadoPorNome: quem || it.criadoPorNome } });
+    await prisma.finSemanaItem.update({ where: { id: it.id }, data: { custoExtra: r2((Number(it.custoExtra) || 0) - v), valor: saldo, observacao: obs(`SALDO APÓS BAIXA PARCIAL DE ${quando}`) } });
+  } else {
+    const ls = Array.isArray(it.linhas) ? it.linhas : [];
+    const conta = ls.find((l) => l.contaId)?.contaId;
+    const linha = (u, nome) => ({ pedido: "PARCIAL", item: nome, qtd: 1, unitario: u, total: u, ...(conta ? { contaId: conta } : {}) });
+    await prisma.finSemanaItem.create({ data: { ...base, linhas: [linha(v, "PAGAMENTO PARCIAL")], valor: v, pago: true, dataPagamento: dataUTC(data), lancamentoId: null,
+      observacao: obs(`BAIXA PARCIAL EM ${quando} · R$ ${v.toFixed(2).replace(".", ",")} (PELO VALOR DO COMPROVANTE)`), criadoPorNome: quem || it.criadoPorNome } });
+    await prisma.finSemanaItem.update({ where: { id: it.id }, data: { linhas: [...ls, linha(-v, `ABATIMENTO DO PAGAMENTO PARCIAL DE ${quando}`)], valor: saldo, observacao: obs(`SALDO APÓS BAIXA PARCIAL DE ${quando}`) } });
+  }
+  await recalcular(it.tituloId);
+  const st = await fecharSemanaSePaga(it.tituloId, quem);
+  return { ok: true, parcial: true, saldo, ...st };
+}
+
 export async function obsItem(itemId, texto) {
   const it = await prisma.finSemanaItem.update({ where: { id: Number(itemId) }, data: { observacao: String(texto || "").trim().toUpperCase() || null } }).catch(() => null);
   if (!it) return { ok: false, erro: "Lançamento não encontrado." };

@@ -182,7 +182,7 @@ export async function baixarComprovantes(itens, arquivos, { quem } = {}) {
   const usados = new Set();
   for (const it of itens) {
     try {
-      const id = Number(it.tituloId);
+      let id = Number(it.tituloId);
       if (!id || usados.has(id)) continue;
       const t = await prisma.finTitulo.findUnique({ where: { id } });
       if (!t) throw new Error("conta não encontrada");
@@ -191,6 +191,25 @@ export async function baixarComprovantes(itens, arquivos, { quem } = {}) {
       if (await prisma.finTituloAnexo.findFirst({ where: { hash: h, titulo: { status: { not: "CANCELADO" } } }, select: { id: true } })) { r.linhas.push(`${it.favorecido}: comprovante já usado — ignorado`); continue; }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(it.data || "")) throw new Error("comprovante sem data");
       const valor = r2(it.valor);
+      // v1182 — baixa PARCIAL: comprovante menor que a conta (e que o desconto não explica) → a parte paga vira uma conta
+      //   própria (PAGA, com o comprovante) e a original fica em aberto só com o saldo
+      const tv = Number(t.valor), desc = Number(it.desconto) || 0;
+      const parcial = valor > 0 && valor < tv - 0.01 && !(desc > 0 && Math.abs(tv - desc - valor) <= 0.01) && !String(t.chaveImport || "").startsWith("SEMANA|");
+      let id0 = id, saldo = 0;
+      if (parcial) {
+        saldo = r2(tv - valor);
+        const quando = it.data.split("-").reverse().join("/");
+        const parte = await prisma.finTitulo.create({ data: {
+          tipo: t.tipo, titulo: `${t.titulo} (PARCIAL)`.slice(0, 200), parceiro: t.parceiro, documento: t.documento, numeroDoc: t.numeroDoc, valor,
+          vencimento: t.vencimento, competencia: t.competencia, rateio: t.rateio || [], forma: t.forma, formaPagamento: t.formaPagamento, chavePix: t.chavePix,
+          nfId: t.nfId ?? undefined, previsao: false, valorConfirmado: true, pontual: true,
+          observacao: `PAGAMENTO PARCIAL DE ${brl(valor)} EM ${quando} · CONTA ORIGINAL #${t.id} DE ${brl(tv)} · SALDO ${brl(saldo)}`.slice(0, 500),
+          criadoPorNome: quem || null,
+        } });
+        await prisma.finTitulo.update({ where: { id: t.id }, data: { valor: saldo, previsao: false, valorConfirmado: true, pontual: true, atualizadoPorNome: quem || null,
+          observacao: [t.observacao, `SALDO APÓS PAGAMENTO PARCIAL DE ${brl(valor)} EM ${quando} (CONTA #${parte.id})`].filter(Boolean).join(" · ").slice(0, 500) } });
+        id0 = id; id = parte.id;
+      }
       await prisma.finTitulo.update({
         where: { id },
         data: {
@@ -202,7 +221,7 @@ export async function baixarComprovantes(itens, arquivos, { quem } = {}) {
           atualizadoPorNome: quem || null,
         },
       });
-      usados.add(id);
+      usados.add(id0); usados.add(id);
       const a = porNome[it.arquivo];
       if (a?.conteudo) {
         // v1027 — comprovante pelo celular pode ser foto (JPEG): vai como está
@@ -213,8 +232,9 @@ export async function baixarComprovantes(itens, arquivos, { quem } = {}) {
         const nome = `COMPROVANTE ${it.tipo} ${it.data.split("-").reverse().join("-")} ${String(it.favorecido || "").slice(0, 40)}.${ext}`.replace(/[\\/:*?"<>|]/g, "");
         await prisma.finTituloAnexo.create({ data: { tituloId: id, nome, mime, tamanho: Math.floor(conteudo.length * 3 / 4), conteudo, hash: h, criadoPorNome: quem || null } });
       }
-      r.baixadas++;
-      r.linhas.push(`${t.titulo}: baixada em ${it.data.split("-").reverse().join("/")} · R$ ${valor.toFixed(2).replace(".", ",")}`);
+      r.baixadas++; (r.ids ||= []).push(id);
+      r.linhas.push(parcial ? `${t.titulo}: baixa PARCIAL de R$ ${valor.toFixed(2).replace(".", ",")} em ${it.data.split("-").reverse().join("/")} · saldo de R$ ${saldo.toFixed(2).replace(".", ",")} continua em aberto`
+        : `${t.titulo}: baixada em ${it.data.split("-").reverse().join("/")} · R$ ${valor.toFixed(2).replace(".", ",")}`);
     } catch (e) { r.erros.push(`${it.favorecido || it.k}: ${e.message}`); }
   }
   return r;

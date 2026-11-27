@@ -10,7 +10,7 @@ import { linhasPdf } from "@/lib/finParse";
 import { ocrImagem, lerTextoComprovante } from "@/lib/finComprovanteTexto";
 import { normRegra, usuarioMaster } from "@/lib/fin";
 import { r2, nomeU } from "@/lib/finTitulos";
-import { baixarItemManual } from "@/lib/finSemana";
+import { baixarItemManual, baixarItemPorValor } from "@/lib/finSemana";
 
 const PREF = "COMPROVANTE_CEL|";
 const so = (s) => String(s || "").replace(/\D/g, "");
@@ -168,16 +168,18 @@ async function baixarAlvo(o, c, arq, quem) {
   const h = chaveHash(chave);
   if (await prisma.finTituloAnexo.findFirst({ where: { hash: h, titulo: { status: { not: "CANCELADO" } } }, select: { id: true } })) throw new Error("comprovante já usado em outra baixa");
   if (o.itemId) {
-    const r = await baixarItemManual({ itemId: o.itemId, data: c.data, observacao: `COMPROVANTE ${c.tipo || ""} ${c.favorecido || ""}`.trim(), quem });
+    const r = await baixarItemPorValor({ itemId: o.itemId, data: c.data, valor: c.valor, observacao: `COMPROVANTE ${c.tipo || ""} ${c.favorecido || ""}`.trim(), quem });   // v1182 — parcial se o comprovante for menor
     if (!r.ok) throw new Error(r.erro || "não consegui baixar o lançamento");
     const ext = arq.mime === "application/pdf" ? "pdf" : "jpg";
     await prisma.finTituloAnexo.create({ data: { tituloId: o.id, nome: `COMPROVANTE ${c.tipo || ""} ${c.data.split("-").reverse().join("-")} ${String(o.parceiro || c.favorecido || "").slice(0, 40)}.${ext}`.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " "),
       mime: arq.mime, tamanho: Math.floor(arq.conteudo.length * 3 / 4), conteudo: arq.conteudo, hash: h, criadoPorNome: quem } });
-    return;
+    return { id: o.id, parcial: !!r.parcial, saldo: r.saldo || 0 };
   }
   const r = await baixarComprovantes([{ tituloId: o.id, arquivo: arq.nome, pagina: 1, data: c.data, valor: c.valor, tipo: c.tipo || "OUTRO", favorecido: c.favorecido || o.parceiro, chave, juros: c.juros, multa: c.multa, desconto: c.desconto }],
     [{ nome: arq.nome, conteudo: arq.conteudo, mime: arq.mime, separado: true }], { quem });
   if (!r.baixadas) throw new Error(r.erros[0] || r.linhas[0] || "não consegui baixar a conta");
+  const nid = (r.ids || [])[0] || o.id;
+  return { id: nid, parcial: nid !== o.id, saldo: nid !== o.id ? Math.round((Number(o.valor) - Number(c.valor)) * 100) / 100 : 0 };
 }
 // melhor sugestão para o pendente: conta (pela análise dos comprovantes) ou lançamento da semana
 // v1181 — melhor sugestão entre a conta (análise do comprovante) e os lançamentos da semana
@@ -334,14 +336,17 @@ export async function confirmarPendente(id, { alvo, tituloId, data, valor }, u) 
   c.chave = c.chave || `CEL|ARQ|${p.hashArquivo}`;
   const quem = nomeU(u);
   const ext = p.mime === "application/pdf" ? "pdf" : "jpg";
+  let bx = null;
   if (o.status === "PAGO") {
     await prisma.finTituloAnexo.create({ data: { tituloId: o.id, nome: `COMPROVANTE ${c.tipo || ""} ${c.data.split("-").reverse().join("-")} ${String(o.parceiro || c.favorecido || "").slice(0, 40)}.${ext}`.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " "), mime: p.mime, tamanho: p.tamanho, conteudo: p.conteudo, hash: chaveHash(c.chave), criadoPorNome: quem } });
   } else if (o.status === "ABERTO") {
-    await baixarAlvo(o, c, { nome: p.nome, conteudo: p.conteudo, mime: p.mime }, quem);
+    bx = await baixarAlvo(o, c, { nome: p.nome, conteudo: p.conteudo, mime: p.mime }, quem);
   } else throw new Error("Conta cancelada.");
-  await prisma.finComprovanteEnvio.update({ where: { id: p.id }, data: { status: "BAIXADO", conteudo: "", tituloId: o.id, semanaItemId: o.itemId || null, dados: c, resolvidoPor: quem, resolvidoEm: new Date() } });
+  await prisma.finComprovanteEnvio.update({ where: { id: p.id }, data: { status: "BAIXADO", conteudo: "", tituloId: bx?.id || o.id, semanaItemId: o.itemId || null, dados: c, resolvidoPor: quem, resolvidoEm: new Date() } });
   const whats = await enviarAoBaixar(p.id, c);   // v1180
-  return { ok: true, whats, texto: (o.status === "PAGO" ? `Comprovante anexado em ${o.titulo} (já estava pago).` : `${o.titulo} baixado em ${dBR(c.data)} · ${brl(c.valor)}. Comprovante anexado.`) + whats };
+  return { ok: true, whats, texto: (o.status === "PAGO" ? `Comprovante anexado em ${o.titulo} (já estava pago).`
+    : bx?.parcial ? `${o.titulo}: baixa PARCIAL de ${brl(c.valor)} em ${dBR(c.data)} · saldo de ${brl(bx.saldo)} continua em aberto. Comprovante anexado.`
+    : `${o.titulo} baixado em ${dBR(c.data)} · ${brl(c.valor)}. Comprovante anexado.`) + whats };
 }
 
 // rejeitar: o comprovante é apagado e a conta fica como estava
