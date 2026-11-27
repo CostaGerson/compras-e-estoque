@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { nomePadrao, chaveNome } from "@/lib/artigoPadrao";
 
 export const TIPOS_ESTOQUE = ["MALHA", "TECIDO", "AVIAMENTO", "INSUMOS SILK", "INSUMOS SUBLIMAÇÃO", "INSUMOS DTF", "INSUMOS BORDADO", "OUTROS"];   // v1153 — + OUTROS
-export const TIPOS_TECIDO = ["BRIM LEVE", "BRIM PESADO", "OXFORD", "GABARDINE", "TACTEL", "CAMISARIA", "NYLON PARAQUEDAS", "NYLON IMPERMEÁVEL", "TACTEL REPELENTE À ÁGUA", "TWO WAY", "MATELASSÊ", "BEMBER", "AMERICANO CRU", "ECOBAG", "JEANS", "OUTROS"];
+export const TIPOS_TECIDO = ["BRIM LEVE", "BRIM PESADO", "BRIM MISTO LEVE", "BRIM MISTO PESADO", "BRIM NÃO IDENTIFICADO", "RIPSTOP", "OXFORD", "GABARDINE", "TACTEL", "CAMISARIA", "NYLON PARAQUEDAS", "NYLON IMPERMEÁVEL", "TACTEL REPELENTE À ÁGUA", "TWO WAY", "MATELASSÊ", "BEMBER", "AMERICANO CRU", "ECOBAG", "JEANS", "OUTROS"];
 export const UNIDADES_MANUAL = [["KG", "Quilo (kg)"], ["M", "Metro"], ["L", "Litro"], ["CONE", "Cone"], ["UN", "Unidade"], ["PCT", "Pacote"]];
 export const ORIGENS = ["ESTOQUE PRÉVIO MERIDIAN", "W3"];
 const K_GRAM = "ESTQ|GRAMATURAS";
@@ -12,9 +12,13 @@ const r3 = (n) => Math.round((Number(n) || 0) * 1000) / 1000;
 const num = (v) => { if (v == null || v === "") return null; const t = String(v).trim(); const n = Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t); return Number.isFinite(n) ? n : null; };
 const up = (s) => String(s || "").trim().toLocaleUpperCase("pt-BR") || null;
 
+// v1155 — padrões definidos pelo Igor (27/11/2026); o que for salvo na tela de gramaturas vale por cima
+//   brim leve 200 · pesado 235 (médias dos catálogos: 200 e 255) · não identificado = média dos dois · mistos iguais · ripstop 230
+export const GRAMATURAS_INICIAIS = { "BRIM LEVE": 200, "BRIM PESADO": 235, "BRIM MISTO LEVE": 200, "BRIM MISTO PESADO": 235, "BRIM NÃO IDENTIFICADO": 217.5, "RIPSTOP": 230 };
 export async function gramaturasPadrao() {
   const c = await prisma.finConfig.findUnique({ where: { chave: K_GRAM } }).catch(() => null);
-  try { return JSON.parse(c?.valor || "{}"); } catch { return {}; }
+  let salvo = {}; try { salvo = JSON.parse(c?.valor || "{}"); } catch {}
+  return { ...GRAMATURAS_INICIAIS, ...salvo };
 }
 export async function salvarGramaturas(g) {
   const atual = await gramaturasPadrao();
