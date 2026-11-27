@@ -29,9 +29,12 @@ async function notaComXml(id) {
   if (!n.xml) throw new Error("A NF não tem XML: sem os itens não dá para dar entrada no estoque.");
   return n;
 }
-const equivDe = async (doc, xProd, cProd) => {
+const equivDe = async (doc, xProd, cProd, docsGrupo = []) => {
   const l = await prisma.artigoEquivalencia.findMany({ where: { documento: doc, OR: [{ nomeNf: norm(xProd) }, ...(cProd ? [{ cProd: String(cProd) }] : [])] }, orderBy: { updatedAt: "desc" } });
-  return l.find((e) => e.nomeNf === norm(xProd)) || l[0] || null;
+  const e = l.find((x) => x.nomeNf === norm(xProd)) || l[0] || null;
+  if (e || !docsGrupo.length) return e;
+  // v1159 — sem vínculo neste CNPJ: usa o mesmo nome de item já indexado em outro CNPJ do fornecedor / do grupo
+  return prisma.artigoEquivalencia.findFirst({ where: { documento: { in: docsGrupo }, nomeNf: norm(xProd) }, orderBy: { updatedAt: "desc" } });
 };
 
 // v1157 — sugestões do catálogo (cartelas) do fornecedor da NF e dos fornecedores do mesmo grupo, por semelhança de nome
@@ -70,9 +73,12 @@ export async function itensParaParametrizar(id) {
   const doc = so(nf.emit?.cnpj);
   const fornecedorId = await fornecedorDoEmitente(nf).catch(() => null);
   const forn = fornecedorId ? await prisma.fornecedor.findUnique({ where: { id: fornecedorId }, select: { id: true, nome: true, nomeFantasia: true, razaoSocial: true } }) : null;
+  const idsGrupo = await fornecedoresDoGrupo(fornecedorId).catch(() => []);   // v1159
+  const docsGrupo = idsGrupo.length ? (await prisma.fornecedorCnpj.findMany({ where: { fornecedorId: { in: idsGrupo } }, select: { cnpj: true } })).map((c) => c.cnpj).filter((c) => c && c !== doc) : [];
   const itens = [];
   for (const [idx, it] of nf.itens.entries()) {
-    const eq = await equivDe(doc, it.xProd, it.cProd);
+    const eq = await equivDe(doc, it.xProd, it.cProd, docsGrupo);
+    const artEq = eq?.artigoId ? await prisma.artigo.findFirst({ where: { id: eq.artigoId, ativo: true }, select: { id: true } }) : null;   // v1159 — soma no mesmo artigo
     const art = !eq && fornecedorId && it.cProd ? await prisma.artigo.findFirst({ where: { fornecedorId, codigoFornecedor: String(it.cProd) }, orderBy: { updatedAt: "desc" } }) : null;
     const campos = camposDoTexto(it.infAdProd || it.xProd);
     // v619 — categoria melhor que a do texto: malha vem em KG; tecido plano em metro (nome com largura ou tecidos conhecidos)
@@ -85,6 +91,7 @@ export async function itensParaParametrizar(id) {
     itens.push({
       idx, xProd: it.xProd || "", cProd: it.cProd || null, quantidade: it.qCom ?? 0, uCom: it.uCom || null, valorUnitario: it.vUn ?? null,
       origem: eq ? "EQUIVALENCIA" : art ? "ARTIGO" : "NF",
+      equivalencia: eq ? { em: eq.updatedAt, por: eq.criadoPorNome || null, outroCnpj: eq.documento !== doc } : null,   // v1159
       catalogo: await sugestoesCatalogo({ fornecedorId: eq?.fornecedorId || fornecedorId, texto: `${it.xProd} ${it.infAdProd || ""}`, cProd: it.cProd, cor: base?.cor }).catch(() => []),   // v1157
       dados: {
         tipoEstoque: base?.tipoEstoque || null, tipoTecido: base?.tipoTecido || null, tipoMalha: base?.tipoMalha || null,   // v1157
@@ -93,6 +100,7 @@ export async function itensParaParametrizar(id) {
         cor: base?.cor || null, codigo: base?.codigo || null, composicao: base?.composicao || up(campos.composicao),
         largura: base?.largura ?? campos.largura ?? null, gramatura: base?.gramatura ?? campos.gramatura ?? null,
         unidade: base?.unidade || unidadeDoUCom(it.uCom), quantidade: it.qCom ?? 0, valorUnitario: it.vUn ?? null,
+        artigoId: artEq?.id || null,   // v1159
       },
     });
   }

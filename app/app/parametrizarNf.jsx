@@ -21,6 +21,10 @@ const Campo = ({ rot, children, cls = "" }) => <label className={`block text-xs 
 const TIPOS = ["MALHA", "TECIDO", "AVIAMENTO", "INSUMOS SILK", "INSUMOS SUBLIMAÇÃO", "INSUMOS DTF", "INSUMOS BORDADO", "PEÇAS PRONTAS", "OUTROS"];
 const UNS_NF = ["M", "KG", "UN", "PC", "CM", "L", "CONE", "PCT"];
 const catDoTipo = (t) => (t === "MALHA" ? "MALHA" : t === "TECIDO" ? "TECIDO" : t === "AVIAMENTO" ? "AVIAMENTO" : "OUTROS");
+const TECIDOS_STD = ["BRIM LEVE", "BRIM PESADO", "BRIM MISTO LEVE", "BRIM MISTO PESADO", "BRIM NÃO IDENTIFICADO", "RIPSTOP", "OXFORD", "GABARDINE", "TACTEL", "CAMISARIA", "NYLON PARAQUEDAS",
+  "NYLON IMPERMEÁVEL", "TACTEL REPELENTE À ÁGUA", "TWO WAY", "MATELASSÊ", "BEMBER", "AMERICANO CRU", "ECOBAG", "JEANS"];
+// v1159 — vínculo antigo de tecido sem o tipo: o nome salvo vira o tipo (ou OUTROS, mantendo o nome)
+const tecidoDe = (dd, tipo) => (tipo !== "TECIDO" || dd.tipoTecido ? dd.tipoTecido || "" : dd.artigoInterno ? (TECIDOS_STD.includes(String(dd.artigoInterno).toUpperCase()) ? String(dd.artigoInterno).toUpperCase() : "OUTROS") : "");
 const tipoDaCat = (c) => (c === "MALHA" || c === "TECIDO" || c === "AVIAMENTO" ? c : "");
 const faltasItem = (v) => [!v.tipoEstoque && "tipo", v.tipoEstoque === "TECIDO" && !v.tipoTecido && "nome do tecido", !String(v.artigoInterno || "").trim() && "nome do artigo",
   !String(v.cor || "").trim() && "cor", !v.fornecedorId && "fornecedor", !(Number(String(v.quantidade || "").replace(",", ".")) > 0) && "quantidade"].filter(Boolean);
@@ -59,7 +63,7 @@ export default function ParametrizarNf({ user, id, onFim }) {
   const [pos, setPos] = useState(0), [cfg, setCfg] = useState(null), [nomes, setNomes] = useState([]);
   useEffect(() => {
     fetch(`/api/fiscal/estoque?u=${user.id}&id=${id}`).then((r) => r.json()).then((x) => { if (x.error) throw new Error(x.error);
-      setD({ ...x, itens: x.itens.map((it) => ({ ...it, dados: { ...it.dados, tipoEstoque: it.dados.tipoEstoque || tipoDaCat(it.dados.categoria), tipoTecido: it.dados.tipoTecido || "", tipoMalha: it.dados.tipoMalha || "",
+      setD({ ...x, itens: x.itens.map((it) => ({ ...it, dados: { ...it.dados, tipoEstoque: it.dados.tipoEstoque || tipoDaCat(it.dados.categoria), tipoTecido: tecidoDe(it.dados, it.dados.tipoEstoque || tipoDaCat(it.dados.categoria)), tipoMalha: it.dados.tipoMalha || "",
         artigoInterno: it.origem === "NF" ? "" : it.dados.artigoInterno || "", quantidade: fmt(it.dados.quantidade), largura: fmt(it.dados.largura), gramatura: fmt(it.dados.gramatura), valorUnitario: fmt(it.dados.valorUnitario) } })) }); })
       .catch((e) => setErro(e.message));
     fetch("/api/fornecedores").then((r) => r.json()).then((x) => setForns(Array.isArray(x) ? x : [])).catch(() => {});
@@ -125,11 +129,13 @@ export default function ParametrizarNf({ user, id, onFim }) {
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold rounded-full flex items-center justify-center shrink-0" style={{ width: 22, height: 22, background: C.navy, color: "#fff" }}>{pos + 1}</span>
                 <span className="text-[11px] font-semibold" style={{ color: C.sub }}>Item na NF</span>
-                <span className="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: of, color: oc }}>{it.origem === "EQUIVALENCIA" && <Link2 size={11} />}{it.origem === "EQUIVALENCIA" ? "vínculo salvo" : ot}</span>
+                <span className="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1" style={{ background: of, color: oc }}>{it.origem === "EQUIVALENCIA" && <Link2 size={11} />}{it.origem === "EQUIVALENCIA" ? `vínculo salvo${it.equivalencia?.outroCnpj ? " (outro CNPJ do grupo)" : ""}` : ot}</span>
               </div>
               <div className="text-sm font-semibold mt-1" style={{ color: C.text }}>{it.xProd}</div>
               <div className="text-xs" style={{ color: C.sub }}>{[it.cProd && `cód. ${it.cProd}`, `${fmt(it.quantidade)} ${String(it.uCom || "").toLowerCase()}`, it.valorUnitario != null && `R$ ${fmt(it.valorUnitario)}`].filter(Boolean).join(" · ")}</div>
             </div>
+            {it.origem === "EQUIVALENCIA" && <div className="rounded-lg px-3 py-2 mb-3 text-xs" style={{ background: C.greenSoft, color: C.green }}>
+              Este nome de item já foi indexado{it.equivalencia?.por ? ` por ${it.equivalencia.por}` : ""}{it.equivalencia?.em ? ` em ${String(it.equivalencia.em).slice(0, 10).split("-").reverse().join("/")}` : ""}: os campos vieram do vínculo salvo. Confira e conclua — se mudar, o vínculo é atualizado.</div>}
             <CatalogoItem key={it.idx} user={user} it={it} v={v} onUsar={(c) => usarCatalogo(pos, c)} />
             <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(2, minmax(0,1fr))" }}>
               <MCampo t="Tipo" obrig larg><Opcoes ops={TIPOS.map((t) => [t, t])} valor={v.tipoEstoque} onChange={(x) => { set(pos, "tipoEstoque", x); if (x !== "TECIDO" && v.tipoTecido) { set(pos, "tipoTecido", ""); set(pos, "artigoInterno", ""); } }} /></MCampo>
