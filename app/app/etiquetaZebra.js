@@ -1,3 +1,4 @@
+// v1171 — etiqueta ocupa a área toda e sai escura (sem cinza, fonte/linhas mais grossas, barras sem antialias)
 // v620 — etiquetas de volume para impressora Zebra (página do tamanho da etiqueta, uma por página) com código de barras Code 128
 const P = ["212222","222122","222221","121223","121322","131222","122213","122312","132212","221213","221312","231212","112232","122132","122231","113222","123122","123221","223211","221132",
   "221231","213212","223112","312131","311222","321122","321221","312212","322112","322211","212123","212321","232121","111323","131123","131321","112313","132113","132311","211313",
@@ -14,7 +15,7 @@ export function code128(txt) {
 export function barrasSvg(txt, { altura = 40, modulo = 1.6 } = {}) {
   const w = code128(txt); let x = 10 * modulo; const rs = [];
   [...w].forEach((d, i) => { const l = Number(d) * modulo; if (i % 2 === 0) rs.push(`<rect x="${x.toFixed(2)}" y="0" width="${l.toFixed(2)}" height="${altura}"/>`); x += l; });
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${(x + 10 * modulo).toFixed(2)} ${altura}" preserveAspectRatio="none" style="width:100%;height:100%">${rs.join("")}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${(x + 10 * modulo).toFixed(2)} ${altura}" preserveAspectRatio="none" shape-rendering="crispEdges" fill="#000" style="display:block;width:100%;height:100%">${rs.join("")}</svg>`;
 }
 
 const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -41,7 +42,7 @@ export function htmlEtiquetas(etiquetas, { tamanho = TAMANHO_PADRAO, autoPrint =
     const qt = qtdTxt(e) + (e.pesoKg ? ` · ${nBR(e.pesoKg)} KG` : "");
     return `<div class="et">
     <div class="topo"><div class="tipo">${esc(e.tipo || "—")}</div>${e.total ? `<div class="vol">VOL ${e.ordem}/${e.total}</div>` : ""}</div>
-    <table>
+    <div class="tab"><table>
       ${linha("ARTIGO", e.artigo, "art")}
       ${linha("COR", e.cor)}
       ${linha("CÓDIGO", e.codigoArtigo)}
@@ -51,26 +52,29 @@ export function htmlEtiquetas(etiquetas, { tamanho = TAMANHO_PADRAO, autoPrint =
       ${linha(p ? "QTD" : "QUANTIDADE", qt, "qtd")}
       ${linha("ORIGEM", e.origem)}
       ${p ? "" : linha("ENTRADA", dBR(e.entrada))}
-    </table>
+    </table></div>
     <div class="bar">${barrasSvg(e.codigo)}</div><div class="cod">${esc(e.codigo)}</div>
   </div>`;
   }).join("");
   return `<!doctype html><html><head><meta charset="utf-8"><title>Etiquetas · ${etiquetas.length} volume(s)</title><style>
     @page { size: ${W}mm ${H}mm; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, Helvetica, sans-serif; color: #000; }
-    .et { width: ${W}mm; height: ${H}mm; padding: ${p ? "1.5mm" : "2.5mm 3mm"}; display: flex; flex-direction: column; page-break-after: always; overflow: hidden; }
-    .topo { display: flex; align-items: center; gap: 1.5mm; margin-bottom: ${p ? 0.8 : 1.5}mm; }
-    .tipo { flex: 1; font-weight: 800; font-size: ${p ? 7.5 : 12}pt; background: #000; color: #fff; padding: ${p ? ".4mm 1mm" : ".8mm 2mm"}; border-radius: 1mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .vol { font-weight: 800; font-size: ${p ? 7 : 10}pt; border: 1.2px solid #000; border-radius: 1mm; padding: .3mm 1.2mm; white-space: nowrap; }
-    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-    th, td { border: ${p ? ".6px" : "1px"} solid #000; padding: ${p ? ".25mm .8mm" : ".6mm 1.5mm"}; text-align: left; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    th { width: ${p ? "12mm" : "26mm"}; font-size: ${p ? 5.5 : 7.5}pt; font-weight: 700; background: #eee; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    td { font-size: ${p ? 6.5 : 9.5}pt; font-weight: 600; }
-    tr.art td { font-size: ${p ? 7 : 12}pt; font-weight: 800; white-space: normal; line-height: 1.05; max-height: ${p ? 6 : 10}mm; }
-    tr.qtd td { font-size: ${p ? 8 : 15}pt; font-weight: 800; }
-    .bar { flex: 1; min-height: ${p ? 4 : 7}mm; margin-top: ${p ? 0.8 : 1.5}mm; }
-    .cod { text-align: center; font-family: 'Courier New', monospace; font-size: ${p ? 6 : 8}pt; letter-spacing: 1px; }
+    html, body { width: ${W}mm; background: #fff; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #000; -webkit-font-smoothing: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .et { width: ${W}mm; height: ${H}mm; padding: ${p ? "1.2mm" : "2mm 2.5mm"}; display: flex; flex-direction: column; page-break-after: always; break-after: page; overflow: hidden; }
+    .et:last-child { page-break-after: auto; break-after: auto; }
+    .topo { display: flex; align-items: center; gap: 1.5mm; margin-bottom: ${p ? 0.8 : 1.2}mm; }
+    .tipo { flex: 1; font-weight: 900; font-size: ${p ? 8.5 : 14}pt; background: #000; color: #fff; padding: ${p ? ".5mm 1mm" : "1mm 2mm"}; border-radius: 1mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vol { font-weight: 900; font-size: ${p ? 8 : 13}pt; border: ${p ? 1.2 : 2}px solid #000; border-radius: 1mm; padding: .3mm 1.5mm; white-space: nowrap; }
+    .tab { flex: 1 1 auto; min-height: 0; display: flex; overflow: hidden; }
+    table { width: 100%; height: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: ${p ? "1px" : "1.6px"} solid #000; padding: ${p ? "0 .8mm" : "0 1.5mm"}; text-align: left; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #000; }
+    th { width: ${p ? "13mm" : "28mm"}; font-size: ${p ? 6.5 : 8.5}pt; font-weight: 900; background: #fff; }
+    td { font-size: ${p ? 7.5 : 11}pt; font-weight: 700; }
+    tr.art td { font-size: ${p ? 8.5 : 13}pt; font-weight: 900; white-space: normal; line-height: 1.05; }
+    tr.qtd td { font-size: ${p ? 10 : 17}pt; font-weight: 900; }
+    .bar { flex: 0 0 ${p ? 9 : 13}mm; margin-top: ${p ? 0.8 : 1.5}mm; }
+    .cod { text-align: center; font-family: Arial, Helvetica, sans-serif; font-weight: 700; font-size: ${p ? 7 : 10}pt; letter-spacing: 1px; }
   </style></head><body>${pags}${autoPrint ? "<script>window.onload=function(){setTimeout(function(){window.print();},300);}</script>" : ""}</body></html>`;
 }
 export function imprimirEtiquetas(etiquetas, { tamanho = TAMANHO_PADRAO } = {}) {
