@@ -2172,8 +2172,9 @@ function Estoque({ money, master, registrados }) {   // v1156 — registrados: t
   const [fornecedores, setFornecedores] = useState([]);
   const [artigos, setArtigos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const carregar = async () => {
-    setLoading(true);
+  // v1201 — recarregar (após excluir/substituir/entrada) não desmonta a lista: filtros, guia e ordenação continuam
+  const carregar = async (primeira = false) => {
+    if (primeira) setLoading(true);
     try {
       const [f, a] = await Promise.all([
         fetch("/api/fornecedores").then((r) => r.json()),
@@ -2184,7 +2185,7 @@ function Estoque({ money, master, registrados }) {   // v1156 — registrados: t
     } catch {}
     setLoading(false);
   };
-  useEffect(() => { carregar(); }, [registrados]);
+  useEffect(() => { carregar(true); }, [registrados]);
   const [entM, setEntM] = useState(false), [lix, setLix] = useState(false);   // v1199
   if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
   return (
