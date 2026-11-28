@@ -17,6 +17,13 @@ export async function GET(req) {
   }
   // v1189 — NF-e emitidas pelo ERP
   if (sp.get("acao") === "nfe") { const { listarEmissoes } = await import("@/lib/nfeEmissao"); return Response.json({ notas: await listarEmissoes(sp.get("empresa") || null) }); }
+  if (sp.get("acao") === "danfe") {   // v1190
+    if (!pode(u)) return Response.json({ error: "Sem acesso." }, { status: 403 });
+    const { xmlEmissao } = await import("@/lib/nfeEmissao"); const x = await xmlEmissao(sp.get("id"));
+    if (!x) return Response.json({ error: "NF-e não encontrada." }, { status: 404 });
+    const { htmlDanfe } = await import("@/lib/danfe");
+    return new Response(htmlDanfe(x.xml, { autoPrint: sp.get("imprimir") !== "0" }), { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
   if (sp.get("acao") === "nfeXml") {
     if (!pode(u)) return Response.json({ error: "Sem acesso." }, { status: 403 });
     const { xmlEmissao } = await import("@/lib/nfeEmissao"); const x = await xmlEmissao(sp.get("id"));

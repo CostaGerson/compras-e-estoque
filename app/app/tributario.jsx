@@ -314,7 +314,7 @@ function NfeEmitidas({ emp, user }) {
               <td>{n.destNome}</td>
               <td className="text-right whitespace-nowrap">{brl(n.valor)}</td>
               <td className="pl-3"><b style={{ color: cor(n.status) }}>{n.status}</b>{n.status !== "AUTORIZADA" && n.xMotivo ? <div style={{ color: C.sub }}>{n.cStat} · {n.xMotivo}</div> : n.protocolo ? <div style={{ color: C.sub }}>prot. {n.protocolo}</div> : null}</td>
-              <td className="text-right"><a href={`/api/tributario?u=${user.id}&acao=nfeXml&id=${n.id}`} className="underline" style={{ color: C.navy }}>XML</a></td>
+              <td className="text-right whitespace-nowrap"><a href={`/api/tributario?u=${user.id}&acao=danfe&id=${n.id}`} target="_blank" rel="noreferrer" className="underline mr-2" style={{ color: C.navy }}>DANFE</a><a href={`/api/tributario?u=${user.id}&acao=nfeXml&id=${n.id}`} className="underline" style={{ color: C.navy }}>XML</a></td>
             </tr>))}</tbody>
         </table>
       )}
