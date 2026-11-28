@@ -7,6 +7,7 @@ import Lixeira from "./lixeira";
 import ConferirBanco from "./conferirBanco";   // v823
 import Nort from "./nort";   // v808 — guia NORT
 import { BotaoNfs } from "./cobranca";   // v903
+import BoletosModal from "./boletosBradesco";   // v1196 — boletos Bradesco pelo ERP
 import Antecipacoes, { MarcaA as MarcaAnt, sitAntecipado, ehAntecipado, antPendente, exportarExcel, BotaoExcel, BotaoRecompra, BotaoObs, Notas } from "./antecipacoes";
 import {
   Plus, X, Loader2, Upload, Repeat, Pencil, Trash2, CheckCircle2, Undo2, Search, ChevronLeft, ChevronRight,
@@ -606,6 +607,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
           return exportarExcel(user, ids, [`CONTAS ${P ? "A PAGAR" : "A RECEBER"}`, per, sitTxt, busca && `BUSCA "${busca}"`, soCompra && P && "SÓ ENTRADA POR COMPRA"].filter(Boolean).join(" · "),
             `contas-a-${P ? "pagar" : "receber"}_${dIni}_a_${dFim < dIni ? dIni : dFim}.xlsx`);
         }} />}
+        {!P && <BtnS onClick={() => setModal({ t: "boletos" })} cor={C.navy}><FileCode2 size={15} /> Boletos{marcados.length ? ` (${marcados.length})` : ""}</BtnS>}
         <BtnS onClick={() => setModal({ t: "ia" })} cor={C.roxo}><Wand2 size={15} /> Analisar com IA</BtnS>
         {/* v171 — importações saíram daqui: tudo entra pela Transmissão de arquivos (painel do Financeiro) */}
         <BtnP onClick={() => setModal({ t: "titulo", item: null })}><Plus size={15} /> Nova conta</BtnP>
@@ -752,6 +754,7 @@ export default function ContasPagarReceber({ user, inicial = null }) {
       {modal?.t === "baixas" && <BaixasModal user={user} competencia={mes} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "documento" && <DocumentoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "antecipacao" && <AntecipacaoModal user={user} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
+      {modal?.t === "boletos" && <BoletosModal user={user} marcados={marcados} onClose={() => { setModal(null); carregar(); }} />}
       {modal?.t === "retorno" && <RetornoModal user={user} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "posicao" && <PosicaoModal user={user} contas={d?.contas || []} onClose={() => setModal(null)} onSalvo={(m) => { setModal(null); ok(m); }} />}
       {modal?.t === "ia" && <AnaliseTitulosModal user={user} tipo={tipo} dIni={dIni} dFim={dFim < dIni ? dIni : dFim} contas={d?.contas || []} contasPorId={contasPorId}
@@ -1726,7 +1729,7 @@ export function VencidosModal({ user, onClose, onSalvo, iniciais }) {
 }
 
 /* ---------------- retorno de cobrança CNAB 400 (Bradesco) ---------------- */
-const ACAO_RET = { DESCONTAR: ["Antecipado (desconto)", "#3D6799", "#EEF3FB"],
+const ACAO_RET = { DESCONTAR: ["Antecipado (desconto)", "#3D6799", "#EEF3FB"], INSTRUCAO: ["Instrução do ERP", "#001E41", "#EEF3FB"],
   REGISTRAR: ["Registrar", C.blue, C.blueSoft], LIQUIDAR: ["Liquidar", C.green, C.greenSoft], CRITICA: ["Crítica (não baixa)", C.red, C.redSoft],
   AVISO: ["Aviso", C.red, C.redSoft], TARIFA: ["Tarifa", C.sub, C.panel2], INFO: ["Informativo", C.sub, C.panel2],
 };

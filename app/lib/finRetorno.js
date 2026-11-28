@@ -185,13 +185,21 @@ export async function analisarRetornos(arquivos) {
   const jaPor = Object.fromEntries(ja.map((x) => [x.hash, x.createdAt]));
   const casar = await montarCasador();
   const nfInfo = await nfsDeSaida();
+  // v1196 — instruções enviadas pelo ERP (vencimento, baixa, abatimento…): o retorno confirma ou rejeita
+  const { TIPOS, REJEICAO } = await import("@/lib/boletos");
+  const env = await prisma.boletoInstrucao.findMany({ where: { status: "ENVIADA" }, orderBy: { id: "asc" } }).catch(() => []);
+  const envPor = {}; for (const i of env) (envPor[i.tituloId] ||= []).push(i);
+  const instrDe = (t, oc) => { const l = t ? envPor[t.id] || [] : []; if (!l.length) return null; if (REJEICAO.includes(oc)) return { id: l[0].id, tipo: l[0].tipo, nome: TIPOS[l[0].tipo]?.nome, rejeita: true };
+    const i = l.find((x) => TIPOS[x.tipo]?.confirma.includes(oc)); return i ? { id: i.id, tipo: i.tipo, nome: TIPOS[i.tipo]?.nome, rejeita: false } : null; };
   const out = lidos.map((f) => ({
     arquivo: f.arquivo, sequencia: f.sequencia, dataArquivo: f.dataArquivo, empresa: f.empresa, tarifa: f.tarifa, hash: f.hash,
     jaProcessado: jaPor[f.hash] || null,
     itens: f.registros.map((r) => {
-      const { acao, aviso } = acaoDe(r);
+      let { acao, aviso } = acaoDe(r);
       const cs = casar(r);
       const t = cs.t;
+      const instrucao = instrDe(t, r.ocorrencia);
+      if (instrucao && acao === "CRITICA") { acao = "INSTRUCAO"; aviso = instrucao.rejeita ? `Banco REJEITOU "${instrucao.nome}" — ${aviso}` : `Confirma a instrução enviada: ${instrucao.nome}.`; }
       let criar = null;
       let situacao = "OK", msg = aviso || null;
       if (["REGISTRAR", "LIQUIDAR", "CRITICA", "DESCONTAR"].includes(acao)) {
@@ -215,10 +223,10 @@ export async function analisarRetornos(arquivos) {
       }
       return {
         k: `${f.arquivo}#${r.seq}`, arquivo: f.arquivo, ...r, acao, nomeOcorrencia: OCORRENCIAS[r.ocorrencia] || `OCORRÊNCIA ${r.ocorrencia}`,
-        situacao, aviso: msg,
+        situacao, aviso: msg, instrucao,
         alvo: t ? { id: t.id, titulo: t.titulo, parceiro: t.parceiro, valor: Number(t.valor), vencimento: t.vencimento.toISOString().slice(0, 10), status: t.status } : null,
         criar,
-        aplicar: (!!t && situacao === "OK" && ["REGISTRAR", "LIQUIDAR", "CRITICA", "DESCONTAR"].includes(acao)) || situacao === "CRIAR",
+        aplicar: (!!t && situacao === "OK" && ["REGISTRAR", "LIQUIDAR", "CRITICA", "DESCONTAR"].includes(acao)) || situacao === "CRIAR" || (!!t && acao === "INSTRUCAO") || (!!t && acao === "REGISTRAR" && !!instrucao),
       };
     }),
   }));
@@ -274,6 +282,18 @@ export async function aplicarRetornos(itens, arquivos, { quem } = {}) {
       const { acao } = acaoDe(reg);
       const t = await prisma.finTitulo.findUnique({ where: { id } });
       if (!t || t.tipo !== "RECEBER" || t.status === "CANCELADO") throw new Error("conta não encontrada");
+      // v1196 — instrução do ERP confirmada/rejeitada pelo banco
+      if (it.instrucao?.id) {
+        const { aplicarInstrucaoRetorno } = await import("@/lib/boletos");
+        const ins = await prisma.boletoInstrucao.findUnique({ where: { id: Number(it.instrucao.id) } });
+        if (ins && ins.status === "ENVIADA") {
+          const txt = `Retorno ${f.sequencia || f.arquivo}: ${OCORRENCIAS[reg.ocorrencia] || reg.ocorrencia}${reg.motivos.length ? ` — ${textoMotivos(reg)}` : ""}`;
+          await aplicarInstrucaoRetorno(ins, !!it.instrucao.rejeita, txt);
+          r.instrucoes = (r.instrucoes || 0) + 1;
+          r.linhas.push(`${t.titulo}: ${it.instrucao.nome} ${it.instrucao.rejeita ? "REJEITADA pelo banco" : "confirmada"}`);
+        }
+        if (acao !== "REGISTRAR") continue;
+      }
       const nosso = t.nossoNumero || reg.nosso || null;
       if (acao === "REGISTRAR") {
         // v231 — título registrado: guarda o nº do retorno e a data da confirmação

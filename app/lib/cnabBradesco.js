@@ -47,7 +47,7 @@ export function gerarRemessa({ sequencial, data, titulos, conta = CONTA_PADRAO }
       + "0".repeat(10) + "2" + " " + " ".repeat(10) + " " + "2" + "  "
       + N(t.ocorrencia || "01", 2) + A(t.documento, 10) + ddmmaa(t.vencimento) + V(t.valor)
       + "000" + "00000" + "01" + "N" + ddmmaa(t.emissao || data) + "00" + "00"
-      + V(0) + "000000" + V(0) + V(0) + V(0)
+      + V(0) + "000000" + V(0) + V(0) + V(t.abatimento || 0)
       + (doc.length === 11 ? "01" : "02") + N(doc, 14) + A(p.nome, 40) + A(ender, 40) + " ".repeat(12) + N(p.cep, 8) + " ".repeat(60) + N(i + 2, 6);
     L.push(l);
   });

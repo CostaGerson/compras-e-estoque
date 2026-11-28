@@ -3118,3 +3118,31 @@ model NfeEmissao {
 
   @@index([empresa, ambiente, serie, numero])
 }
+
+// v1196 — cobrança Bradesco pelo ERP: instruções do boleto (registro, baixa, vencimento, valor, abatimento, protesto) e remessas geradas
+model BoletoInstrucao {
+  id            Int       @id @default(autoincrement())
+  tituloId      Int
+  tipo          String                          // REGISTRO | BAIXA | ABATIMENTO | CANC_ABATIMENTO | VENCIMENTO | PROTESTO | SUSTAR | VALOR
+  ocorrencia    String                          // código CNAB: 01 02 04 05 06 09 18 31
+  dados         Json?                           // { vencimento, valor, abatimento, de: {...} }
+  status        String    @default("PENDENTE")  // PENDENTE | ENVIADA | CONFIRMADA | REJEITADA | CANCELADA
+  remessaId     Int?
+  retornoTxt    String?
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([tituloId])
+  @@index([status])
+}
+
+model BoletoRemessa {
+  id            Int       @id @default(autoincrement())
+  sequencial    Int
+  arquivo       String
+  conteudo      String
+  qtd           Int
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+}
