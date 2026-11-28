@@ -44,7 +44,7 @@ export async function POST(req) {
   const u = await usuario(b.usuarioId);
   if (b.acao === "emitirPedido") {   // v1192
     if (!podeFaturar(u)) return Response.json({ error: "Sem acesso." }, { status: 403 });
-    try { const { emitirNfePedido } = await import("@/lib/nfePedido"); const r = await emitirNfePedido(b.numero, b.nota || {}, u.nome); return Response.json(r, { status: r.error ? 400 : 200 }); }
+    try { const { emitirNfePedido } = await import("@/lib/nfePedido"); const r = await emitirNfePedido(b.numero, b.nota || {}, u); return Response.json(r, { status: r.error ? 400 : 200 }); }
     catch (e) { return Response.json({ error: e.message }, { status: 500 }); }
   }
   if (!pode(u)) return Response.json({ error: "Só o financeiro/gestão altera os dados tributários." }, { status: 403 });
