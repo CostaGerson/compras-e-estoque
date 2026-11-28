@@ -23,6 +23,8 @@ export async function register() {
     const decimo = async () => { try { const { sincronizarDecimo } = await import("./lib/finMatrizRecDb"); const r = await sincronizarDecimo(); if (r?.criadas || r?.atualizadas) console.log(`[v1178] 13º: ${r.criadas} criada(s), ${r.atualizadas} atualizada(s)`); } catch (e) { console.error("[v1178] 13º:", e.message); } };
     setTimeout(decimo, 100 * 1000); setInterval(decimo, 24 * 60 * 60 * 1000);
     setTimeout(async () => { try { const { zerarEstoqueInventario } = await import("./lib/estoqueZerar"); await zerarEstoqueInventario(); } catch (e) { console.error("[v1156]", e.message); } }, 45 * 1000);   // v1156 — estoque zerado (inventário 27/11)
+    // v1197 — usuário "estoque" (sem senha, só a guia Estoque e as movimentações de lá)
+    setTimeout(async () => { try { const { prisma } = await import("./lib/prisma"); if (!(await prisma.usuario.findUnique({ where: { login: "estoque" } }))) { await prisma.usuario.create({ data: { nome: "ESTOQUE", login: "estoque", senha: "", setor: "ESTOQUE", permissoes: ["fme", "SO_ESTOQUE"] } }); console.log("[v1197] usuário estoque criado"); } } catch (e) { console.error("[v1197]", e.message); } }, 30 * 1000);
     const { agendarPendenciasClientes } = await import("./lib/clientePendencias");   // v1148 — vendedor avisado dos cadastros incompletos
     agendarPendenciasClientes();
     const { agendarArtes } = await import("./lib/artesDrive");   // v1003 — artes e layouts vão para o Google Drive (a cada 5 min)

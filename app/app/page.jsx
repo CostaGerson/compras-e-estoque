@@ -51,6 +51,7 @@ import AnaliseLogistica from "./analiseLogistica";
 import { Truck as IcoLog } from "lucide-react";
 import { BarChart3 as IcoAnalise, Scissors as IcoCorte, Paintbrush as IcoPers, Sparkles as IcoBordado, Shirt as IcoCostura, PackageCheck as IcoExped } from "lucide-react";
 import { CalendarDays as IcoAgenda, ListTodo, CalendarRange } from "lucide-react";
+import { soEstoque } from "@/lib/acesso";   // v1197
 import { SETORES as SETORES_ACESSO, SETOR_NOME, ehMaster as ehMasterU, ehDiretor, veFinanceiro, podeImportar, gerencial, tem, temAlguma, tipoDe, TIPO_NOME, PERMISSOES, PERMS_DO_TIPO, VISAO_DO_TIPO, veRHCompleto, lancaPP, vePP, veValoresPP, soTarefas } from "@/lib/acesso";
 import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups do sistema
 import PedidoEditor from "./pedidoEditor";
@@ -223,6 +224,14 @@ const PODE = {
   uploads: () => true,
 };
 function menuDoUsuario(u) {
+  if (soEstoque(u)) return [   // v1197 — usuário estoque: só a guia Estoque
+    { key: "estoqueGrp", label: "Estoque", icon: Boxes, desc: "Saldo de estoque e fichas de movimentação", filhos: [
+      { key: "estoque", label: "Saldo de estoque", icon: Boxes, desc: "O que está em estoque (entrou por NF ou lançamento manual), por categoria" },
+      { key: "artigosRegistrados", label: "Artigos registrados", icon: Database, desc: "Todos os artigos cadastrados, com ou sem saldo" },
+      { key: "pecasProntas", label: "Peças prontas", icon: Boxes, desc: "Estoque de peças prontas da loja NORT por depósito" },
+      { key: "fme", label: "FME", icon: ArrowLeftRight, desc: "Saídas, retornos e ajustes por setor" },
+    ] },
+  ];
   if (soTarefas(u)) return [   // v733 — só tarefas e agenda
     { key: "tarefas", label: "Minhas tarefas", icon: ListTodo, desc: "Suas tarefas" },
     { key: "agenda", label: "Agenda", icon: IcoAgenda, desc: "Sua agenda" },
@@ -299,6 +308,7 @@ export default function Home() {
   // v565 — no celular o sistema abre direto na agenda (uma vez por aba: depois volta para a tela em que estava)
   useEffect(() => {
     if (!user?.id) return;
+    if (soEstoque(user)) return;   // v1197
     if (soTarefas(user)) { try { if (!sessionStorage.getItem("ce_tar_ini")) { sessionStorage.setItem("ce_tar_ini", "1"); setView("tarefas"); } } catch {} return; }   // v733
     try { if (window.innerWidth < 768 && !sessionStorage.getItem("ce_mob_ini")) { sessionStorage.setItem("ce_mob_ini", "1"); setView("agenda"); } } catch {}
   }, [user?.id]);
@@ -323,7 +333,7 @@ export default function Home() {
     return () => { clearInterval(t); document.removeEventListener("visibilitychange", vis); };
   }, [user?.id]);
 
-  const entrar = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); setView(soTarefas(u) ? "tarefas" : u.setor === "RH" && !u.isMaster ? "rh" : "gestao"); try { sessionStorage.setItem("ce_tar_ini", "1"); } catch {} };
+  const entrar = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); setView(soEstoque(u) ? "estoque" : soTarefas(u) ? "tarefas" : u.setor === "RH" && !u.isMaster ? "rh" : "gestao"); try { sessionStorage.setItem("ce_tar_ini", "1"); } catch {} };
   const sair = () => { localStorage.removeItem("ce_user"); setUser(null); };
   const atualizarUser = (u) => { localStorage.setItem("ce_user", JSON.stringify(u)); setUser(u); };
 
@@ -344,8 +354,8 @@ export default function Home() {
   const liberadas = folhas(menu);
   const pode = (k) => liberadas.includes(k);
   // tela que o usuário não tem: vai para a primeira que ele tem
-  if (!["mensagens", "notificacoes", "agenda", "tarefas", ...(pode("gestao") ? ["sistemas", "portalWay", "portalNort"] : [])].includes(view) && !pode(view) && !caminhoMenu(menu, view)?.length) setTimeout(() => setView(pode("gestao") ? "gestao" : tipo === "RH" && pode("rh") ? "rh" : liberadas[0] || "agenda"), 0);
-  const inicio = soTarefas(user) ? "tarefas" : perfil === "RH" ? "rh" : "gestao";   // v733
+  if (!(soEstoque(user) ? [] : ["mensagens", "notificacoes", "agenda", "tarefas"]).concat(...(pode("gestao") ? [["sistemas", "portalWay", "portalNort"]] : [])).includes(view) && !pode(view) && !caminhoMenu(menu, view)?.length) setTimeout(() => setView(pode("gestao") ? "gestao" : tipo === "RH" && pode("rh") ? "rh" : liberadas[0] || "agenda"), 0);
+  const inicio = soEstoque(user) ? "estoque" : soTarefas(user) ? "tarefas" : perfil === "RH" ? "rh" : "gestao";   // v733
   const caminho = caminhoMenu(menu, view) || [];
   const podeDemo = masterReal || diretor || pode("financeiro") || pode("gestao");   // v636 — chave do modo demonstração
   const noAtual = caminho[caminho.length - 1];
@@ -718,7 +728,7 @@ function Login({ onEntrar }) {
   const submit = async (e) => {
     e?.preventDefault?.();
     setErro("");
-    if (!login.trim() || !senha) return setErro("Informe usuário e senha.");
+    if (!login.trim()) return setErro("Informe usuário e senha.");   // v1197 — senha em branco: o servidor decide (usuário estoque)
     setEntrando(true);
     try {
       const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login, senha }) });

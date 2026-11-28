@@ -65,6 +65,8 @@ export const VISAO_DO_TIPO = {
 
 // v733 — arte finalista (Ayrllon): só agenda e as próprias tarefas (sem ADM, rota, dados…); entra direto nas tarefas
 export const soTarefas = (u) => !!u && !u.isMaster && !u.diretoria && u.setor === "ARTE";
+// v1197 — usuário "estoque" (sem senha): só a guia Estoque (saldo, artigos, peças prontas e FME) e as movimentações de lá
+export const soEstoque = (u) => !!u && !u.isMaster && !u.diretoria && Array.isArray(u.permissoes) && u.permissoes.includes("SO_ESTOQUE");
 export const ehMaster = (u) => !!u && !!u.isMaster;                 // v170 — setor FINANCEIRO não é mais master
 export const ehDiretor = (u) => !!u && !!u.diretoria && !u.isMaster;
 export const gerencial = (u) => ehMaster(u) || ehDiretor(u);         // todos os painéis gerenciais e todas as funções
