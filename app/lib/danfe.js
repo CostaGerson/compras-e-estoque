@@ -72,7 +72,8 @@ table{border-collapse:collapse;width:100%;table-layout:fixed}td.c{border:1px sol
 .it td.l{text-align:left}.it td.n{text-align:right}.it tbody tr:last-child td{border-bottom:1px solid #000}.it thead{display:table-header-group}
 .dup{display:inline-flex;gap:6px;border:1px solid #000;padding:2px 5px;margin:0 3px 3px 0;font-size:8px}
 .marca{position:fixed;top:40%;left:0;right:0;text-align:center;font-size:54px;font-weight:bold;color:rgba(200,0,0,.18);transform:rotate(-24deg);pointer-events:none;line-height:1.1}.marca small{font-size:20px}
-@media screen{body{background:#888}.pg{background:#fff;width:210mm;margin:10px auto;padding:7mm;box-shadow:0 2px 10px #0006}}`;
+.pg{display:flex;flex-direction:column;min-height:281mm}.prod{flex:1;display:flex;flex-direction:column}.prod table{flex:1}.it tr.fill td{height:auto}.it tbody tr{height:1px}.it tbody tr.fill{height:auto}
+@media screen{body{background:#888}.pg{background:#fff;width:210mm;min-height:297mm;margin:10px auto;padding:7mm;box-shadow:0 2px 10px #0006}}`;
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>DANFE ${v(ide, "nNF")} - ${esc(v(emit, "xNome"))}</title><style>${css}</style></head><body><div class="pg">
 ${marca ? `<div class="marca">${marca}</div>` : ""}
 <table><tr><td class="c" style="width:80%;height:30px"><div class="r">Recebemos de ${esc(v(emit, "xNome"))} os produtos e/ou serviços constantes da nota fiscal eletrônica indicada ao lado. Emissão: ${dBR(v(ide, "dhEmi"))} · Valor total: R$ ${n2(v(tot, "vNF"))} · Destinatário: ${esc(v(dest, "xNome"))}</div></td>
@@ -100,10 +101,10 @@ ${dups ? `<div class="t">Fatura / duplicatas</div><div>${dups}</div>` : ""}
 <table><tr>${cx("Razão social", esc(v(transporta, "xNome")), "width:34%")}${cx("Frete por conta", MODFRETE[v(transp, "modFrete")] || v(transp, "modFrete"), "width:20%")}${cx("Código ANTT", "")}${cx("Placa do veículo", v(blk(transp, "veicTransp"), "placa"))}${cx("UF", v(blk(transp, "veicTransp"), "UF"), "width:5%")}${cx("CNPJ / CPF", cnpjF(v(transporta, "CNPJ") || v(transporta, "CPF")))}</tr>
 <tr>${cx("Endereço", esc(v(transporta, "xEnder")), "width:34%")}${cx("Município", esc(v(transporta, "xMun")))}${cx("UF", v(transporta, "UF"), "width:5%")}${cx("Inscrição estadual", v(transporta, "IE"))}</tr>
 <tr>${cx("Quantidade", v(vol, "qVol"))}${cx("Espécie", esc(v(vol, "esp")))}${cx("Marca", esc(v(vol, "marca")))}${cx("Numeração", esc(v(vol, "nVol")))}${cx("Peso bruto", v(vol, "pesoB") ? n2(v(vol, "pesoB"), 3) : "")}${cx("Peso líquido", v(vol, "pesoL") ? n2(v(vol, "pesoL"), 3) : "")}</tr></table>
-<div class="t">Dados dos produtos / serviços</div>
+<div class="prod"><div class="t">Dados dos produtos / serviços</div>
 <table class="it"><colgroup><col style="width:9%"><col style="width:27%"><col style="width:6.5%"><col style="width:4%"><col style="width:4.5%"><col style="width:3.5%"><col style="width:6%"><col style="width:6.5%"><col style="width:5%"><col style="width:7%"><col style="width:6%"><col style="width:5.5%"><col style="width:4.5%"><col style="width:3%"><col style="width:3%"></colgroup>
 <thead><tr><th>Código</th><th>Descrição do produto / serviço</th><th>NCM/SH</th><th>CST</th><th>CFOP</th><th>Un.</th><th>Quant.</th><th>Valor unit.</th><th>Desc.</th><th>Valor total</th><th>B. cálc. ICMS</th><th>Valor ICMS</th><th>Valor IPI</th><th>Alíq. ICMS</th><th>Alíq. IPI</th></tr></thead>
-<tbody>${itens}</tbody></table>
+<tbody>${itens}<tr class="fill">${"<td></td>".repeat(15)}</tr></tbody></table></div>
 <div class="t">Dados adicionais</div>
 <table><tr><td class="c" style="width:65%;height:70px"><div class="r">Informações complementares</div><div style="font-size:8px;line-height:1.35">${adic || "&nbsp;"}</div></td><td class="c"><div class="r">Reservado ao fisco</div></td></tr></table>
 <div style="font-size:6.5px;margin-top:2px">Impresso pelo ERP Meridian em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</div>
