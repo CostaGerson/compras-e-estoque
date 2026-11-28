@@ -7,8 +7,9 @@ import { alerta, confirmar, perguntar } from "./dialogo";   // v424 — popups d
 import { ImportarNfs } from "./adm";
 import { imprimirPedido, dadosImpressaoPp, dadosImpressaoPedido } from "./impressaoPedido";   // v638 — Imprimir PV / OP no card
 import { CasarPedidoModal, descasar } from "./casamentoNf";   // v555   // v450 — Incluir faturamento (XML e PDF, como no movimento fiscal)
-import { lancaPP } from "@/lib/acesso";
+import { lancaPP, gerencial } from "@/lib/acesso";
 import { abrirEtiqueta, destinatarioDe, faltasDestinatario } from "@/lib/etiquetaEnvio";   // v1076
+import NfePedidoModal from "./nfePedido";   // v1192 — emitir NF-e do pedido direto na SEFAZ
 import ConteudoImportacao from "./conteudoImportacao";   // v1034   // v728 — botão Editar no card do pedido
 
 const C = {
@@ -431,6 +432,7 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
   const [guia, setGuia] = useState("geral");   // v423 — visão geral | financeiro · v638 — OP (ordem de produção, item a item)
   const [imprimindo, setImprimindo] = useState("");
   const [fatura, setFatura] = useState(false);   // v450 — Incluir faturamento
+  const [nfe, setNfe] = useState(false);   // v1192 — Emitir NF-e
   const [casarNf, setCasarNf] = useState(false);   // v555
   const [semNf, setSemNf] = useState(false);   // v1073 — pedido sem NF: contas a receber lançadas à mão
   const carregar = () => fetch(`/api/producao/gestao?numero=${encodeURIComponent(numero)}`).then(async (r) => { const x = await r.json(); if (!r.ok) throw new Error(x.error || "erro"); setP(x); setObs(x.obs || ""); }).catch((e) => setErro(e.message));
@@ -520,6 +522,7 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
             title="Editar o pedido como no lançamento" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", border: `1px solid ${C.accent}` }}><Pencil size={14} /> Editar</button>}
           {p && p.tipoPedido !== "SERVIÇO" && <button onClick={() => imprimir("OP")} disabled={!!imprimindo} title="Ordem de produção — sem valores" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>{imprimindo === "OP" ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />} Imprimir OP</button>}
           {p && veVal && <button onClick={() => imprimir("PV")} disabled={!!imprimindo} title="Pedido de venda — com valores" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.text, border: `1px solid ${C.line}` }}>{imprimindo === "PV" ? <Loader2 size={14} className="animate-spin" /> : <Printer size={14} />} Imprimir PV</button>}
+          {p && p.tipoPedido !== "SERVIÇO" && (gerencial(user) || /ADM|FINANCEIRO/.test(String(user?.setor || ""))) ? <button onClick={() => setNfe(true)} title="Emitir a NF-e do pedido direto na SEFAZ-MG" className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: C.panel, color: C.navy, border: `1px solid ${C.navy}` }}><FileCode2 size={14} /> Emitir NF-e</button> : null}
           {p && <button onClick={() => setFatura(true)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold" style={{ background: p.faturar === "A_FATURAR" ? C.accent : C.panel, color: p.faturar === "A_FATURAR" ? "#fff" : C.accent, border: `1px solid ${C.accent}` }}><FileText size={14} /> Incluir faturamento</button>}
           <button onClick={onClose}><X size={20} style={{ color: C.sub }} /></button>
         </div>
@@ -694,6 +697,7 @@ function PedidoTela({ numero, user, onClose, componentes = {}, veVal = false }) 
         )}
         {verFpp && <FppResumo fppId={verFpp.fppId} item={verFpp} veValores onClose={() => setVerFpp(null)} onUsar={null} />}
         {casarNf && <CasarPedidoModal user={user} pedido={numero} onClose={() => setCasarNf(false)} onFeito={carregar} />}
+        {nfe && <NfePedidoModal numero={numero} user={user} onClose={() => { setNfe(false); carregar(); }} />}
         {fatura && <ImportarNfs user={user} pedidoNumero={numero} onClose={() => { setFatura(false); carregar(); }} onFim={() => { setFatura(false); carregar(); if (p?.portal && !p.portal.rastreio) pedirRastreio("", true); }} />}
         {semNf && <SemNfModal numero={numero} user={user} onClose={() => setSemNf(false)} onFim={(msg) => { setSemNf(false); carregar(); alerta(msg); if (p?.portal && !p.portal.rastreio) pedirRastreio("", true); }} />}
       </div>
