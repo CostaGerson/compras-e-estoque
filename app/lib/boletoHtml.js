@@ -1,5 +1,7 @@
 // v1194 — boleto Bradesco em HTML (recibo do pagador + ficha de compensação), no mesmo conteúdo do boleto do KM:
 //   juros de 0,03% ao dia e multa de 1% a partir do dia seguinte ao vencimento; código de barras ITF (2 de 5 intercalado).
+import fs from "fs";
+import path from "path";
 import { CONTA_PADRAO, codigoBarras, linhaDigitavel, dvNossoNumero } from "@/lib/cnabBradesco";
 
 const ITF = ["00110", "10001", "01001", "11000", "00101", "10100", "01100", "00011", "10010", "01010"];
@@ -15,6 +17,9 @@ function barrasItf(cod) {
   [...p].forEach((c, i) => { const w = c === "1" ? L : F; if (i % 2 === 0) rs.push(`<rect x="${x}" y="0" width="${w}" height="50"/>`); x += w; });
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${x} 50" preserveAspectRatio="none" shape-rendering="crispEdges" style="width:103mm;height:13mm;display:block">${rs.join("")}</svg>`;
 }
+// v1195 — logo do Bradesco: a mesma imagem do boleto do KM (public/bradesco-boleto.jpg)
+let LOGO = null;
+const logoBradesco = () => { if (LOGO === null) { try { LOGO = "data:image/jpeg;base64," + fs.readFileSync(path.join(process.cwd(), "public", "bradesco-boleto.jpg")).toString("base64"); } catch { LOGO = ""; } } return LOGO; };
 const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const brl = (v) => Number(v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dBR = (s) => (s ? String(s).slice(0, 10).split("-").reverse().join("/") : "");
@@ -33,7 +38,7 @@ export function htmlBoletos(boletos, { conta = CONTA_PADRAO, beneficiarioEnderec
     const instr = `Cobrar juros de R$ ${brl(juros)} por dia de atraso para pagamento a partir de ${dBR(mais1(b.vencimento))}.<br>Cobrar multa de ${brl(c.multaPct)}% para pagamento a partir de ${dBR(mais1(b.vencimento))}.`;
     const endP = `${esc(p.logradouro)}${p.numero ? `, ${esc(p.numero)}` : ""} - ${esc(p.bairro || "")} - ${esc(p.cep || "")} - ${esc(p.municipio || "")} / ${esc(p.uf || "")}`;
     const cel = (r, v, est = "") => `<td style="${est}"><div class="r">${r}</div><div class="v">${v || "&nbsp;"}</div></td>`;
-    const cab = (titulo) => `<div class="cab"><b class="bco">Bradesco</b><b class="cod">237-2</b><span class="ld">${titulo}</span></div>`;
+    const cab = (titulo) => `<div class="cab"><span class="bco">${logoBradesco() ? `<img src="${logoBradesco()}" style="height:30px;display:block">` : "<b>Bradesco</b>"}</span><b class="cod">237-2</b><span class="ld">${titulo}</span></div>`;
     return `<div class="bol">
 ${cab('<span style="float:right;font-size:12px">Recibo do Pagador</span>')}
 <table><tr>${cel("Beneficiário", esc(c.razao), "width:45%")}${cel("CNPJ/CPF", cnpjF(c.cnpj))}${cel("Vencimento", `<b>${dBR(b.vencimento)}</b>`, "width:20%;text-align:right")}</tr>
@@ -55,7 +60,7 @@ ${cab(linha)}
   };
   const css = `@page{size:A4;margin:10mm}body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#000}.bol{page-break-after:always}.bol:last-child{page-break-after:auto}
 table{border-collapse:collapse;width:100%}td{border:1px solid #000;padding:1px 4px;vertical-align:top}.r{font-size:7.5px}.v{font-size:11px;min-height:13px}
-.cab{display:flex;align-items:flex-end;gap:12px;border-bottom:2px solid #000;margin-top:6px;padding-bottom:2px}.bco{font-size:20px;color:#cc092f;font-style:italic;width:150px}
+.cab{display:flex;align-items:flex-end;gap:12px;border-bottom:2px solid #000;margin-top:6px;padding-bottom:2px}.bco{width:150px}
 .cod{font-size:20px;border-left:2px solid #000;border-right:2px solid #000;padding:0 10px}.ld{font-size:14px;font-weight:bold;flex:1}
 .corte{border-bottom:1px dashed #000;font-size:8px;text-align:right;padding:4px 0 18px;margin-bottom:12px}`;
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Boletos</title><style>${css}</style></head><body>${boletos.map(um).join("")}${autoPrint ? "<script>window.onload=()=>setTimeout(()=>window.print(),300)</script>" : ""}</body></html>`;
