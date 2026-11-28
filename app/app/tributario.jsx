@@ -272,6 +272,52 @@ function Certificado({ emp, info, user, ambiente }) {
             : <>{teste.erro || `SEFAZ-MG: ${teste.cStat} · ${teste.xMotivo}`}</>}
         </div>
       )}
+      {cert && <NfeEmitidas emp={emp} user={user} />}
+    </div>
+  );
+}
+
+// v1189 — NF-e emitidas pelo ERP (etapa 2: nota de teste em homologação)
+function NfeEmitidas({ emp, user }) {
+  const [notas, setNotas] = useState(null), [st, setSt] = useState(""), [ult, setUlt] = useState(null);
+  const carregar = () => fetch(`/api/tributario?u=${user.id}&acao=nfe&empresa=${emp}`).then((r) => r.json()).then((x) => setNotas(x.notas || [])).catch(() => setNotas([]));
+  useEffect(() => { setUlt(null); carregar(); }, [emp]);
+  const testar = async () => {
+    if (!(await confirmar(`Emitir uma NF-e de TESTE da ${emp} em homologação (sem valor fiscal)?`))) return;
+    setSt("Montando, assinando e enviando à SEFAZ-MG…");
+    const r = await fetch("/api/tributario", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, empresa: emp, acao: "emitirTeste" }) }).then((x) => x.json()).catch((e) => ({ error: e.message }));
+    setSt("");
+    if (r.error) return alerta(r.error);
+    setUlt(r.nota); carregar();
+  };
+  const cor = (s) => (s === "AUTORIZADA" ? C.green : s === "PENDENTE" ? C.accent : C.red);
+  const brl = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return (
+    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <div className="text-[11px] font-bold uppercase tracking-wide" style={{ color: C.navy }}>NF-e emitidas pelo ERP</div>
+        <button onClick={testar} disabled={!!st} className="ml-auto px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: C.accent }}>Emitir NF-e de teste (homologação)</button>
+      </div>
+      {st && <div className="flex items-center gap-1 text-xs mb-2" style={{ color: C.sub }}><Loader2 size={13} className="animate-spin" /> {st}</div>}
+      {ult && (
+        <div className="mb-2 text-xs rounded-lg px-3 py-2" style={{ background: ult.status === "AUTORIZADA" ? "#E7F6EE" : "#FDECEA", color: cor(ult.status) }}>
+          {ult.status === "AUTORIZADA" ? <>✓ NF-e {ult.numero} série {ult.serie} <b>autorizada</b> · protocolo {ult.protocolo}</> : <>NF-e {ult.numero}: <b>{ult.cStat} · {ult.xMotivo}</b></>}
+        </div>
+      )}
+      {notas === null ? <div className="text-xs" style={{ color: C.sub }}>Carregando…</div> : !notas.length ? <div className="text-xs" style={{ color: C.sub }}>Nenhuma NF-e emitida pelo ERP ainda.</div> : (
+        <table className="w-full text-xs">
+          <thead><tr style={{ color: C.sub }}><th className="text-left py-1">Nº / série</th><th className="text-left">Ambiente</th><th className="text-left">Destinatário</th><th className="text-right">Valor</th><th className="text-left pl-3">Situação</th><th></th></tr></thead>
+          <tbody>{notas.map((n) => (
+            <tr key={n.id} style={{ borderTop: `1px solid ${C.line}`, verticalAlign: "top" }}>
+              <td className="py-1 whitespace-nowrap"><b>{n.numero}</b> / {n.serie}<div style={{ color: C.sub }}>{new Date(n.createdAt).toLocaleString("pt-BR").slice(0, 17)}</div></td>
+              <td>{n.ambiente === "PRODUCAO" ? "Produção" : "Homologação"}{n.origem === "TESTE" ? " · teste" : ""}</td>
+              <td>{n.destNome}</td>
+              <td className="text-right whitespace-nowrap">{brl(n.valor)}</td>
+              <td className="pl-3"><b style={{ color: cor(n.status) }}>{n.status}</b>{n.status !== "AUTORIZADA" && n.xMotivo ? <div style={{ color: C.sub }}>{n.cStat} · {n.xMotivo}</div> : n.protocolo ? <div style={{ color: C.sub }}>prot. {n.protocolo}</div> : null}</td>
+              <td className="text-right"><a href={`/api/tributario?u=${user.id}&acao=nfeXml&id=${n.id}`} className="underline" style={{ color: C.navy }}>XML</a></td>
+            </tr>))}</tbody>
+        </table>
+      )}
     </div>
   );
 }

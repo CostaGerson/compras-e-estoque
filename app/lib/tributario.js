@@ -13,7 +13,7 @@ export const NATUREZAS_INICIAIS = [
   { nome: "DEVOLUÇÃO DE COMPRA PARA INDUSTRIALIZAÇÃO", uso: "DEVOLUCAO", finalidade: 4, cfopEstado: "5201", cfopForaEstado: "6201", padrao: true },
 ];
 // v1188 — duas emitentes: MERIDIAN (Lucro Presumido, CRT 3) e NORT (Simples Nacional, CRT 1); NF-e direto na SEFAZ-MG
-export const EMPRESA_PADRAO = { razaoSocial: "MERIDIAN LTDA", fantasia: "MERIDIAN", cnpj: "48.011.287/0001-81", ie: "0044450590058", im: "", crt: "3", cnae: "1413403", serie: "1", ambiente: "HOMOLOGACAO",
+export const EMPRESA_PADRAO = { razaoSocial: "MERIDIAN LTDA", fantasia: "MERIDIAN", cnpj: "48.011.287/0001-81", ie: "0044450590058", im: "", crt: "3", cnae: "1413403", serie: "2", ambiente: "HOMOLOGACAO",
   logradouro: "RUA DR. NATALINO TRIGINELLI", numero: "281", complemento: "", bairro: "JARDIM ATLÂNTICO", municipio: "BELO HORIZONTE", uf: "MG", cep: "31710-420", codigoMunicipio: "3106200",
   telefone: "", email: "", infoComplementar: "" };
 export const EMPRESA_NORT = { ...EMPRESA_PADRAO, razaoSocial: "NORT SPORTS LTDA", fantasia: "NORT SPORTS", cnpj: "55.116.246/0001-15", ie: "0048920590036", crt: "1", cnae: "4781400",
@@ -72,6 +72,14 @@ export async function dadosTributarios(db = prisma) {
   // v1188 — Meridian é Lucro Presumido: CRT 3 (o padrão antigo era 1 = Simples) · IE da EFD
   if (empresa.crt === "1") empresa.crt = "3";
   if (!empresa.ie) empresa.ie = EMPRESA_PADRAO.ie;
+  // v1189 — série do ERP = 2 (KM e Bling seguem na série 1): ajusta uma vez o que já estava gravado
+  if (!(await db.finConfig.findUnique({ where: { chave: "NFE|SERIE2" } }).catch(() => null))) {
+    for (const k of [K_EMP, K_EMP_DE("NORT")]) {
+      const c = await db.finConfig.findUnique({ where: { chave: k } }).catch(() => null);
+      if (c?.valor) { try { const v = JSON.parse(c.valor); if (!v.serie || v.serie === "1") { v.serie = "2"; await db.finConfig.update({ where: { chave: k }, data: { valor: JSON.stringify(v) } }); if (k === K_EMP) empresa.serie = "2"; } } catch {} }
+    }
+    await db.finConfig.create({ data: { chave: "NFE|SERIE2", valor: new Date().toISOString() } }).catch(() => null);
+  }
   const cfgN = await db.finConfig.findUnique({ where: { chave: K_EMP_DE("NORT") } }).catch(() => null);
   let nort = { ...EMPRESA_NORT }; try { nort = { ...nort, ...JSON.parse(cfgN?.valor || "{}") }; } catch {}
   const { infoCertificados } = await import("@/lib/nfeCert");

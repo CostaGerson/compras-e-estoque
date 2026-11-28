@@ -3090,3 +3090,31 @@ model PortalMatriz {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+// v1189 — NF-e emitida pelo ERP direto na SEFAZ-MG (Meridian e NORT, série própria do ERP)
+model NfeEmissao {
+  id            Int       @id @default(autoincrement())
+  empresa       String                          // MERIDIAN | NORT
+  ambiente      String                          // HOMOLOGACAO | PRODUCAO
+  serie         Int
+  numero        Int
+  chave         String    @unique
+  status        String                          // AUTORIZADA | REJEITADA | DENEGADA | PENDENTE | ERRO
+  cStat         String?
+  xMotivo       String?
+  protocolo     String?
+  dhRecbto      String?
+  natOp         String?
+  destNome      String?
+  destDoc       String?
+  valor         Decimal   @db.Decimal(14, 2)
+  origem        String    @default("TESTE")     // TESTE | PEDIDO | AVULSA
+  pedidoNumero  String?
+  xml           String                          // NF-e assinada
+  xmlProc       String?                         // nfeProc (NF-e + protocolo) quando autorizada
+  dados         Json?
+  criadoPorNome String?
+  createdAt     DateTime  @default(now())
+
+  @@index([empresa, ambiente, serie, numero])
+}

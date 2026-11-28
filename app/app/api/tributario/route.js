@@ -15,6 +15,14 @@ export async function GET(req) {
     const { levantamentoFiscal } = await import("@/lib/levantamentoFiscal");
     return Response.json(await levantamentoFiscal({ meses: Number(sp.get("meses")) || 12, empresa: sp.get("empresa") === "NORT" ? "NORT" : "MERIDIAN" }));
   }
+  // v1189 — NF-e emitidas pelo ERP
+  if (sp.get("acao") === "nfe") { const { listarEmissoes } = await import("@/lib/nfeEmissao"); return Response.json({ notas: await listarEmissoes(sp.get("empresa") || null) }); }
+  if (sp.get("acao") === "nfeXml") {
+    if (!pode(u)) return Response.json({ error: "Sem acesso." }, { status: 403 });
+    const { xmlEmissao } = await import("@/lib/nfeEmissao"); const x = await xmlEmissao(sp.get("id"));
+    if (!x) return Response.json({ error: "NF-e não encontrada." }, { status: 404 });
+    return new Response(x.xml, { headers: { "Content-Type": "application/xml; charset=utf-8", "Content-Disposition": `attachment; filename="${x.nome}"` } });
+  }
   return Response.json(await dadosTributarios());
 }
 export async function POST(req) {
@@ -30,6 +38,10 @@ export async function POST(req) {
   if (b.acao === "testarSefaz") {
     try { const { statusServico } = await import("@/lib/nfeSefaz"); return Response.json(await statusServico(b.empresa, b.ambiente)); }
     catch (e) { return Response.json({ ok: false, erro: e.message }); }
+  }
+  if (b.acao === "emitirTeste") {
+    try { const { emitirTeste } = await import("@/lib/nfeEmissao"); const r = await emitirTeste(b.empresa === "NORT" ? "NORT" : "MERIDIAN", u.nome); return Response.json(r, { status: r.error ? 400 : 200 }); }
+    catch (e) { return Response.json({ error: e.message }, { status: 500 }); }
   }
   const r = b.acao === "empresa" ? await salvarEmpresa(b.dados, prisma, b.empresaId) : b.acao === "produto" ? await salvarProduto(b.dados || {}) : b.acao === "excluirNatureza" ? await excluirNatureza(b.id) : await salvarNatureza(b.dados || {});
   return Response.json(r, { status: r.error ? 400 : 200 });
