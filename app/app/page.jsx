@@ -3157,15 +3157,13 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
   const chaveCols = modoEstoque ? "ce_estoque_cols_ocultas" : "ce_artigos_cols_ocultas";
   const [ocultas, setOcultas] = useState(() => { try { return JSON.parse(localStorage.getItem(chaveCols) || "[]"); } catch { return []; } });
   const mudarOcultas = (fn) => setOcultas((o) => { const n = fn(o); try { localStorage.setItem(chaveCols, JSON.stringify(n)); } catch {} return n; });
-  const vis = (k) => !ocultas.includes(k);
+  const vis = () => true;   // v1203 — sem ocultar colunas (o olho fica só no topo, para os valores)
   const ocultar = (k) => mudarOcultas((o) => [...new Set([...o, k])]);
   const COLS_NOME = { categoria: "Categoria", nome: "Artigo NF", interno: "Artigo interno", fornecedor: "Fornecedor", cor: "Cor", codigo: "Código", saldo: "Saldo", volumes: "Volumes",
     composicao: "Composição", movimento: "Movimento", preco: "Preço", valor: "Valor total", ultima: "Última compra" };
   // v994 — tabela: título alinhado ao conteúdo, todas as colunas ordenam
   const Th = ({ k, label, campoKey, dir }) => !vis(k) ? null : (
-    <ThO key={k} label={label} k={campoKey} sort={sort} onSort={onSort} dir={dir}>
-      <button onClick={(e) => { e.stopPropagation(); ocultar(k); }} title={`Ocultar coluna ${COLS_NOME[k]}`} className="ml-1 align-middle opacity-40 hover:opacity-100" style={{ color: C.sub }}><EyeOff size={12} /></button>
-    </ThO>
+    <ThO key={k} label={label} k={campoKey} sort={sort} onSort={onSort} dir={dir} />
   );
 
   const campos = {
@@ -3299,7 +3297,7 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
       </div>
 
 
-      {ocultas.length > 0 && (
+      {false && ocultas.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 mb-2 text-xs" style={{ color: C.sub }}>
           <Eye size={13} /> Colunas ocultas:
           {ocultas.map((k) => <button key={k} onClick={() => mudarOcultas((o) => o.filter((x) => x !== k))} className="px-2 py-0.5 rounded-full" style={{ border: `1px solid ${C.line}`, background: C.panel, color: C.text }} title="Mostrar de novo">{COLS_NOME[k] || k} ✕</button>)}
@@ -3436,6 +3434,7 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
   const val = (v) => (v === null || v === undefined ? "" : String(v));
   const [f, setF] = useState({
     categoria: artigo.categoria || "MALHA",
+    tipoEstoque: tipoEstoqueDe(artigo),   // v1203 — categorias = guias do estoque
     fornecedorId: artigo.fornecedorId ? String(artigo.fornecedorId) : "",
     nome: val(artigo.nome), artigoInterno: val(artigo.artigoInterno), cor: val(artigo.cor),
     codigo: val(artigo.codigo),
@@ -3485,9 +3484,9 @@ function ArtigoEditModal({ artigo, fornecedores, master, onClose, onSaved }) {
         <div className="p-5">
           <div className="text-xs mb-2" style={{ color: C.sub }}>Categoria</div>
           <div className="flex gap-2 mb-4">
-            {CATS.map(([k, l]) => (
-              <button key={k} onClick={() => set("categoria", k)} className="px-4 py-2 rounded-md text-sm"
-                style={{ background: f.categoria === k ? C.accentSoft : C.panel2, color: f.categoria === k ? C.accent : C.sub, border: `1px solid ${f.categoria === k ? C.accent : C.line}` }}>{l}</button>
+            {GUIAS_ESTOQUE.map((k) => (
+              <button key={k} onClick={() => setF((o) => ({ ...o, tipoEstoque: k, categoria: ["MALHA", "TECIDO", "AVIAMENTO"].includes(k) ? k : "OUTROS" }))} className="px-4 py-2 rounded-md text-sm"
+                style={{ background: f.tipoEstoque === k ? C.accentSoft : C.panel2, color: f.tipoEstoque === k ? C.accent : C.sub, border: `1px solid ${f.tipoEstoque === k ? C.accent : C.line}` }}>{k.charAt(0) + k.slice(1).toLowerCase()}</button>
             ))}
           </div>
 

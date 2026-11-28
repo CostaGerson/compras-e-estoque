@@ -16,7 +16,7 @@ export async function PATCH(req, { params }) {
   const b = await req.json();
   const data = {};
   const UP = ["nome","artigoInterno","codigo","cor","composicao","especificacao"];
-  for (const k of ["nome","artigoInterno","codigo","cor","composicao","especificacao","categoria","tipoMalha","unidade"])
+  for (const k of ["nome","artigoInterno","codigo","cor","composicao","especificacao","categoria","tipoMalha","unidade","tipoEstoque"])   // v1203 tipoEstoque
     if (k in b) data[k] = b[k] ? (UP.includes(k) ? String(b[k]).toUpperCase() : b[k]) : null;
   for (const k of ["largura","rendimento","gramatura","valorUnitario","quantidade"])
     if (k in b) data[k] = dec(b[k]);
