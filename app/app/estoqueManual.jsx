@@ -4,7 +4,7 @@
 // confirmação, entrada no estoque e impressão da etiqueta Zebra (10 × 8,5 cm pré-selecionada ou 5 × 5 cm).
 // Tecido plano é pesado: a metragem sai do peso, da largura e da gramatura padrão do tipo de tecido.
 import React, { useEffect, useMemo, useState } from "react";
-import { Loader2, X, PackagePlus, Printer, Settings2, ExternalLink, RefreshCw } from "lucide-react";
+import { Loader2, X, PackagePlus, Printer, Settings2, ExternalLink, RefreshCw, Copy } from "lucide-react";
 import { alerta, confirmar } from "./dialogo";
 import { fornecedoresParecidos } from "@/lib/artigoPadrao";
 import { htmlEtiquetas, imprimirEtiquetas, TAMANHOS, TAMANHO_PADRAO, nomeTamanho, acharZebra, zebraCfg, salvarZebraCfg } from "./etiquetaZebra";
@@ -148,6 +148,10 @@ export default function EntradaManualEstoque({ user, onClose }) {
   const [etq, setEtq] = useState(null);   // etiqueta pronta → tela de impressão
   const [tam, setTam] = useState(TAMANHO_PADRAO);
   const [editGram, setEditGram] = useState(false);
+  const [serie, setSerie] = useState(0);   // v1198 — volumes lançados em sequência pelo "Clonar"
+  // v1198 — clonar: volta ao formulário com tudo preenchido e o peso (ou a quantidade) em branco, para o próximo volume
+  const clonar = () => { setF((o) => ({ ...o, pesoKg: "", quantidade: "" })); setEtq(null); setSerie((n) => n + 1);
+    setTimeout(() => { try { document.querySelector("[data-peso-volume]")?.focus(); } catch {} }, 80); };
   const s = (k, v) => setF((o) => ({ ...o, [k]: v }));
   useEffect(() => {
     fetch(`/api/estoque/manual?u=${user.id}`).then((r) => r.json()).then(setCfg).catch(() => setCfg({ error: true }));
@@ -189,7 +193,7 @@ export default function EntradaManualEstoque({ user, onClose }) {
     const l = faltas();
     if (l.length) return alerta(`Falta preencher: ${l.join(", ")}.`);
     const qtdTxt = tecido ? `${nBR(metros, 2)} m (${nBR(num(f.pesoKg), 3)} kg × ${nBR(gramUsada, 0)} g/m² × ${nBR(num(f.largura), 2)} m)` : `${f.quantidade} ${f.unidade}${f.unidade === "PCT" ? ` de ${f.unidadesPacote} un` : ""}`;
-    if (!(await confirmar(`Deseja de fato inserir no estoque?\n\n${f.nome.toUpperCase()}${ziper ? ` ${f.tipoZiper}` : ""}${aviam && f.tamanho.trim() ? ` · ${f.tamanho} ${f.tamanhoUnidade === "OUTRO" ? f.tamanhoUnidadeOutro.toUpperCase() : f.tamanhoUnidade}` : ""} · ${f.cor.toUpperCase()}\n${qtdTxt}${f.obs.trim() ? `\nOBS: ${f.obs.toUpperCase()}` : ""}\nOrigem: ${f.origem.toUpperCase()}`, { titulo: "Entrada no estoque" }))) return;
+    if (!serie && !(await confirmar(`Deseja de fato inserir no estoque?\n\n${f.nome.toUpperCase()}${ziper ? ` ${f.tipoZiper}` : ""}${aviam && f.tamanho.trim() ? ` · ${f.tamanho} ${f.tamanhoUnidade === "OUTRO" ? f.tamanhoUnidadeOutro.toUpperCase() : f.tamanhoUnidade}` : ""} · ${f.cor.toUpperCase()}\n${qtdTxt}${f.obs.trim() ? `\nOBS: ${f.obs.toUpperCase()}` : ""}\nOrigem: ${f.origem.toUpperCase()}`, { titulo: "Entrada no estoque" }))) return;
     setSalvando(true);
     const r = await fetch("/api/estoque/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "entrar", ...f, gramatura: tecido ? gramUsada : f.gramatura }) });
     const x = await r.json().catch(() => ({})); setSalvando(false);
@@ -212,7 +216,7 @@ export default function EntradaManualEstoque({ user, onClose }) {
         {!cfg ? <div className="p-6 text-sm flex items-center gap-2" style={{ color: C.sub }}><Loader2 size={14} className="animate-spin" /> Carregando…</div>
           : etq ? (
           <div className="p-5 overflow-auto">
-            <div className="text-sm mb-3" style={{ color: C.green }}>✓ Entrada feita no estoque. Confira a etiqueta e imprima.</div>
+            <div className="text-sm mb-3" style={{ color: C.green }}>✓ Entrada feita no estoque{serie ? ` (volume ${serie + 1} da sequência)` : ""}. Confira a etiqueta e imprima.</div>
             <ZebraPainel />
             <div className="flex items-center gap-2 mb-3 text-sm">
               <span style={{ color: C.sub }}>Tamanho</span>
@@ -224,12 +228,14 @@ export default function EntradaManualEstoque({ user, onClose }) {
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={onClose} className="px-3 py-2 text-sm" style={{ color: C.sub }}>Fechar</button>
+              <button onClick={clonar} title="Lançar outro volume do mesmo artigo: tudo preenchido, só falta o peso" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.navy}`, color: C.navy }}><Copy size={15} /> Clonar</button>
               <button onClick={() => imprimirEtiquetas([etq], { tamanho: tam, navegador: true })} className="px-3 py-2 text-xs" style={{ color: C.sub }}>Imprimir pelo navegador</button>
               <button onClick={() => imprimirComAviso([etq], tam)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Printer size={15} /> Imprimir</button>
             </div>
           </div>
         ) : (
           <div className="p-5 overflow-auto">
+            {serie > 0 && <div className="mb-3 px-3 py-2 rounded-lg text-sm" style={{ background: "#EEF3FB", color: C.navy }}>Volume {serie + 1} do mesmo artigo: tudo veio do anterior. Informe o <b>{tecido ? "peso" : "quantidade"}</b> e conclua (sem nova confirmação).</div>}
             <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(2, minmax(0,1fr))" }}>
               <Campo t="Tipo" obrig larg><Opcoes ops={cfg.tipos.map((t) => [t, t])} valor={f.tipo} onChange={(v) => setF((o) => ({ ...o, tipo: v, tipoTecido: v === "TECIDO" ? o.tipoTecido : "", nome: v === "TECIDO" && o.tipoTecido && o.tipoTecido !== "OUTROS" ? o.tipoTecido : o.tipo === "TECIDO" ? "" : o.nome, construcao: v === "MALHA" ? o.construcao : "",
                 ...(v !== o.tipo && (["MALHA", "AVIAMENTO"].includes(v) || ["MALHA", "AVIAMENTO"].includes(o.tipo)) ? { nome: "", nomeLista: "", tipoZiper: "" } : {}), ...(v !== "AVIAMENTO" ? { tamanho: "", tamanhoUnidade: "", tamanhoUnidadeOutro: "", tipoZiper: "" } : {}) }))} /></Campo>
@@ -273,13 +279,13 @@ export default function EntradaManualEstoque({ user, onClose }) {
               {malha && <Campo t="Construção" obrig><Opcoes ops={[["TUBULAR", "Tubular"], ["RAMADA", "Ramada"]]} valor={f.construcao} onChange={(v) => s("construcao", v)} /></Campo>}
               {malha && <Campo t="Gramatura (g/m²)"><Inp value={f.gramatura} onChange={(e) => s("gramatura", e.target.value)} inputMode="decimal" placeholder="opcional" /></Campo>}
               {tecido ? <>
-                <Campo t="Peso (kg)" obrig><Inp value={f.pesoKg} onChange={(e) => s("pesoKg", e.target.value)} inputMode="decimal" placeholder="peso na balança" /></Campo>
+                <Campo t="Peso (kg)" obrig><Inp data-peso-volume value={f.pesoKg} onChange={(e) => s("pesoKg", e.target.value)} inputMode="decimal" placeholder="peso na balança" /></Campo>
                 <Campo t={`Gramatura (g/m²)${gramPadrao ? ` · padrão ${gramPadrao}` : ""}`} obrig={!gramPadrao}><Inp value={f.gramatura} onChange={(e) => s("gramatura", e.target.value)} inputMode="decimal" placeholder={gramPadrao ? String(gramPadrao) : "informe"} /></Campo>
                 <div className="rounded-lg px-3 py-2 text-sm self-end" style={{ background: metros ? C.greenSoft : C.panel2, color: metros ? C.green : C.sub, gridColumn: "1 / -1" }}>
                   {metros ? <>Metragem calculada: <b>{nBR(metros, 2)} m</b> <span className="text-xs">= {nBR(num(f.pesoKg), 3)} kg × 1000 ÷ ({nBR(gramUsada, 0)} g/m² × {nBR(num(f.largura), 2)} m)</span></> : "A metragem é calculada pelo peso, largura e gramatura."}
                 </div>
               </> : <>
-                <Campo t="Quantidade" obrig><Inp value={f.quantidade} onChange={(e) => s("quantidade", e.target.value)} inputMode="decimal" /></Campo>
+                <Campo t="Quantidade" obrig><Inp data-peso-volume={tecido ? undefined : ""} value={f.quantidade} onChange={(e) => s("quantidade", e.target.value)} inputMode="decimal" /></Campo>
                 <Campo t="Unidade de medida" obrig><Opcoes ops={cfg.unidades} valor={f.unidade} onChange={(v) => s("unidade", v)} /></Campo>
                 {f.unidade === "PCT" && <Campo t="Unidades dentro do pacote" obrig><Inp value={f.unidadesPacote} onChange={(e) => s("unidadesPacote", e.target.value)} inputMode="numeric" /></Campo>}
               </>}
