@@ -23,7 +23,7 @@ export async function GET(req) {
       fornecedor: true,
       nf: { select: { id: true, numero: true, temPdf: true, temXml: true } },
       movimentacoes: {
-        orderBy: { createdAt: "desc" }, take: 1,
+        where: { excluidoEm: null }, orderBy: { createdAt: "desc" }, take: 1,
         select: { id: true, tipo: true, quantidade: true, createdAt: true, perfil: true,
           nf: { select: { id: true, numero: true, temPdf: true, temXml: true } },
           fme: { select: { id: true, numero: true } } },
@@ -37,6 +37,8 @@ export async function GET(req) {
     const nums = Object.fromEntries((await prisma.fpp.findMany({ where: { id: { in: ids } }, select: { id: true, numero: true } })).map((f) => [f.id, f.numero]));
     for (const a of artigos) if (a.origemFppId) a.origemFppNumero = nums[a.origemFppId] ?? null;
   }
+  // v1199 — quantos volumes (etiquetas) formam o saldo
+  if (soEstoque) { try { const { volumesPorArtigo } = await import("@/lib/estoqueManual"); const vp = await volumesPorArtigo(); for (const a of artigos) a.volumes = vp[a.id] || 0; } catch {} }
   return Response.json(artigos);
 }
 

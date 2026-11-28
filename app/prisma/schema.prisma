@@ -271,6 +271,9 @@ model EstoqueVolume {
   pesoKg        Decimal? @db.Decimal(14, 3)   // v1152 — tecido plano pesado no inventário (metragem calculada)
   gramatura     Decimal? @db.Decimal(10, 2)   // v1152 — g/m² usada no cálculo
   obs           String?  // v1172 — OBS da entrada (sai na etiqueta)
+  dadosEntrada  Json?    // v1199 — campos do formulário da entrada manual (para substituir a etiqueta)
+  excluidoEm    DateTime? // v1199 — lixeira do estoque (30 dias)
+  excluidoPorNome String?
   entradaEm     DateTime @default(now())
   criadoPorNome String?
   createdAt     DateTime @default(now())
@@ -728,6 +731,10 @@ model EstoqueMovimentacao {
   usuarioId  Int?
   perfil     String?
   observacao String?
+  volumeId   Int?       // v1199 — volume (etiqueta) desta entrada
+  criadoPorNome String?  // v1199 — responsável pelo lançamento
+  excluidoEm DateTime?  // v1199 — lixeira do estoque (30 dias)
+  excluidoPorNome String?
   createdAt  DateTime @default(now())
 
   artigo   Artigo           @relation(fields: [artigoId], references: [id])
@@ -3145,4 +3152,23 @@ model BoletoRemessa {
   qtd           Int
   criadoPorNome String?
   createdAt     DateTime  @default(now())
+}
+
+// v1199 — lixeira do estoque: lançamentos excluídos ou substituídos (30 dias, dá para restaurar)
+model EstoqueLixeira {
+  id            Int       @id @default(autoincrement())
+  tipo          String                          // LANCAMENTO | ARTIGO | SUBSTITUICAO
+  artigoId      Int
+  descricao     String
+  movIds        Json                            // ids de EstoqueMovimentacao marcados como excluídos
+  volIds        Json                            // ids de EstoqueVolume (etiquetas) excluídos
+  etiquetas     Json?                           // códigos VOL… a destruir
+  ajuste        Decimal   @db.Decimal(14, 3)    // quanto saiu do saldo (restaurar devolve)
+  substitutoMovId Int?
+  excluidoPorNome String?
+  restauradoEm  DateTime?
+  restauradoPorNome String?
+  createdAt     DateTime  @default(now())
+
+  @@index([createdAt])
 }

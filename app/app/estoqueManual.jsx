@@ -138,12 +138,12 @@ function Gramaturas({ user, tecidos, gram, onSalvo, onClose }) {
   );
 }
 
-export default function EntradaManualEstoque({ user, onClose }) {
+export default function EntradaManualEstoque({ user, onClose, inicial = null, substituir = null }) {   // v1199 — substituir: { movId, etiquetaAntiga }
   const [cfg, setCfg] = useState(null);
   const [forns, setForns] = useState([]);
   const [nomes, setNomes] = useState([]);
   const [f, setF] = useState({ tipo: "", tipoTecido: "", nome: "", cor: "", codigo: "", fornecedorId: null, largura: "", construcao: "", pesoKg: "", gramatura: "", quantidade: "", unidade: "", unidadesPacote: "", origem: "",
-    nomeLista: "", tamanho: "", tamanhoUnidade: "", tamanhoUnidadeOutro: "", tipoZiper: "", obs: "" });   // v1172
+    nomeLista: "", tamanho: "", tamanhoUnidade: "", tamanhoUnidadeOutro: "", tipoZiper: "", obs: "", ...(inicial || {}) });   // v1172 · v1199 inicial
   const [salvando, setSalvando] = useState(false);
   const [etq, setEtq] = useState(null);   // etiqueta pronta → tela de impressão
   const [tam, setTam] = useState(TAMANHO_PADRAO);
@@ -193,14 +193,17 @@ export default function EntradaManualEstoque({ user, onClose }) {
     const l = faltas();
     if (l.length) return alerta(`Falta preencher: ${l.join(", ")}.`);
     const qtdTxt = tecido ? `${nBR(metros, 2)} m (${nBR(num(f.pesoKg), 3)} kg × ${nBR(gramUsada, 0)} g/m² × ${nBR(num(f.largura), 2)} m)` : `${f.quantidade} ${f.unidade}${f.unidade === "PCT" ? ` de ${f.unidadesPacote} un` : ""}`;
-    if (!serie && !(await confirmar(`Deseja de fato inserir no estoque?\n\n${f.nome.toUpperCase()}${ziper ? ` ${f.tipoZiper}` : ""}${aviam && f.tamanho.trim() ? ` · ${f.tamanho} ${f.tamanhoUnidade === "OUTRO" ? f.tamanhoUnidadeOutro.toUpperCase() : f.tamanhoUnidade}` : ""} · ${f.cor.toUpperCase()}\n${qtdTxt}${f.obs.trim() ? `\nOBS: ${f.obs.toUpperCase()}` : ""}\nOrigem: ${f.origem.toUpperCase()}`, { titulo: "Entrada no estoque" }))) return;
+    if (substituir && !(await confirmar(`Deseja realmente SUBSTITUIR a etiqueta ${substituir.etiquetaAntiga}?\n\nO lançamento antigo vai para a lixeira do estoque e entra este no lugar:\n${f.nome.toUpperCase()} · ${f.cor.toUpperCase()} · ${qtdTxt}`, { titulo: "Substituir etiqueta" }))) return;
+    if (!substituir && !serie && !(await confirmar(`Deseja de fato inserir no estoque?\n\n${f.nome.toUpperCase()}${ziper ? ` ${f.tipoZiper}` : ""}${aviam && f.tamanho.trim() ? ` · ${f.tamanho} ${f.tamanhoUnidade === "OUTRO" ? f.tamanhoUnidadeOutro.toUpperCase() : f.tamanhoUnidade}` : ""} · ${f.cor.toUpperCase()}\n${qtdTxt}${f.obs.trim() ? `\nOBS: ${f.obs.toUpperCase()}` : ""}\nOrigem: ${f.origem.toUpperCase()}`, { titulo: "Entrada no estoque" }))) return;
     setSalvando(true);
-    const r = await fetch("/api/estoque/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "entrar", ...f, gramatura: tecido ? gramUsada : f.gramatura }) });
+    const r = await fetch("/api/estoque/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: substituir ? "substituir" : "entrar", movId: substituir?.movId, ...f, gramatura: tecido ? gramUsada : f.gramatura }) });
     const x = await r.json().catch(() => ({})); setSalvando(false);
     if (!r.ok || x.error) return alerta(x.error || "Não foi possível dar a entrada.");
     setEtq(x.etiqueta);
   };
 
+  // v1199 — terminou a substituição: lembra de destruir a etiqueta antiga
+  const fechar = async () => { if (substituir && etq) await alerta(`Substituição concluída.\n\nDESTRUA a etiqueta antiga ${substituir.etiquetaAntiga} e cole a nova (${etq.codigo}) no volume.`, { titulo: "Destrua a etiqueta antiga" }); onClose(etq ? true : false); };
   const preview = useMemo(() => (etq ? htmlEtiquetas([etq], { tamanho: tam, autoPrint: false }) : ""), [etq, tam]);
   const [W, H] = TAMANHOS[tam] || TAMANHOS[TAMANHO_PADRAO];
   const escala = 3.2;   // px por mm na prévia
@@ -210,12 +213,13 @@ export default function EntradaManualEstoque({ user, onClose }) {
       <div className="w-full rounded-xl overflow-hidden flex flex-col anim-modal" style={{ maxWidth: 760, maxHeight: "94vh", background: C.panel, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
         <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
           {etq ? <Printer size={18} style={{ color: C.accent }} /> : <PackagePlus size={18} style={{ color: C.accent }} />}
-          <b style={{ color: C.navy }}>{etq ? "Etiqueta do volume" : "Entrada manual no estoque"}</b>
-          <button className="ml-auto" onClick={onClose} title="Fechar"><X size={18} /></button>
+          <b style={{ color: C.navy }}>{etq ? "Etiqueta do volume" : substituir ? `Substituir etiqueta ${substituir.etiquetaAntiga}` : "Entrada manual no estoque"}</b>
+          <button className="ml-auto" onClick={fechar} title="Fechar"><X size={18} /></button>
         </div>
         {!cfg ? <div className="p-6 text-sm flex items-center gap-2" style={{ color: C.sub }}><Loader2 size={14} className="animate-spin" /> Carregando…</div>
           : etq ? (
           <div className="p-5 overflow-auto">
+            {substituir && <div className="text-sm mb-2 px-3 py-2 rounded-lg" style={{ background: "#FEF0C7", color: "#B54708" }}>Etiqueta {substituir.etiquetaAntiga} substituída por <b>{etq.codigo}</b>. Imprima a nova e <b>destrua a antiga</b>.</div>}
             <div className="text-sm mb-3" style={{ color: C.green }}>✓ Entrada feita no estoque{serie ? ` (volume ${serie + 1} da sequência)` : ""}. Confira a etiqueta e imprima.</div>
             <ZebraPainel />
             <div className="flex items-center gap-2 mb-3 text-sm">
@@ -227,8 +231,8 @@ export default function EntradaManualEstoque({ user, onClose }) {
                 onLoad={(e) => { try { const d = e.target.contentDocument; d.body.style.zoom = String(escala / (96 / 25.4)); } catch {} }} />
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={onClose} className="px-3 py-2 text-sm" style={{ color: C.sub }}>Fechar</button>
-              <button onClick={clonar} title="Lançar outro volume do mesmo artigo: tudo preenchido, só falta o peso" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.navy}`, color: C.navy }}><Copy size={15} /> Clonar</button>
+              <button onClick={fechar} className="px-3 py-2 text-sm" style={{ color: C.sub }}>Fechar</button>
+              {!substituir && <button onClick={clonar} title="Lançar outro volume do mesmo artigo: tudo preenchido, só falta o peso" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.navy}`, color: C.navy }}><Copy size={15} /> Clonar</button>}
               <button onClick={() => imprimirEtiquetas([etq], { tamanho: tam, navegador: true })} className="px-3 py-2 text-xs" style={{ color: C.sub }}>Imprimir pelo navegador</button>
               <button onClick={() => imprimirComAviso([etq], tam)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Printer size={15} /> Imprimir</button>
             </div>
@@ -296,8 +300,8 @@ export default function EntradaManualEstoque({ user, onClose }) {
             </div>
             <div className="text-[11px] mt-3" style={{ color: C.sub }}>Cada entrada manual é um volume e gera uma etiqueta.</div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={onClose} className="px-3 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
-              <button onClick={concluir} disabled={salvando} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.7 : 1 }}>{salvando ? "Inserindo…" : "Concluir"}</button>
+              <button onClick={() => onClose(false)} className="px-3 py-2 text-sm" style={{ color: C.sub }}>Cancelar</button>
+              <button onClick={concluir} disabled={salvando} className="px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff", opacity: salvando ? 0.7 : 1 }}>{salvando ? "Inserindo…" : substituir ? "Substituir" : "Concluir"}</button>
             </div>
           </div>
         )}
@@ -387,6 +391,45 @@ export function EtiquetasArtigo({ user, artigo, onClose }) {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// v1199 — lixeira do estoque: lançamentos excluídos/substituídos nos últimos 30 dias, com restauração
+export function LixeiraEstoque({ user, onClose }) {
+  const [itens, setItens] = useState(null);
+  const carregar = () => fetch(`/api/estoque/manual?u=${user.id}&lixeira=1`).then((r) => r.json()).then((x) => setItens(x.itens || [])).catch(() => setItens([]));
+  useEffect(() => { carregar(); }, []);
+  const TIPO = { LANCAMENTO: "Lançamento excluído", ARTIGO: "Artigo inteiro excluído", SUBSTITUICAO: "Etiqueta substituída" };
+  const restaurar = async (l) => {
+    if (!(await confirmar(`Restaurar "${l.descricao}"?\n\nOs lançamentos voltam para o estoque e o saldo recebe ${Number(l.ajuste).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} de volta.`, { titulo: "Restaurar da lixeira" }))) return;
+    const r = await fetch("/api/estoque/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: user.id, acao: "restaurar", id: l.id }) });
+    const x = await r.json().catch(() => ({}));
+    if (!r.ok || x.error) return alerta(x.error || "Não foi possível restaurar.");
+    carregar();
+  };
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: "rgba(0,30,65,.45)" }}>
+      <div className="w-full rounded-xl overflow-hidden flex flex-col" style={{ maxWidth: 860, maxHeight: "90vh", background: C.panel, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+        <div className="flex items-center gap-2 px-5 py-3" style={{ borderBottom: `1px solid ${C.line}` }}>
+          <b style={{ color: C.navy }}>Lixeira do estoque</b><span className="text-xs" style={{ color: C.sub }}>· excluídos nos últimos 30 dias (depois disso somem)</span>
+          <button className="ml-auto" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="p-5 overflow-auto text-sm">
+          {itens === null ? <div style={{ color: C.sub }}><Loader2 size={14} className="inline animate-spin" /> Carregando…</div> : !itens.length ? <div style={{ color: C.sub }}>A lixeira está vazia.</div> : (
+            <table className="w-full">
+              <thead><tr className="text-xs" style={{ color: C.sub }}><th className="text-left py-1">Quando / quem</th><th className="text-left">O quê</th><th className="text-left">Etiquetas</th><th className="text-left">Some em</th><th></th></tr></thead>
+              <tbody>{itens.map((l) => (
+                <tr key={l.id} style={{ borderTop: `1px solid ${C.line}`, verticalAlign: "top" }}>
+                  <td className="py-1.5 whitespace-nowrap">{new Date(l.createdAt).toLocaleString("pt-BR").slice(0, 17)}<div className="text-xs" style={{ color: C.sub }}>{l.excluidoPorNome || "—"}</div></td>
+                  <td><b>{TIPO[l.tipo] || l.tipo}</b><div className="text-xs" style={{ color: C.sub }}>{l.descricao}</div></td>
+                  <td className="text-xs" style={{ maxWidth: 200 }}>{(l.etiquetas || []).join(", ") || "—"}</td>
+                  <td className="text-xs whitespace-nowrap">{new Date(l.expiraEm).toLocaleDateString("pt-BR")}</td>
+                  <td className="text-right"><button onClick={() => restaurar(l)} className="px-2 py-1 rounded-md text-xs font-semibold" style={{ border: `1px solid ${C.navy}`, color: C.navy }}>Restaurar</button></td>
+                </tr>))}</tbody>
+            </table>)}
+        </div>
       </div>
     </div>
   );

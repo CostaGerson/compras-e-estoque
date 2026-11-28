@@ -1,12 +1,12 @@
 "use client";
-import EntradaManualEstoque, { EtiquetasArtigo } from "./estoqueManual";   // v1152 · v1173 etiquetas do artigo
+import EntradaManualEstoque, { EtiquetasArtigo, LixeiraEstoque } from "./estoqueManual";   // v1152 · v1173 etiquetas do artigo
 import React, { useState, useEffect, useRef } from "react";
 import { useMobile, useGaveta } from "./useMobile";   // v550
 import { COMPONENTES, TAMANHOS } from "@/lib/componentesPedido";   // v1006
 import { ETIQUETAS } from "@/lib/msgEtiquetas";   // v862
 import {
   LayoutList, Trello, Wallet, LayoutDashboard, CalendarDays, Package, ShoppingCart,
-  FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database, Trash2, Printer,
+  FileText, ClipboardList, Boxes, ArrowLeftRight, Users2, Plus, Database, Trash2, Printer, RefreshCw as IcoSubst,
   ChevronRight, ChevronLeft, Eye, EyeOff, Mountain, CheckCircle2, Workflow, Camera, Pencil, X,
   Bell, Inbox, LogOut, Send, AlertTriangle, Briefcase, Landmark, Compass, Factory, Truck, Building2, Tags, ChevronDown,
 } from "lucide-react";
@@ -2185,9 +2185,16 @@ function Estoque({ money, master, registrados }) {   // v1156 — registrados: t
     setLoading(false);
   };
   useEffect(() => { carregar(); }, [registrados]);
+  const [entM, setEntM] = useState(false), [lix, setLix] = useState(false);   // v1199
   if (loading) return <div style={{ color: C.sub }}>Carregando…</div>;
   return (
     <div>
+      {!registrados && <div className="flex justify-end gap-2 mb-2">
+        <button onClick={() => setLix(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ border: `1px solid ${C.line}`, color: C.sub, background: "#fff" }}><Trash2 size={15} /> Lixeira</button>
+        <button onClick={() => setEntM(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold" style={{ background: C.accent, color: "#fff" }}><Plus size={16} /> Entrada manual</button>
+      </div>}
+      {entM && <EntradaManualEstoque user={{ id: sessaoId() }} onClose={() => { setEntM(false); carregar(); }} />}
+      {lix && <LixeiraEstoque user={{ id: sessaoId() }} onClose={() => { setLix(false); carregar(); }} />}
       <div className="text-xs mb-3" style={{ color: C.sub }}>
         {registrados ? "Todos os artigos cadastrados (catálogo, NF, FPP e manual), com ou sem saldo. Ficam salvos para as FPPs e afins; o saldo de estoque só mostra o que entrou por NF ou lançamento manual."
           : "Só o que está em estoque: entra por NF ou lançamento manual (estoque zerado em 27/11/2026 para o inventário). Os artigos cadastrados ficam em Artigos registrados."}
@@ -3125,11 +3132,12 @@ function ArtigosPane(props) {   // v625 — abas Artigos | Artigos internos
 function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEstoque }) {
   const excluirDoEstoque = async (a) => {   // v1186
     const q = `${Number(a.quantidade || 0).toLocaleString("pt-BR", { maximumFractionDigits: 3 })} ${a.unidade || ""}`.trim();
-    if (!(await confirmar(`Excluir ${a.nome}${a.cor ? ` · ${a.cor}` : ""} do estoque?\n\nO saldo de ${q} é zerado (fica registrado como ajuste no histórico). O cadastro continua em Artigos registrados.`, { titulo: "Excluir do estoque" }))) return;
+    if (!(await confirmar(`Deseja realmente EXCLUIR ${a.nome}${a.cor ? ` · ${a.cor}` : ""} do estoque?\n\nTodos os lançamentos dele (entradas e saídas) vão para a lixeira do estoque por 30 dias e o saldo de ${q} zera. O cadastro continua em Artigos registrados.`, { titulo: "Excluir do estoque" }))) return;
     const r = await fetch("/api/estoque/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: sessaoId(), acao: "excluir", artigoId: a.id }) });
     const x = await r.json().catch(() => ({}));
     if (!r.ok || x.error) return alerta(x.error || "Não foi possível excluir do estoque.");
     onSaved();
+    await alerta(`${x.texto || "Excluído do estoque."}${x.etiquetas?.length ? `\n\nDESTRUA as etiquetas emitidas deste artigo (${x.etiquetas.length}): ${x.etiquetas.join(", ")}.` : ""}\n\nSe precisar, restaure pela Lixeira (30 dias).`, { titulo: "Destrua as etiquetas" });
   };
   const [novo, setNovo] = useState(false);
   const [editando, setEditando] = useState(null);
@@ -3318,7 +3326,7 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
             </td>}
             {vis("cor") && <td className="px-3 py-2" style={{ color: C.sub, minWidth: 110 }}><span className="flex items-center gap-1"><Bolinha cor={a.cor} /> <span className="min-w-0">{a.cor || "—"}</span></span></td>}
             {vis("codigo") && <td className="px-3 py-2 whitespace-nowrap tabular-nums" style={{ color: C.sub }}>{a.codigo || "—"}</td>}
-            {modoEstoque && vis("saldo") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: abaixoMin(a) ? "#E5484D" : C.sub, fontWeight: abaixoMin(a) ? 700 : 400 }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}</td>}
+            {modoEstoque && vis("saldo") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: abaixoMin(a) ? "#E5484D" : C.sub, fontWeight: abaixoMin(a) ? 700 : 400 }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}{a.volumes ? <div className="text-[11px]" style={{ color: C.sub, fontWeight: 400 }} title="Cada etiqueta emitida é um volume">{a.volumes} volume{a.volumes > 1 ? "s" : ""}</div> : null}</td>}
             {vis("composicao") && <td className="px-3 py-2 whitespace-nowrap" style={{ color: C.sub, textTransform: "none", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis" }} title={[a.composicao, a.largura && `${a.largura} m`, gramRend(a) !== "—" && gramRend(a)].filter(Boolean).join(" · ")}>{linhaTecnica(a)}</td>}
             {modoEstoque && vis("movimento") && <td className="px-3 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></td>}
             {modoEstoque && master && vis("preco") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</td>}
@@ -3349,7 +3357,7 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
         <ArtigoEditModal artigo={editando} fornecedores={fornecedores} master={master}
           onClose={() => setEditando(null)} onSaved={() => { setEditando(null); onSaved(); }} />
       )}
-      {verMov && <MovimentoModal artigo={verMov} onClose={() => setVerMov(null)} />}
+      {verMov && <MovimentoModal artigo={verMov} onClose={() => { setVerMov(null); onSaved && onSaved(); }} />}
       {verDup && <DuplicadosModal artigos={artigos} fornecedores={fornecedores} onClose={() => setVerDup(false)} onSaved={onSaved} />}
     </div>
   );
@@ -3599,18 +3607,33 @@ function MovimentoCell({ a, onOpen }) {
 
 function MovimentoModal({ artigo, onClose }) {
   const [movs, setMovs] = useState(null);
-  useEffect(() => {
-    fetch(`/api/artigos/${artigo.id}/movimentos`).then((r) => r.json()).then((d) => setMovs(Array.isArray(d) ? d : [])).catch(() => setMovs([]));
-  }, [artigo.id]);
+  const [subst, setSubst] = useState(null);   // v1199 — { movId, etiquetaAntiga, form }
+  const carregar = () => fetch(`/api/artigos/${artigo.id}/movimentos`).then((r) => r.json()).then((d) => setMovs(Array.isArray(d) ? d : [])).catch(() => setMovs([]));
+  useEffect(() => { carregar(); }, [artigo.id]);
   const dh = (v) => { const d = new Date(v); return isNaN(d) ? "—" : d.toLocaleString("pt-BR"); };
+  const substituir = async (m) => {
+    if (!(await confirmar(`Deseja realmente substituir a etiqueta ${m.etiqueta} (entrada de ${dh(m.createdAt)})?\n\nAbre a etiqueta preenchida para você corrigir; ao aprovar, a antiga vai para a lixeira e a nova entra nas movimentações.`, { titulo: "Substituir etiqueta" }))) return;
+    const x = await fetch(`/api/estoque/manual?u=${sessaoId()}&substituir=${m.id}`).then((r) => r.json()).catch((e) => ({ error: e.message }));
+    if (x.error) return alerta(x.error);
+    setSubst({ movId: m.id, etiquetaAntiga: x.etiquetaAntiga, form: x.form });
+  };
+  const excluir = async (m) => {
+    if (!(await confirmar(`Deseja realmente EXCLUIR esta entrada de ${fmtQtd(m.quantidade, artigo.unidade)} (${dh(m.createdAt)})${m.etiqueta ? `, etiqueta ${m.etiqueta}` : ""}?\n\nO saldo diminui e o lançamento fica 30 dias na lixeira do estoque.`, { titulo: "Excluir lançamento" }))) return;
+    const r = await fetch("/api/estoque/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ usuarioId: sessaoId(), acao: "excluirLancamento", movId: m.id }) });
+    const x = await r.json().catch(() => ({}));
+    if (!r.ok || x.error) return alerta(x.error || "Não foi possível excluir.");
+    carregar();
+    await alerta(`${x.texto}${x.etiquetas?.length ? `\n\nDESTRUA a etiqueta ${x.etiquetas.join(", ")}.` : ""}`, { titulo: "Destrua a etiqueta" });
+  };
+  if (subst) return <EntradaManualEstoque user={{ id: sessaoId() }} inicial={subst.form} substituir={{ movId: subst.movId, etiquetaAntiga: subst.etiquetaAntiga }} onClose={() => { setSubst(null); carregar(); }} />;
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,10,22,0.55)", zIndex: 50 }} className="flex items-center justify-center p-4">
       <div onClick={(e) => e.stopPropagation()} className="w-full rounded-xl overflow-hidden"
-        style={{ maxWidth: 760, maxHeight: "90vh", overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
+        style={{ maxWidth: 940, maxHeight: "90vh", overflowY: "auto", background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}>
         <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel2 }}>
           <div>
             <div className="font-semibold">Movimentação — {artigo.artigoInterno || artigo.nome}</div>
-            <div className="text-xs" style={{ color: C.sub }}>Saldo atual: <b style={{ color: C.accent }}>{fmtQtd(artigo.quantidade, artigo.unidade)}</b></div>
+            <div className="text-xs" style={{ color: C.sub }}>Saldo atual: <b style={{ color: C.accent }}>{fmtQtd(artigo.quantidade, artigo.unidade)}</b>{artigo.volumes ? ` · ${artigo.volumes} volume(s)` : ""}</div>
           </div>
           <button onClick={onClose} style={{ color: C.sub }} className="text-lg leading-none">×</button>
         </div>
@@ -3620,27 +3643,32 @@ function MovimentoModal({ artigo, onClose }) {
           ) : (
             <div style={{ border: `1px solid ${C.line}` }} className="rounded-lg overflow-hidden">
               <div className="flex px-3 py-2 text-xs font-semibold" style={{ color: C.sub, background: C.panel2, borderBottom: `1px solid ${C.line}` }}>
-                <div className="w-40">Data/hora</div><div className="w-24">Tipo</div><div className="flex-1">Documento</div>
-                <div className="w-28">Quantidade</div><div className="w-28">Responsável</div><div className="w-20 text-center">Arquivo</div>
+                <div className="w-36">Data/hora</div><div className="w-20">Tipo</div><div className="flex-1">Documento / etiqueta</div>
+                <div className="w-28">Quantidade</div><div className="w-40">Responsável</div><div className="w-16 text-center">Arquivo</div><div className="w-14"></div>
               </div>
               {movs.map((m) => {
                 const entrada = m.tipo === "ENTRADA" || m.tipo === "RETORNO";
                 return (
                   <div key={m.id} className="flex px-3 py-2 items-center text-sm" style={{ borderBottom: `1px solid ${C.line}` }}>
-                    <div className="w-40" style={{ color: C.sub }}>{dh(m.createdAt)}</div>
-                    <div className="w-24" style={{ color: entrada ? C.green : "#D64545", fontWeight: 600 }}>{entrada ? "↑ Entrada" : "↓ Saída"}</div>
-                    <div className="flex-1">
+                    <div className="w-36" style={{ color: C.sub }}>{dh(m.createdAt)}</div>
+                    <div className="w-20" style={{ color: entrada ? C.green : "#D64545", fontWeight: 600 }}>{entrada ? "↑ Entrada" : m.tipo === "AJUSTE" ? "↕ Ajuste" : "↓ Saída"}</div>
+                    <div className="flex-1 min-w-0">
                       {m.nf ? `NF ${m.nf.numero}`
                         : m.fme ? <a href={`/api/fme/${m.fme.id}/pdf`} target="_blank" rel="noreferrer" style={{ color: C.accent, fontWeight: 600, textDecoration: "none" }} title="Abrir FME em nova guia">{m.fme.numero}</a>
-                        : "—"}
+                        : m.etiqueta ? <b>{m.etiqueta}</b> : "Manual"}
+                      {m.observacao && !m.nf && !m.fme ? <div className="text-[11px] truncate" style={{ color: C.sub }} title={m.observacao}>{m.observacao}</div> : null}
                     </div>
                     <div className="w-28" style={{ color: C.sub }}>{fmtQtd(m.quantidade, artigo.unidade)}</div>
-                    <div className="w-28" style={{ color: C.sub }}>{m.perfil || "—"}</div>
-                    <div className="w-20 text-center flex items-center justify-center gap-1">
+                    <div className="w-40 truncate" style={{ color: C.sub }} title={m.responsavel || ""}>{m.responsavel || "—"}</div>
+                    <div className="w-16 text-center flex items-center justify-center gap-1">
                       {m.nf?.temPdf ? <a href={`/api/nf/${m.nf.id}/pdf`} target="_blank" rel="noreferrer" title="PDF" style={{ color: "#D64545", fontWeight: 700, fontSize: 11, textDecoration: "none" }}>PDF</a> : null}
                       {m.nf?.temXml ? <a href={`/api/nf/${m.nf.id}/xml`} target="_blank" rel="noreferrer" title="XML" style={{ color: C.blue, fontWeight: 700, fontSize: 11, textDecoration: "none" }}>XML</a> : null}
                       {m.fme ? <a href={`/api/fme/${m.fme.id}/pdf`} target="_blank" rel="noreferrer" title="PDF da FME" style={{ color: "#D64545", fontWeight: 700, fontSize: 11, textDecoration: "none" }}>PDF</a> : null}
                       {!m.nf && !m.fme ? <span style={{ color: C.line }}>—</span> : null}
+                    </div>
+                    <div className="w-14 flex items-center justify-end gap-2">
+                      {m.podeSubstituir && <button onClick={() => substituir(m)} title="Substituir a etiqueta (corrigir os dados deste volume)" style={{ color: C.accent }}><IcoSubst size={15} /></button>}
+                      {m.podeExcluir && <button onClick={() => excluir(m)} title="Excluir este lançamento (vai para a lixeira)" style={{ color: C.sub }}><Trash2 size={14} /></button>}
                     </div>
                   </div>
                 );

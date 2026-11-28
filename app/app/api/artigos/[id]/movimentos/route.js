@@ -1,16 +1,7 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { movimentosArtigo } from "@/lib/estoqueManual";
 
+// v1199 — sem os lançamentos excluídos; com responsável (nome do usuário), etiqueta e ações (substituir/excluir)
 export async function GET(req, { params }) {
-  const artigoId = Number(params.id);
-  const movs = await prisma.estoqueMovimentacao.findMany({
-    where: { artigoId },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true, tipo: true, quantidade: true, createdAt: true, perfil: true, observacao: true,
-      nf: { select: { id: true, numero: true, temPdf: true, temXml: true, dataEmissao: true } },
-      fme: { select: { id: true, numero: true } },
-    },
-  });
-  return Response.json(movs);
+  return Response.json(await movimentosArtigo(params.id));
 }
