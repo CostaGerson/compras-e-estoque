@@ -3159,7 +3159,7 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
   const mudarOcultas = (fn) => setOcultas((o) => { const n = fn(o); try { localStorage.setItem(chaveCols, JSON.stringify(n)); } catch {} return n; });
   const vis = (k) => !ocultas.includes(k);
   const ocultar = (k) => mudarOcultas((o) => [...new Set([...o, k])]);
-  const COLS_NOME = { categoria: "Categoria", nome: "Artigo NF", interno: "Artigo interno", fornecedor: "Fornecedor", cor: "Cor", codigo: "Código", saldo: "Saldo",
+  const COLS_NOME = { categoria: "Categoria", nome: "Artigo NF", interno: "Artigo interno", fornecedor: "Fornecedor", cor: "Cor", codigo: "Código", saldo: "Saldo", volumes: "Volumes",
     composicao: "Composição", movimento: "Movimento", preco: "Preço", valor: "Valor total", ultima: "Última compra" };
   // v994 — tabela: título alinhado ao conteúdo, todas as colunas ordenam
   const Th = ({ k, label, campoKey, dir }) => !vis(k) ? null : (
@@ -3172,6 +3172,7 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
     categoria: [(a) => a.categoria, "texto"],
     nome: [(a) => a.nome, "texto"],
     interno: [(a) => internoDe(a), "texto"],
+    volumes: [(a) => a.volumes || 0, "num"],   // v1202
     fornecedor: [(a) => a.fornecedor?.nome, "texto"],
     cor: [(a) => a.cor, "texto"],
     codigo: [(a) => a.codigo, "texto"],
@@ -3315,13 +3316,15 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
               {Th({ k: "fornecedor", label: "Fornecedor", campoKey: "fornecedor" })}
               {Th({ k: "cor", label: "Cor", campoKey: "cor" })}
               {Th({ k: "codigo", label: "Código", campoKey: "codigo" })}
-              {modoEstoque && Th({ k: "saldo", label: "Saldo", campoKey: "quantidade", dir: "right" })}
               {Th({ k: "composicao", label: "Composição · larg. · gram.", campoKey: "composicao" })}
               {modoEstoque && Th({ k: "movimento", label: "Movimento" })}
               {modoEstoque && master && Th({ k: "preco", label: "Preço", campoKey: "preco", dir: "right" })}
               {modoEstoque && master && Th({ k: "valor", label: "Valor total", campoKey: "valor", dir: "right" })}
               {!modoEstoque && Th({ k: "ultima", label: "Última compra", campoKey: "dataCompra" })}
-              {modoEstoque && <th className="px-2 py-2" />}
+              {/* v1202 — saldo e volumes em colunas próprias, na lateral direita */}
+              {modoEstoque && Th({ k: "saldo", label: "Saldo", campoKey: "quantidade", dir: "right" })}
+              {modoEstoque && Th({ k: "volumes", label: "Volumes", campoKey: "volumes", dir: "right" })}
+              {modoEstoque && <th className="px-2 py-2" style={{ width: 36 }} />}
             </tr>
           </thead>
           <tbody>
@@ -3337,7 +3340,7 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
             </td>}
             {vis("cor") && <td className="px-3 py-2" style={{ color: C.sub, minWidth: 110 }}><span className="flex items-center gap-1"><Bolinha cor={a.cor} /> <span className="min-w-0">{a.cor || "—"}</span></span></td>}
             {vis("codigo") && <td className="px-3 py-2 whitespace-nowrap tabular-nums" style={{ color: C.sub }}>{a.codigo || "—"}</td>}
-            {modoEstoque && vis("saldo") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: abaixoMin(a) ? "#E5484D" : C.sub, fontWeight: abaixoMin(a) ? 700 : 400 }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}{a.volumes ? <div className="text-[11px]" style={{ color: C.sub, fontWeight: 400 }} title="Cada etiqueta emitida é um volume">{a.volumes} volume{a.volumes > 1 ? "s" : ""}</div> : null}</td>}
+
             {vis("composicao") && <td className="px-3 py-2 whitespace-nowrap" style={{ color: C.sub, textTransform: "none", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis" }} title={[a.composicao, a.largura && `${a.largura} m`, gramRend(a) !== "—" && gramRend(a)].filter(Boolean).join(" · ")}>{linhaTecnica(a)}</td>}
             {modoEstoque && vis("movimento") && <td className="px-3 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}><MovimentoCell a={a} onOpen={() => setVerMov(a)} /></td>}
             {modoEstoque && master && vis("preco") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ color: C.accent }}>{a.valorUnitario ? money(Number(a.valorUnitario)) : "—"}</td>}
@@ -3355,6 +3358,8 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
                 ) : "—"}
               </td>
             )}
+            {modoEstoque && vis("saldo") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ width: 120, color: abaixoMin(a) ? "#E5484D" : C.text, fontWeight: abaixoMin(a) ? 700 : 600, borderLeft: `1px solid ${C.line}` }} title={abaixoMin(a) ? `Abaixo do mínimo (${fmtQtd(a.estoqueMinimo, a.unidade)})` : ""}>{a.quantidade != null ? fmtQtd(a.quantidade, a.unidade) : "—"}{abaixoMin(a) ? " ⚠" : ""}</td>}
+            {modoEstoque && vis("volumes") && <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums" style={{ width: 80, color: a.volumes ? C.text : C.line }} title="Cada etiqueta emitida é um volume">{a.volumes || "—"}</td>}
             {/* v1186 — excluir do estoque (zera o saldo; o cadastro continua em Artigos registrados) */}
             {modoEstoque && <td className="px-2 py-2 text-right" onClick={(e) => e.stopPropagation()}>
               <button title="Excluir do estoque" onClick={() => excluirDoEstoque(a)} style={{ color: C.sub }}><Trash2 size={14} /></button></td>}
