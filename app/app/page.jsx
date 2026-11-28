@@ -3147,6 +3147,7 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
   const [sort, setSort] = useState({ key: "nome", dir: "asc" });
   const [busca, setBusca] = useState("");
   const [filtroForn, setFiltroForn] = useState("");
+  const [tipoMov, setTipoMov] = useState("");   // v1200 — E entrada · S saída · A ajuste
   const [dataDe, setDataDe] = useState("");
   const [dataAte, setDataAte] = useState("");
   const [classe, setClasse] = useState("");
@@ -3189,8 +3190,11 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
     if (soAbaixoMin && !abaixoMin(a)) return false;
     if (filtroForn && String(a.fornecedorId) !== String(filtroForn)) return false;
     if (classe && tipoEstoqueDe(a) !== classe) return false;   // v1156 — guias = tipos da entrada manual
-    if (dataDe && (!a.dataCompra || new Date(a.dataCompra) < new Date(dataDe))) return false;
-    if (dataAte && (!a.dataCompra || new Date(a.dataCompra) > new Date(dataAte + "T23:59:59"))) return false;
+    // v1200 — filtro de movimentação: teve entrada/saída (ou qualquer) entre as datas
+    if (tipoMov || dataDe || dataAte) {
+      const ok = (a.movs || []).some(([t, d]) => (!tipoMov || t === tipoMov) && (!dataDe || d >= dataDe) && (!dataAte || d <= dataAte));
+      if (!ok) return false;
+    }
     if (tokens.length) {
       const hay = norm([a.categoria, a.nome, a.artigoInterno, a.codigo, a.cor, a.composicao, a.especificacao, a.tipoMalha, a.unidade, a.largura, a.gramatura, a.rendimento, a.quantidade, a.valorUnitario, a.fornecedor?.nome, a.nf?.numero].filter((v) => v != null).join(" "));
       if (!tokens.every((t) => hay.includes(t))) return false;
@@ -3219,8 +3223,8 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
     }
     return { v, m, kg, seg };
   })();
-  const temFiltro = busca || filtroForn || dataDe || dataAte || classe;
-  const limpar = () => { setBusca(""); setFiltroForn(""); setDataDe(""); setDataAte(""); setClasse(""); };
+  const temFiltro = busca || filtroForn || dataDe || dataAte || classe || tipoMov;
+  const limpar = () => { setBusca(""); setFiltroForn(""); setDataDe(""); setDataAte(""); setClasse(""); setTipoMov(""); };
 
   return (
     <div>
@@ -3234,7 +3238,13 @@ function ArtigosPaneBase({ artigos, fornecedores, master, money, onSaved, modoEs
           </select>
         </div>
         <div>
-          <div className="text-xs mb-1" style={{ color: C.sub }}>NF de</div>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>Movimentação</div>
+          <select value={tipoMov} onChange={(e) => setTipoMov(e.target.value)} className="px-2 py-1.5 rounded outline-none text-sm" style={SEL_BRANCO}>
+            <option value="">Entrada ou saída</option><option value="E">Entrada</option><option value="S">Saída</option><option value="A">Ajuste</option>
+          </select>
+        </div>
+        <div>
+          <div className="text-xs mb-1" style={{ color: C.sub }}>de</div>
           <input type="date" value={dataDe} onChange={(e) => setDataDe(e.target.value)} className="px-2 py-1.5 rounded outline-none text-sm" style={SEL_BRANCO} />
         </div>
         <div>

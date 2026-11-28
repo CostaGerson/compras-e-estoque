@@ -37,6 +37,12 @@ export async function GET(req) {
     const nums = Object.fromEntries((await prisma.fpp.findMany({ where: { id: { in: ids } }, select: { id: true, numero: true } })).map((f) => [f.id, f.numero]));
     for (const a of artigos) if (a.origemFppId) a.origemFppNumero = nums[a.origemFppId] ?? null;
   }
+  // v1200 — datas e tipos das movimentações (filtro "movimentação entrada/saída de … até …")
+  try {
+    const ms = await prisma.estoqueMovimentacao.findMany({ where: { excluidoEm: null, artigoId: { in: artigos.map((a) => a.id) } }, select: { artigoId: true, tipo: true, createdAt: true } });
+    const por = {}; for (const m of ms) (por[m.artigoId] ||= []).push([m.tipo === "ENTRADA" || m.tipo === "RETORNO" ? "E" : m.tipo === "AJUSTE" ? "A" : "S", new Date(m.createdAt.getTime() - 3 * 3600e3).toISOString().slice(0, 10)]);   // data de Brasília
+    for (const a of artigos) a.movs = por[a.id] || [];
+  } catch {}
   // v1199 — quantos volumes (etiquetas) formam o saldo
   if (soEstoque) { try { const { volumesPorArtigo } = await import("@/lib/estoqueManual"); const vp = await volumesPorArtigo(); for (const a of artigos) a.volumes = vp[a.id] || 0; } catch {} }
   return Response.json(artigos);
